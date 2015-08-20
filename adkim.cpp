@@ -7,8 +7,10 @@
 #undef _Bool
 
 #include <net/dns_resolver.hpp>
-#include <boost/thread.hpp>
+
 #include <boost/array.hpp>
+#include <boost/scoped_ptr.hpp>
+#include <boost/thread.hpp>
 
 #include <netinet/in.h>
 #include <arpa/nameser.h>
@@ -355,7 +357,8 @@ void dkim_check::dkim_check_impl::cont(dkim_check::handler_t handler)
     }
 
     void* ctx = this;
-    dkim_set_user_context(dkim_, reinterpret_cast<const char*>(ctx));
+//    dkim_set_user_context(dkim_, reinterpret_cast<const char*>(ctx));
+    dkim_set_user_context(dkim_, ctx);
 
     st = helper(p_.b, p_.e);
 
@@ -404,7 +407,8 @@ void dkim_check::dkim_check_impl::start(dkim_check::handler_t handler)
 #endif
 
     void* ctx = this;
-    dkim_set_user_context(dkim_, reinterpret_cast<const char*>(ctx));
+//    dkim_set_user_context(dkim_, reinterpret_cast<const char*>(ctx));
+    dkim_set_user_context(dkim_, ctx);
 
     helper(p_.b, p_.bs);
 

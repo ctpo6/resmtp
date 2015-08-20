@@ -1,11 +1,14 @@
 #ifndef BUFFER_SEQUENCE_H
 #define BUFFER_SEQUENCE_H
 
-#include <boost/asio.hpp>
 #include <deque>
-#include <boost/range.hpp>
-#include <limits>
 #include <exception>
+#include <limits>
+
+#include <boost/array.hpp>
+#include <boost/asio.hpp>
+#include <boost/range.hpp>
+
 #include "buffer_iterator.h"
 
 // Models read-only data container that actually owns the underlying data. Meets ConvertibleToConstBuffer requirements.
@@ -459,8 +462,11 @@ inline const char* ptr_end(const ybuffers_iterator<BufferSequence>& b, const ybu
 {
     assert(b < e);
     typename BufferSequence::value_type v = *b.position().first;
+//    auto v = b.position().first;
     const char* be = boost::asio::buffer_cast<const char*>(v)
             + boost::asio::buffer_size(v);
+//    const char* be = boost::asio::buffer_cast<const char*>(*b.position().first)
+//            + boost::asio::buffer_size(*b.position().first);
     if (b.position().first == e.position().first)
     {
         typename BufferSequence::value_type vv = *e.position().first;

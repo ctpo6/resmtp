@@ -1,13 +1,14 @@
 #ifndef SOCKET_POOL_SERVICE_IMPL_H
 #define SOCKET_POOL_SERVICE_IMPL_H
 
+#include <queue>
+
 #include <boost/asio/io_service.hpp>
 #include <boost/asio/socket_base.hpp>
 #include <boost/asio/basic_stream_socket.hpp>
 #include <boost/unordered_map.hpp>
 #include <boost/optional.hpp>
 #include <boost/enable_shared_from_this.hpp>
-#include <queue>
 
 namespace impl
 {
@@ -25,7 +26,7 @@ class socket_pool_service
     typedef Protocol protocol_type;
     typedef typename Protocol::endpoint endpoint_type;
     typedef basic_stream_socket<Protocol> native_type;
-    typedef shared_ptr<wrapped_socket> implementation_type;
+    typedef boost::shared_ptr<wrapped_socket> implementation_type;
 
   private:
     struct endpoint_hash
@@ -36,7 +37,7 @@ class socket_pool_service
         }
     };
 
-    struct wrapped_socket : public enable_shared_from_this<wrapped_socket>
+    struct wrapped_socket : public boost::enable_shared_from_this<wrapped_socket>
     {
         wrapped_socket(io_service& ios)
                 : socket_(ios),

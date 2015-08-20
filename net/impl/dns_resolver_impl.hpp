@@ -94,11 +94,12 @@ class dns_resolver_impl : public boost::enable_shared_from_this<dns_resolver_imp
         Handler handler_;
     };
 
-    typedef shared_ptr<dns_handler_base>  dns_handler_base_t;
+    typedef boost::shared_ptr<dns_handler_base>  dns_handler_base_t;
 
     template <typename Handler>
-    static dns_handler_base_t create_handler(Handler h)
-    {   return shared_ptr<dns_handler<Handler> >(new dns_handler<Handler>(h)); }
+    static dns_handler_base_t create_handler(Handler h) {
+      return boost::shared_ptr<dns_handler<Handler> >(new dns_handler<Handler>(h));
+    }
 
     /*!
       DNS Query structure  
@@ -147,7 +148,7 @@ class dns_resolver_impl : public boost::enable_shared_from_this<dns_resolver_imp
         int _timeout_sec;
     };
 
-    typedef shared_ptr<dns_query_t>   shared_dq_t;
+    typedef boost::shared_ptr<dns_query_t>   shared_dq_t;
 
     struct by_qid{};
     struct by_time{};

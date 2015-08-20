@@ -7,19 +7,18 @@
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
-#ifndef BOOST_NET_DNS_HPP
-#define BOOST_NET_DNS_HPP
+#pragma once
 
 #include <boost/asio/detail/push_options.hpp>
 
-#include <vector>
+#include <cstdint>
 #include <string>
+#include <vector>
 
 #include <boost/asio.hpp>
 #include <net/network_array.hpp>
 #include <net/rfc1035_414.hpp>
 
-using namespace std;
 using namespace boost;
 using namespace boost::algorithm;
 
@@ -33,16 +32,16 @@ class request_base_t;
 class resource_base_t;
 
 //! Shared Resource Base Pointer
-typedef shared_ptr<resource_base_t>         shared_resource_base_t;
+typedef boost::shared_ptr<resource_base_t>         shared_resource_base_t;
 
 //! A list of resource records
 typedef std::vector<shared_resource_base_t> rr_list_t;
 
 //! A shared list of resource records
-typedef shared_ptr<rr_list_t>               shared_rr_list_t;
+typedef boost::shared_ptr<rr_list_t>               shared_rr_list_t;
 
 //! Shared Request Base Pointer
-typedef shared_ptr<request_base_t>          shared_request_base_t;
+typedef boost::shared_ptr<request_base_t>          shared_request_base_t;
 
 //! Class identification for resource records. Included is the QCLASS that is in the 0xF0 range.
 typedef enum
@@ -82,7 +81,7 @@ class request_base_t
 {
   protected:
     /// Domain name of the resource record
-    string    rr_domain;
+    std::string    rr_domain;
 
     /// Resource record type
     uint16_t  rr_type;
@@ -482,7 +481,7 @@ class unknown_resource : public resource_base_t
 {
   protected:
     /// Raw data for the unknown resource records.
-    shared_ptr<uint8_t> _data;
+    boost::shared_ptr<uint8_t> _data;
 
   public:
     /// Default contructor
@@ -496,7 +495,7 @@ class unknown_resource : public resource_base_t
     unknown_resource(const unknown_resource& o)
             : resource_base_t(o)
     {
-        _data = shared_ptr<uint8_t>( new uint8_t[length()] );
+        _data = boost::shared_ptr<uint8_t>( new uint8_t[length()] );
         memcpy( _data.get(), o._data.get(), length() );
     }
 
@@ -546,7 +545,7 @@ class unknown_resource : public resource_base_t
     */
     virtual void decode(dns_buffer_t& buffer, rfc1035_414_t& offset_map)
     {
-        _data = shared_ptr<uint8_t>( new uint8_t[length()] );
+        _data = boost::shared_ptr<uint8_t>( new uint8_t[length()] );
         for( size_t i = 0; i < length(); ++i )
             buffer.get( _data.get()[i] );
     }
@@ -2520,4 +2519,3 @@ class message
 } // namespace y
 #include <boost/asio/detail/pop_options.hpp>
 
-#endif // BOOST_NET_DNS_HPP

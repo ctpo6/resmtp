@@ -1,8 +1,9 @@
 #ifndef _EOM_PARSER_H_
 #define _EOM_PARSER_H_
 
-#include "envelope.h"
 #include <iterator>
+
+#include "envelope.h"
 
 // State machine used to find (^|\n).\r?\n (the message end token).
 class eom_parser

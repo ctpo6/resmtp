@@ -11,6 +11,8 @@
 #ifndef COROUTINE_HPP
 #define COROUTINE_HPP
 
+namespace resmtp {
+
 class coroutine
 {
 public:
@@ -37,43 +39,47 @@ private:
     bool modified_;
 };
 
+} // namespace
+
+
 #define CORO_REENTER(c) \
-    switch (coroutine_ref _coro_value = c) \
-	case -1: if (_coro_value) \
-	    { \
-		goto terminate_coroutine; \
-	    terminate_coroutine: \
-		_coro_value = -1; \
-		goto bail_out_of_coroutine; \
-	    bail_out_of_coroutine: \
-		break; \
-	    } \
-	else case 0:
+    switch (resmtp::coroutine_ref _coro_value = c) \
+  case -1: if (_coro_value) \
+      { \
+    goto terminate_coroutine; \
+      terminate_coroutine: \
+    _coro_value = -1; \
+    goto bail_out_of_coroutine; \
+      bail_out_of_coroutine: \
+    break; \
+      } \
+  else case 0:
 
 #define CORO_YIELD \
     for (_coro_value = __LINE__;;) \
-	if (_coro_value == 0) \
-	    { \
-	    case __LINE__: ; \
-		break; \
-	    } \
-	else \
-	    switch (_coro_value ? 0 : 1) \
-		for (;;) \
-		    case -1: if (_coro_value) \
-			goto terminate_coroutine; \
-		    else for (;;) \
-			case 1: if (_coro_value) \
-			    goto bail_out_of_coroutine; \
-			else case 0:
+  if (_coro_value == 0) \
+      { \
+      case __LINE__: ; \
+    break; \
+      } \
+  else \
+      switch (_coro_value ? 0 : 1) \
+    for (;;) \
+        case -1: if (_coro_value) \
+      goto terminate_coroutine; \
+        else for (;;) \
+      case 1: if (_coro_value) \
+          goto bail_out_of_coroutine; \
+      else case 0:
 
 #define CORO_FORK \
     for (_coro_value = -__LINE__;; _coro_value = __LINE__) \
-	if (_coro_value == __LINE__) \
-	    { \
-	    case -__LINE__: ; \
-		break; \
-	    } \
-	else
+  if (_coro_value == __LINE__) \
+      { \
+      case -__LINE__: ; \
+    break; \
+      } \
+  else
+
 
 #endif // COROUTINE_HPP
