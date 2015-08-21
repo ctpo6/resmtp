@@ -88,8 +88,9 @@ dkim_lib_singleton<key_seed_adaptor> lib1;
 } // namespace
 
 
-struct dkim_check::dkim_check_impl :  public boost::enable_shared_from_this<dkim_check::dkim_check_impl>,
-                                      private boost::noncopyable
+struct dkim_check::dkim_check_impl :
+    public boost::enable_shared_from_this<dkim_check::dkim_check_impl>,
+    private boost::noncopyable
 {
     typedef boost::array<char, DKIM_MAXHOSTNAMELEN + 1> req_t;
     typedef std::string res_t;
@@ -238,8 +239,9 @@ const char* dkim_check::status(DKIM_STATUS s)
     }
 }
 
-DKIM_STAT dkim_check::dkim_check_impl::helper(yconst_buffers_iterator bb,
-        const yconst_buffers_iterator& ee)
+DKIM_STAT dkim_check::dkim_check_impl::helper(
+    yconst_buffers_iterator bb,
+    const yconst_buffers_iterator& ee)
 {
     yconst_buffers_iterator pp = bb;
     bool cr = false;

@@ -434,7 +434,7 @@ void handle_resolve_txt(const boost::system::error_code& ec, dns::resolver::iter
                     {
                         typedef boost::asio::ip::address_v4::bytes_type bytes_type;
                         bytes_type ipv4;
-                        memcpy(&ipv4.elems, reinterpret_cast<typename bytes_type::value_type*>(&st.shared_state->req->ipv4.s_addr), 4);
+                        memcpy(ipv4.data(), reinterpret_cast<typename bytes_type::value_type*>(&st.shared_state->req->ipv4.s_addr), 4);
                         collect_spf_dns_data_ptr(collect_state(st.shared_state,
                                         rev_order_av4_str(boost::asio::ip::address_v4(ipv4),
                                                 "in-addr.arpa")),

@@ -401,7 +401,8 @@ class ybuffers_iterator : public boost::iterator<
 
         std::ptrdiff_t abs_d = 0;
         while (a != b)
-            abs_d += boost::asio::buffer_size(*a++);
+            abs_d += boost::asio::buffer_size(
+                  static_cast<boost::asio::const_buffer>(*a++));
 
         std::ptrdiff_t d = (other_less ? -abs_d : +abs_d);
         d += pos_d;

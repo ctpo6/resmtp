@@ -8,8 +8,7 @@
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 
-#ifndef COROUTINE_HPP
-#define COROUTINE_HPP
+#pragma once
 
 namespace resmtp {
 
@@ -80,6 +79,3 @@ private:
     break; \
       } \
   else
-
-
-#endif // COROUTINE_HPP

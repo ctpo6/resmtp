@@ -401,7 +401,8 @@ inline std::ptrdiff_t append(typename BufferSequence::const_iterator b,
     std::ptrdiff_t n = 0;
     while (b != e)
     {
-        n += boost::asio::buffer_size(*b);
+        n += boost::asio::buffer_size(
+              static_cast<boost::asio::const_buffer>(*b));
         seq.push_back(*b++);
     }
     return n;
@@ -462,9 +463,10 @@ inline const char* ptr_end(const ybuffers_iterator<BufferSequence>& b, const ybu
 {
     assert(b < e);
     typename BufferSequence::value_type v = *b.position().first;
-//    auto v = b.position().first;
+//    auto v = *b.position().first;
     const char* be = boost::asio::buffer_cast<const char*>(v)
-            + boost::asio::buffer_size(v);
+            + boost::asio::buffer_size(
+                static_cast<boost::asio::const_buffer>(v));
 //    const char* be = boost::asio::buffer_cast<const char*>(*b.position().first)
 //            + boost::asio::buffer_size(*b.position().first);
     if (b.position().first == e.position().first)

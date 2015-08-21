@@ -107,7 +107,7 @@ void server::stop()
 {
     boost::mutex::scoped_lock lock(m_mutex);
 
-    std::for_each(acceptors_.begin(), acceptors_.end(), boost::bind(&acceptor_ptr::value_type::close, _1));
+    std::for_each(acceptors_.begin(), acceptors_.end(), boost::bind(&acceptor_ptr::element_type::close, _1));
 
     lock.unlock();
 

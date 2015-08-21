@@ -162,7 +162,7 @@ class basic_rc_client<Request>::handle_timeout
 };
 
 template <class Request>
-class basic_rc_client<Request>::handle_io : private coroutine
+class basic_rc_client<Request>::handle_io : private resmtp::coroutine
 {
     boost::shared_ptr<Request> req_;
 

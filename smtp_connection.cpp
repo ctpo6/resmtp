@@ -9,6 +9,7 @@
 #include <boost/format.hpp>
 #include <boost/lexical_cast.hpp>
 
+
 #include "smtp_connection_manager.h"
 #include "smtp_connection.h"
 #include "options.h"
@@ -22,6 +23,7 @@
 #include "ip_options.h"
 #include "aspf.h"
 #include "log.h"
+
 #include "yield.hpp"
 
 using namespace y::net;
@@ -529,7 +531,7 @@ void smtp_connection::start_check_data()
 }
 
 struct smtp_connection::handle_greylisting_mark
-        : private coroutine
+        : private resmtp::coroutine
 {
     boost::shared_ptr<smtp_connection> c;
     envelope::rcpt_list_t::iterator rcpt_beg;
@@ -607,7 +609,7 @@ struct smtp_connection::handle_greylisting_mark
 };
 
 struct smtp_connection::handle_rc_put
-        : private coroutine
+        : private resmtp::coroutine
 {
     boost::shared_ptr<smtp_connection> c;
     envelope::rcpt_list_t::iterator rcpt_beg;
@@ -709,12 +711,12 @@ struct smtp_connection::handle_rc_put
 
 
 struct smtp_connection::handle_greylisting_probe
-        : private coroutine
+        : private resmtp::coroutine
 {
     boost::shared_ptr<smtp_connection> c;
     envelope::rcpt_list_t::iterator rcpt_beg;
     envelope::rcpt_list_t::iterator rcpt_end;
-    weak_ptr<envelope> env;
+    boost::weak_ptr<envelope> env;
 
     handle_greylisting_probe(
         boost::shared_ptr<smtp_connection> cc,
@@ -794,10 +796,10 @@ struct smtp_connection::handle_greylisting_probe
 };
 
 struct smtp_connection::handle_rc_get
-        : private coroutine
+        : private resmtp::coroutine
 {
     boost::shared_ptr<smtp_connection> c;
-    weak_ptr<envelope> env;
+    boost::weak_ptr<envelope> env;
     boost::shared_ptr<rc_check> q;
 
     handle_rc_get(

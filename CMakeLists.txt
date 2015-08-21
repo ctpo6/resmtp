@@ -8,10 +8,10 @@ set(Boost_USE_STATIC_LIBS OFF)
 set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_RUNTIME OFF)
 
-find_package(Boost REQUIRED COMPONENTS filesystem program_options regex system timer)
+find_package(Boost REQUIRED COMPONENTS filesystem program_options regex system timer thread)
 find_package(Protobuf REQUIRED)
 
-add_definitions(-O2 -std=c++14 -march=core2 -mfpmath=sse -Wall -Wno-parentheses)
+add_definitions(-O2 -std=c++14 -march=core2 -mfpmath=sse -Wall -Wno-parentheses -DBOOST_THREAD_USE_LIB)
 #add_definitions(-g -O1 -std=c++14 -march=core2 -mfpmath=sse -Wall -Wno-parentheses)
 #add_definitions(-g -O0 -std=c++14 -march=core2 -mfpmath=sse -Wall -Wno-parentheses)
 
@@ -64,7 +64,7 @@ add_executable(${PROJECT_NAME} ${HEADERS} ${SOURCES} ${PROTO_SOURCES} ${PROTO_HE
 
 
 target_link_libraries(${PROJECT_NAME} ${PROTOBUF_LIBRARIES} ${Boost_LIBRARIES}
-  libexpat libspf2 libopendkim)
+  ssl crypto expat spf2 opendkim)
 
 #add_dependencies(${PROJECT_NAME} yorbit ssimproto)
 

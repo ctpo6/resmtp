@@ -83,7 +83,7 @@ struct envelope
     bool m_spam;                        // envelope is spam
     bool m_no_local_relay;              // no local relay if we have one or more aliases
     timer m_timer;
-    coroutine smtp_delivery_coro_;
+    resmtp::coroutine smtp_delivery_coro_;
 
 #ifdef ENABLE_AUTH_BLACKBOX
     int karma_;
