@@ -26,6 +26,8 @@
 
 #include "yield.hpp"
 
+using std::list;
+using std::string;
 using namespace y::net;
 
 

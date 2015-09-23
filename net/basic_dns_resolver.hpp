@@ -28,7 +28,7 @@ class basic_dns_resolver : public boost::asio::basic_io_object<Service>
     { 
     } 
 
-    void add_nameserver(ip::address addr)
+    void add_nameserver(boost::asio::ip::address addr)
     {
         this->service.add_nameserver(this->implementation, addr);
     }
@@ -50,7 +50,7 @@ class basic_dns_resolver : public boost::asio::basic_io_object<Service>
     }
           
     template<typename Handler>
-    void async_resolve(const string & domain, const net::dns::type_t rrtype, Handler handler)
+    void async_resolve(const std::string & domain, const net::dns::type_t rrtype, Handler handler)
     {
         this->service.async_resolve(this->implementation, domain, rrtype, handler);
     }

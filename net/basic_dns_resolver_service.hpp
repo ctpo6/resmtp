@@ -65,7 +65,7 @@ class basic_dns_resolver_service : public boost::asio::io_service::service
         return impl->resolve(question);
     }
 
-    iterator resolve(implementation_type &impl, const string & domain, const net::dns::type_t rrtype)
+    iterator resolve(implementation_type &impl, const std::string & domain, const net::dns::type_t rrtype)
     {
         return impl->resolve(domain, rrtype);
     }
@@ -77,13 +77,13 @@ class basic_dns_resolver_service : public boost::asio::io_service::service
     }
           
     template<typename Handler>
-    void async_resolve(implementation_type &impl, const string & domain, const net::dns::type_t rrtype, Handler handler)
+    void async_resolve(implementation_type &impl, const std::string & domain, const net::dns::type_t rrtype, Handler handler)
     {
         net::dns::question question(domain, rrtype);
         impl->async_resolve(question, handler);
     }
 
-    void add_nameserver(implementation_type &impl, ip::address addr)
+    void add_nameserver(implementation_type &impl, boost::asio::ip::address addr)
     {
         impl->add_nameserver(addr);
     }

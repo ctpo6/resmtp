@@ -56,7 +56,7 @@ class dns_resolver_impl : public boost::enable_shared_from_this<dns_resolver_imp
 
   private:
     /// Outbound DNS request buffer 
-    typedef vector<ip::udp::endpoint> ep_vector_t;
+    typedef std::vector<boost::asio::ip::udp::endpoint> ep_vector_t;
 
     class dns_handler_base
     {
@@ -69,7 +69,10 @@ class dns_resolver_impl : public boost::enable_shared_from_this<dns_resolver_imp
         {
         }
 
-        virtual void invoke(io_service& ios, net::dns::resolver_iterator it, const boost::system::error_code& ec)
+        virtual void invoke(
+				    boost::asio::io_service& ios,
+				    net::dns::resolver_iterator it,
+				    const boost::system::error_code& ec)
         {}
     };
 
@@ -84,7 +87,10 @@ class dns_resolver_impl : public boost::enable_shared_from_this<dns_resolver_imp
         {
         }
 
-        virtual void invoke(io_service&, net::dns::resolver_iterator iter, const boost::system::error_code& ec)
+        virtual void invoke(
+				    boost::asio::io_service&,
+				    net::dns::resolver_iterator iter,
+				    const boost::system::error_code& ec)
         {         
             assert( ec || iter != net::dns::resolver_iterator() );
             handler_(ec, iter);
@@ -108,7 +114,7 @@ class dns_resolver_impl : public boost::enable_shared_from_this<dns_resolver_imp
     {
         dns_query_t(const net::dns::question& q, int retries, int timeout_sec)
                 : _question(q),
-                  _time(posix_time::second_clock::local_time()),
+                  _time(boost::posix_time::second_clock::local_time()),
                   _retries(retries),
                   _timeout_sec(timeout_sec)
         {
@@ -121,13 +127,13 @@ class dns_resolver_impl : public boost::enable_shared_from_this<dns_resolver_imp
 
         /// How many seconds left since last resend attempt until this query is expired
         boost::posix_time::time_duration ttl() const
-        {   return posix_time::seconds(_timeout_sec) * _retries;  }
+        {   return boost::posix_time::seconds(_timeout_sec) * _retries;  }
 
         /// Question ID
         uint16_t        _question_id;
     
         /// Domain Name Server Address to send request to
-        ip::udp::endpoint _dns;
+        boost::asio::ip::udp::endpoint _dns;
 
         /// DNS Query Buffer
         dns_buffer_t          _mbuffer;
@@ -159,7 +165,7 @@ class dns_resolver_impl : public boost::enable_shared_from_this<dns_resolver_imp
         indexed_by<
         ordered_non_unique< 
         tag<by_time>,
-        member<dns_query_t, posix_time::ptime, &dns_query_t::_time> 
+        member<dns_query_t, boost::posix_time::ptime, &dns_query_t::_time>
     >,      
         hashed_unique< 
         tag<by_qid>, 
@@ -171,9 +177,9 @@ class dns_resolver_impl : public boost::enable_shared_from_this<dns_resolver_imp
     typedef query_container_t::index<by_qid>::type::iterator qid_iterator_t;
     typedef query_container_t::index<by_time>::type::iterator time_iterator_t;
 
-    io_service&       _ios;
-    deadline_timer    _timer;
-    ip::udp::socket   _socket;
+    boost::asio::io_service&       _ios;
+    boost::asio::deadline_timer    _timer;
+    boost::asio::ip::udp::socket   _socket;
     ep_vector_t       _dnsList;
     query_container_t _query_list;
     boost::asio::strand _strand;
@@ -182,10 +188,10 @@ class dns_resolver_impl : public boost::enable_shared_from_this<dns_resolver_imp
     int _timeout_sec;
 
   public: 
-    dns_resolver_impl(io_service& ios)
+    dns_resolver_impl(boost::asio::io_service& ios)
             : _ios(ios),
               _timer(_ios),
-              _socket(_ios, ip::udp::endpoint(ip::udp::v4(), 0)),
+              _socket(_ios, boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), 0)),
               _strand(_ios),
               _retries(def_retries),
               _timeout_sec(def_timeout_sec)
@@ -201,9 +207,9 @@ class dns_resolver_impl : public boost::enable_shared_from_this<dns_resolver_imp
         cancel();
     }   
 
-    void add_nameserver(ip::address addr)
+    void add_nameserver(boost::asio::ip::address addr)
     {
-        ip::udp::endpoint endpoint(addr, 53);
+        boost::asio::ip::udp::endpoint endpoint(addr, 53);
         _dnsList.push_back(endpoint);
     }  
 
@@ -220,7 +226,9 @@ class dns_resolver_impl : public boost::enable_shared_from_this<dns_resolver_imp
         ep_vector_t::iterator iter = _dnsList.begin();
         if (iter == _dnsList.end())
         {
-            _dnsList.push_back( ip::udp::endpoint(ip::address::from_string("127.0.0.1"), 53) );
+            _dnsList.push_back(
+						      boost::asio::ip::udp::endpoint(
+						        boost::asio::ip::address::from_string("127.0.0.1"), 53) );
             iter = _dnsList.begin();
         }
 
@@ -271,8 +279,8 @@ class dns_resolver_impl : public boost::enable_shared_from_this<dns_resolver_imp
         _query_list.insert(dq);
         send_request(dq);     
 
-        posix_time::time_duration ted = _timer.expires_from_now();
-        posix_time::time_duration nt = posix_time::seconds(_timeout_sec);
+        boost::posix_time::time_duration ted = _timer.expires_from_now();
+        boost::posix_time::time_duration nt = boost::posix_time::seconds(_timeout_sec);
         if (ted.is_special() || ted > nt)  // timer not already set ?
         {
             _timer.expires_from_now(nt);
@@ -286,7 +294,7 @@ class dns_resolver_impl : public boost::enable_shared_from_this<dns_resolver_imp
     }
 
     template<typename Handler>
-    void async_resolve(const string & domain, const net::dns::type_t rrtype, Handler handler)
+    void async_resolve(const std::string & domain, const net::dns::type_t rrtype, Handler handler)
     {
         net::dns::question question(domain, rrtype);
         async_resolve(question, handler);
@@ -329,7 +337,7 @@ class dns_resolver_impl : public boost::enable_shared_from_this<dns_resolver_imp
 
 
         if( !_socket.is_open() )
-            _socket.open(ip::udp::v4());      
+            _socket.open(boost::asio::ip::udp::v4());
 
         _socket.async_send_to(
             boost::asio::buffer(
@@ -402,7 +410,8 @@ class dns_resolver_impl : public boost::enable_shared_from_this<dns_resolver_imp
                     return;
                 }
             }
-            dq->_completion_callback->invoke( _ios, iterator_type(), error::not_found );            
+            dq->_completion_callback->invoke(
+						      _ios, iterator_type(), boost::asio::error::not_found );
         }
     }
 
@@ -410,8 +419,8 @@ class dns_resolver_impl : public boost::enable_shared_from_this<dns_resolver_imp
     {
         if( !ec )
         {      
-            posix_time::ptime now = boost::posix_time::second_clock::local_time();
-            posix_time::time_duration nt = boost::posix_time::seconds(_timeout_sec);
+            boost::posix_time::ptime now = boost::posix_time::second_clock::local_time();
+            boost::posix_time::time_duration nt = boost::posix_time::seconds(_timeout_sec);
             if (_query_list.size())
             {   
                 boost::posix_time::ptime margin = now - boost::posix_time::seconds(_timeout_sec);
@@ -433,7 +442,7 @@ class dns_resolver_impl : public boost::enable_shared_from_this<dns_resolver_imp
                     {           
                         iterator_type iter;
                         (*saved)->_completion_callback->invoke(
-                            _ios, iter, error::timed_out);
+                            _ios, iter, boost::asio::error::timed_out);
                         _query_list.get<by_time>().erase(saved);
                     }   
                 }

@@ -10,6 +10,8 @@
 
 using namespace y::net;
 
+using std::string;
+
 smtp_client::smtp_client(boost::asio::io_service &_io_service):
         m_socket(_io_service),
         strand_(_io_service),
@@ -30,6 +32,7 @@ void smtp_client::start_read_line()
 
 std::string log_request_helper(const boost::asio::streambuf& buf)
 {
+		using namespace boost::asio;
     boost::asio::const_buffers_1 b = static_cast<boost::asio::const_buffers_1>(buf.data());
     boost::iterator_range<const char*> ib(buffer_cast<const char*>(b),
             buffer_cast<const char*>(b) + buffer_size(b));

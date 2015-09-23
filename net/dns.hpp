@@ -19,8 +19,8 @@
 #include <net/network_array.hpp>
 #include <net/rfc1035_414.hpp>
 
-using namespace boost;
-using namespace boost::algorithm;
+//using namespace boost;
+//using namespace boost::algorithm;
 
 namespace y {
 namespace net {
@@ -123,7 +123,7 @@ class request_base_t
       \param t Resource type to create object for
       \param c Resource class to create object for
     */
-    request_base_t(const string & d, const type_t t, const class_t c=class_in)
+    request_base_t(const std::string & d, const type_t t, const class_t c=class_in)
             : rr_domain(d), rr_type(t), rr_class(c)
     {}
 
@@ -149,7 +149,7 @@ class request_base_t
       \param s Domain name to assign to the request_base_t
       \return current domain name
     */
-    const string& domain(const string& s)
+    const std::string& domain(const std::string& s)
     {
         return domain(s.c_str());
     }
@@ -160,7 +160,7 @@ class request_base_t
       \param s Domain name to assign to the request_base_t.
       \return current domain name
     */
-    const string& domain(const char* s)
+    const std::string& domain(const char* s)
     {
         rr_domain = s;
         return rr_domain;
@@ -171,7 +171,7 @@ class request_base_t
 
       \return current domain name
     */
-    const string& domain() const
+    const std::string& domain() const
     {
         return rr_domain;
     }
@@ -304,7 +304,7 @@ class question : public request_base_t
       \param t Resource type to create object for
       \param c Resource class to create object for
     */
-    question(const string & d, const type_t t, const class_t c=class_in)
+    question(const std::string & d, const type_t t, const class_t c=class_in)
             : request_base_t(d, t, c)
     {}
 
@@ -368,7 +368,7 @@ class   resource_base_t : public request_base_t
       \param s Domain name to create object for
       \param t Resource type to create object for
     */
-    resource_base_t(const string& s, const type_t t)
+    resource_base_t(const std::string& s, const type_t t)
             : request_base_t(s,t,class_in), rr_ttl(0), rr_length(0)
     {}
 
@@ -558,7 +558,7 @@ class a_resource : public resource_base_t
 {
   protected:
     /// IP 4 address
-    ip::address_v4 rr_address;
+    boost::asio::ip::address_v4 rr_address;
 
   public:
     /// Default contructor
@@ -569,7 +569,9 @@ class a_resource : public resource_base_t
 
       \param s Host name for the A record
     */
-    a_resource(const string& s) : resource_base_t(s, type_a), rr_address(0)  {;}
+    a_resource(const std::string& s) :
+		  resource_base_t(s, type_a), rr_address(0)
+		{}
 
     /// Virtual Destructor
     virtual ~a_resource()
@@ -582,7 +584,8 @@ class a_resource : public resource_base_t
       \param addr Address to assign to the a_resource.
       \return Address
     */
-    const ip::address_v4& address(const ip::address_v4& addr)
+    const boost::asio::ip::address_v4& address(
+		    const boost::asio::ip::address_v4& addr)
     {
         rr_address = addr;
         return rr_address;
@@ -594,9 +597,9 @@ class a_resource : public resource_base_t
       \param s Address to assign to the a_resource.
       \return Address
     */
-    const ip::address_v4& address(const char* s)
+    const boost::asio::ip::address_v4& address(const char* s)
     {
-        return address(ip::address_v4::from_string(s));
+        return address(boost::asio::ip::address_v4::from_string(s));
     }
 
     /*!
@@ -604,7 +607,7 @@ class a_resource : public resource_base_t
 
       \return Address
     */
-    const ip::address_v4& address() const
+    const boost::asio::ip::address_v4& address() const
     {
         return rr_address;
     }
@@ -677,7 +680,7 @@ class ns_resource : public resource_base_t
 {
   protected:
     /// name server name
-    string      rr_nsdname;
+    std::string      rr_nsdname;
 
   public:
     /// Default contructor
@@ -688,7 +691,7 @@ class ns_resource : public resource_base_t
 
       \param s Host name for the NS record
     */
-    ns_resource(const string& s) : resource_base_t(s, type_ns) {;}
+    ns_resource(const std::string& s) : resource_base_t(s, type_ns) {;}
 
     /// Virtual Destructor
     virtual ~ns_resource()
@@ -701,7 +704,7 @@ class ns_resource : public resource_base_t
       \param s Nameserver to assign to the ns_resource.
       \return Nameserver
     */
-    const string& nameserver(const string& s)
+    const std::string& nameserver(const std::string& s)
     {
         return nameserver(s.c_str());
     }
@@ -712,7 +715,7 @@ class ns_resource : public resource_base_t
       \param s Nameserver string to assign to the ns_resource.
       \return Nameserver
     */
-    const string& nameserver(const char* s)
+    const std::string& nameserver(const char* s)
     {
         rr_nsdname = s;
         return rr_nsdname;
@@ -723,7 +726,7 @@ class ns_resource : public resource_base_t
 
       \return Nameserver
     */
-    const string& nameserver() const
+    const std::string& nameserver() const
     {
         return rr_nsdname;
     }
@@ -793,7 +796,7 @@ class cname_resource : public resource_base_t
 {
   protected:
     /// Canonical Name
-    string  rr_cname;
+    std::string  rr_cname;
 
   public:
     /// Default contructor
@@ -804,7 +807,7 @@ class cname_resource : public resource_base_t
 
       \param s Host name for the CNAME record
     */
-    cname_resource(const string& s) : resource_base_t(s, type_cname) {;}
+    cname_resource(const std::string& s) : resource_base_t(s, type_cname) {;}
 
     /// Virtual Destructor
     virtual ~cname_resource()
@@ -817,7 +820,7 @@ class cname_resource : public resource_base_t
       \param s Canonical name to assign to the cname_resource.
       \return Canonical Name
     */
-    const string& canonicalname(const string& s)
+    const std::string& canonicalname(const std::string& s)
     {
         return canonicalname(s.c_str());
     }
@@ -828,7 +831,7 @@ class cname_resource : public resource_base_t
       \param s Canonical name string to assign to the cname_resource.
       \return Canonical name
     */
-    const string& canonicalname(const char* s)
+    const std::string& canonicalname(const char* s)
     {
         rr_cname = s;
         return rr_cname;
@@ -839,7 +842,7 @@ class cname_resource : public resource_base_t
 
       \return Canonical name
     */
-    const string& canonicalname() const
+    const std::string& canonicalname() const
     {
         return rr_cname;
     }
@@ -906,9 +909,9 @@ class soa_resource : public resource_base_t
 {
   protected:
     /// Master Name
-    string        rr_mname;
+    std::string        rr_mname;
     /// Responsible Name
-    string        rr_rname;
+    std::string        rr_rname;
     /// Serial Number for SOA record
     uint32_t  rr_serial;
     /// Refresh Time
@@ -922,14 +925,16 @@ class soa_resource : public resource_base_t
 
   public:
     /// Default contructor
-    soa_resource() : resource_base_t(type_soa), rr_serial(0), rr_refresh(0), rr_retry(0), rr_expire(0), rr_minttl(0) {;}
+    soa_resource() :
+		  resource_base_t(type_soa), rr_serial(0), rr_refresh(0), rr_retry(0), rr_expire(0), rr_minttl(0) {;}
 
     /*!
       Constructs a soa_resource
 
       \param s Host name for the SOA record
     */
-    soa_resource(const string& s) : resource_base_t(s, type_soa), rr_serial(0), rr_refresh(0), rr_retry(0), rr_expire(0), rr_minttl(0) {;}
+    soa_resource(const std::string& s) :
+		  resource_base_t(s, type_soa), rr_serial(0), rr_refresh(0), rr_retry(0), rr_expire(0), rr_minttl(0) {;}
 
     /// Virtual Destructor
     virtual ~soa_resource()
@@ -942,7 +947,7 @@ class soa_resource : public resource_base_t
       \param s Master Name to assign to the soa_resource.
       \return Master Name
     */
-    const string& master_name(const string& s)
+    const std::string& master_name(const std::string& s)
     {
         return master_name(s.c_str());
     }
@@ -953,7 +958,7 @@ class soa_resource : public resource_base_t
       \param s Master Name string to assign to the soa_resource.
       \return Master Name
     */
-    const string& master_name(const char* s)
+    const std::string& master_name(const char* s)
     {
         rr_mname = s;
         return rr_mname;
@@ -964,7 +969,7 @@ class soa_resource : public resource_base_t
 
       \return Master Name
     */
-    const string& master_name() const
+    const std::string& master_name() const
     {
         return rr_mname;
     }
@@ -975,7 +980,7 @@ class soa_resource : public resource_base_t
       \param s Responsible Name to assign to the soa_resource.
       \return Responsible Name
     */
-    const string& responsible_name(const string& s)
+    const std::string& responsible_name(const std::string& s)
     {
         return responsible_name(s.c_str());
     }
@@ -986,7 +991,7 @@ class soa_resource : public resource_base_t
       \param s Responsible Name to assign to the soa_resource.
       \return Responsible Name
     */
-    const string& responsible_name(const char* s)
+    const std::string& responsible_name(const char* s)
     {
         rr_rname = s;
         return rr_rname;
@@ -997,7 +1002,7 @@ class soa_resource : public resource_base_t
 
       \return Responsible Name
     */
-    const string& responsible_name() const
+    const std::string& responsible_name() const
     {
         return rr_rname;
     }
@@ -1200,7 +1205,7 @@ class ptr_resource : public resource_base_t
 {
   protected:
     /// Pointer name
-    string rr_ptrdname;
+    std::string rr_ptrdname;
 
   public:
     /// Default contructor
@@ -1210,7 +1215,7 @@ class ptr_resource : public resource_base_t
     /*
       \param s Host name for the PTR record
     */
-    ptr_resource(const string& s) : resource_base_t(s, type_ptr) {;}
+    ptr_resource(const std::string& s) : resource_base_t(s, type_ptr) {;}
 
     /// Virtual Destructor
     virtual ~ptr_resource()
@@ -1222,7 +1227,7 @@ class ptr_resource : public resource_base_t
       \param t Pointer to assign to the ptr_resource.
       \return Pointer
     */
-    const string& pointer(const string& s)
+    const std::string& pointer(const std::string& s)
     {
         return pointer(s.c_str());
     }
@@ -1233,7 +1238,7 @@ class ptr_resource : public resource_base_t
       current pointer only.
       \return Pointer
     */
-    const string& pointer(const char* s=0)
+    const std::string& pointer(const char* s=0)
     {
         if( s ) rr_ptrdname = s;
         return rr_ptrdname;
@@ -1295,9 +1300,9 @@ class hinfo_resource : public resource_base_t
 {
   protected:
     /// CPU description
-    string      rr_cpu;
+    std::string      rr_cpu;
     /// OS description
-    string      rr_os;
+    std::string      rr_os;
 
   public:
     /// Default contructor
@@ -1307,7 +1312,7 @@ class hinfo_resource : public resource_base_t
     /*
       \param s Host name for the PTR record
     */
-    hinfo_resource(const string& s) : resource_base_t(s, type_hinfo) {;}
+    hinfo_resource(const std::string& s) : resource_base_t(s, type_hinfo) {;}
 
     /// Virtual Destructor
     virtual ~hinfo_resource()
@@ -1319,7 +1324,7 @@ class hinfo_resource : public resource_base_t
       \param t CPU description to assign to the hinfo_resource.
       \return CPU description
     */
-    const string& cpu(const string& s)
+    const std::string& cpu(const std::string& s)
     {
         return cpu(s.c_str());
     }
@@ -1330,7 +1335,7 @@ class hinfo_resource : public resource_base_t
       current CPU description only.
       \return CPU description
     */
-    const string& cpu(const char* s=0)
+    const std::string& cpu(const char* s=0)
     {
         if( s ) rr_cpu = s;
         return rr_cpu;
@@ -1341,7 +1346,7 @@ class hinfo_resource : public resource_base_t
       \param t OS description to assign to the hinfo_resource.
       \return OS description
     */
-    const string& os(const string& s)
+    const std::string& os(const std::string& s)
     {
         return os(s.c_str());
     }
@@ -1352,7 +1357,7 @@ class hinfo_resource : public resource_base_t
       current OS description only.
       \return OS description
     */
-    const string& os(const char* s=0)
+    const std::string& os(const char* s=0)
     {
         if( s ) rr_os = s;
         return rr_os;
@@ -1429,7 +1434,7 @@ class mx_resource : public resource_base_t
     /// Preference value
     uint16_t  rr_preference;
     /// Mail Exchange(server)
-    string    rr_exchange;
+    std::string    rr_exchange;
 
   public:
     /// Default contructor
@@ -1439,7 +1444,7 @@ class mx_resource : public resource_base_t
     /*
       \param s Host name for the MX record
     */
-    mx_resource(const string& s) : resource_base_t(s, type_mx), rr_preference(0) {}
+    mx_resource(const std::string& s) : resource_base_t(s, type_mx), rr_preference(0) {}
 
     /// Virtual Destructor
     virtual ~mx_resource()
@@ -1451,7 +1456,7 @@ class mx_resource : public resource_base_t
       \param t Mail exchange(server) to assign to the mx_resource.
       \return Mail exchange(server)
     */
-    const string& exchange(const string& s)
+    const std::string& exchange(const std::string& s)
     {
         return exchange(s.c_str());
 
@@ -1463,7 +1468,7 @@ class mx_resource : public resource_base_t
       current mail exchange(server) only.
       \return Mail exchange(server)
     */
-    const string& exchange(const char* s=0)
+    const std::string& exchange(const char* s=0)
     {
         if( s ) rr_exchange = s;
         return rr_exchange;
@@ -1544,7 +1549,7 @@ class txt_resource : public resource_base_t
 {
   protected:
     /// Text string
-    string      rr_text;
+    std::string      rr_text;
 
   public:
     /// Default contructor
@@ -1554,7 +1559,7 @@ class txt_resource : public resource_base_t
     /*
       \param s Host name for the TXT record
     */
-    txt_resource(const string& s) : resource_base_t(s, type_txt) {;}
+    txt_resource(const std::string& s) : resource_base_t(s, type_txt) {;}
 
     /// Virtual Destructor
     virtual ~txt_resource()
@@ -1566,7 +1571,7 @@ class txt_resource : public resource_base_t
       \param t Text string to assign to the txt_resource.
       \return Text string
     */
-    const string& text(const string& s)
+    const std::string& text(const std::string& s)
     {
         return text(s.c_str());
     }
@@ -1577,7 +1582,7 @@ class txt_resource : public resource_base_t
       current text string only.
       \return Text string
     */
-    const string& text(const char* s=0)
+    const std::string& text(const char* s=0)
     {
         if( s ) rr_text = s;
         return rr_text;
@@ -1641,7 +1646,7 @@ class txt_resource : public resource_base_t
         int i = rr_len - len - 1;
         while (i > 0)
         {
-            string d;
+            std::string d;
             buffer.get(len);
             buffer.get(d, len);
             rr_text += d;
@@ -1659,7 +1664,7 @@ class a6_resource : public resource_base_t
 {
   protected:
     /// IP 6 address
-    ip::address_v6 rr_address;
+    boost::asio::ip::address_v6 rr_address;
 
   public:
     /// Default contructor
@@ -1669,7 +1674,7 @@ class a6_resource : public resource_base_t
     /*
       \param s Host name for the A record
     */
-    a6_resource(const string& s) : resource_base_t(s, type_a6) {;}
+    a6_resource(const std::string& s) : resource_base_t(s, type_a6) {;}
 
     /// Virtual Destructor
     virtual ~a6_resource()
@@ -1681,7 +1686,7 @@ class a6_resource : public resource_base_t
       \param t Address to assign to the a6_resource.
       \return Address
     */
-    const ip::address_v6& address(const ip::address_v6& addr)
+    const boost::asio::ip::address_v6& address(const boost::asio::ip::address_v6& addr)
     {
         rr_address = addr;
         return rr_address;
@@ -1693,9 +1698,9 @@ class a6_resource : public resource_base_t
       current address only.
       \return Address
     */
-    const ip::address_v6& address(const char* s=0)
+    const boost::asio::ip::address_v6& address(const char* s=0)
     {
-        if( s != 0 )  return address(ip::address_v6::from_string(s));
+        if( s != 0 )  return address(boost::asio::ip::address_v6::from_string(s));
         return rr_address;
     }
 
@@ -1762,7 +1767,7 @@ class srv_resource : public resource_base_t
     uint16_t  rr_priority;  //!< Priority of the target host
     uint16_t  rr_weight;    //!< Weight of the record, used as a selection method
     uint16_t  rr_port;      //!< Port for the target host's service
-    string    rr_target;    //!< Target name of the host
+    std::string    rr_target;    //!< Target name of the host
 
   public:
     /// Default contructor
@@ -1772,7 +1777,7 @@ class srv_resource : public resource_base_t
     /*
       \param s Host name for the TXT record
     */
-    srv_resource(const string& s) : resource_base_t(s, type_srv) {;}
+    srv_resource(const std::string& s) : resource_base_t(s, type_srv) {;}
 
     /// Virtual Destructor
     virtual ~srv_resource()
@@ -1817,7 +1822,7 @@ class srv_resource : public resource_base_t
       \param t Target host string to assign to the srv_resource.
       \return Target host string
     */
-    const string& targethost(const string& s)
+    const std::string& targethost(const std::string& s)
     {
         return targethost(s.c_str());
 
@@ -1828,7 +1833,7 @@ class srv_resource : public resource_base_t
       \param t Target host  name to assign to the srv_resource. If left blank, will return the current target host string only.
       \return Target host string
     */
-    const string& targethost(const char* s=0)
+    const std::string& targethost(const char* s=0)
     {
         if( s ) rr_target = s;
         return rr_target;
@@ -2027,7 +2032,7 @@ class message
       \param d Domain to query
       \param t Resource type to query
     */
-    message(const string & d, const type_t t)
+    message(const std::string & d, const type_t t)
     {
         memset(&header, 0x00, sizeof(header));
         question_section.push_back( dns::question(d, t) );

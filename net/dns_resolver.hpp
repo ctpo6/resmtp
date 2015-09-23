@@ -11,6 +11,7 @@
 #define BOOST_NET_DNS_RESOLVER_HPP
 
 #include <boost/asio.hpp>
+
 #include <net/dns.hpp>
 #include <net/network_array.hpp>
 #include <net/resolver_iterator.hpp>

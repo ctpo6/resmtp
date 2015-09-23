@@ -18,11 +18,11 @@ server::server(std::size_t _io_service_pool_size,  uid_t _user, gid_t _group)
         try
         {
             //            ssl_context_.set_verify_mode (boost::asio::ssl::context::verify_peer | boost::asio::ssl::context::verify_client_once);
-            ssl_context_.set_verify_mode (asio::ssl::context::verify_none);
+            ssl_context_.set_verify_mode (boost::asio::ssl::context::verify_none);
 
             ssl_context_.set_options (
-                asio::ssl::context::default_workarounds
-                | asio::ssl::context::no_sslv2 );
+                boost::asio::ssl::context::default_workarounds
+                | boost::asio::ssl::context::no_sslv2 );
 
 
             if (!g_config.m_tls_cert_file.empty())

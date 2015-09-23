@@ -1,13 +1,3 @@
 # resmtp
 
-resmtp
-
-rc.pb.cc
-rc.pb.h
-
-CMakeFiles
-CMakeCache.txt
-CMakeLists.txt.user
-Makefile
-cmake_install.cmake
-*.cbp
+build

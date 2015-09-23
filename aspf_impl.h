@@ -713,6 +713,8 @@ inline bool sanitize_spf_parameters(spf_parameters& p)
 template <class Handle>
 void async_check_SPF(boost::asio::io_service& ios, const spf_parameters& pp, Handle handle)
 {
+		using std::string;
+
     spf_parameters p = pp;
     if ( !impl::sanitize_spf_parameters(p) ) // cosher input?
     {
@@ -751,6 +753,8 @@ spf_check::spf_check()
 template <class Handler>
 void spf_check::start(boost::asio::io_service& ios, const spf_parameters& pp, Handler handler)
 {
+		using std::string;
+
     impl_.reset(new spf_check_impl);
     spf_parameters p = pp;
     if ( !impl::sanitize_spf_parameters(p) ) // cosher input?

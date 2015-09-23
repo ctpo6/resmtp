@@ -1,7 +1,9 @@
 #ifndef _SMTP_CONNECTION_H_
 #define _SMTP_CONNECTION_H_
 
-#include <config.h>
+// TODO: now use automake-generated config.h ... ugly!
+#include "config.h"
+
 #include <boost/unordered_map.hpp>
 #include <boost/function.hpp>
 #include <boost/asio.hpp>
@@ -10,8 +12,9 @@
 #include <boost/shared_ptr.hpp>
 #include <boost/enable_shared_from_this.hpp>
 #include <boost/range/iterator_range.hpp>
-#include <net/dns_resolver.hpp>
 #include <boost/optional.hpp>
+
+#include "net/dns_resolver.hpp"
 
 #if defined(HAVE_CONFIG_H)
 #include "config.h"
@@ -158,7 +161,7 @@ class smtp_connection
 
     // SPF
 
-    string m_smtp_from;
+    std::string m_smtp_from;
     bool m_smtp_delivery_pending;
     bool m_so_check_pending;
     boost::optional<std::string> m_spf_result;

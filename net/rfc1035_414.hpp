@@ -23,8 +23,8 @@
 #include <net/network_array.hpp>
 
 
-using namespace std;
-using namespace boost;
+//using namespace std;
+//using namespace boost;
 
 namespace y {
 namespace net {
@@ -42,7 +42,7 @@ class rfc1035_414_t
       The domain_offset_map_t links buffer offsets to strings for the DNS label compression
       requirements.
     */
-    typedef std::map<string,size_t>   domain_offset_map_t;
+    typedef std::map<std::string,size_t>   domain_offset_map_t;
       
     domain_offset_map_t _offsets;
         
@@ -74,8 +74,10 @@ class rfc1035_414_t
 
       \returns Number of bytes written
     */
-    const size_t write_label(const string& domain, dns_buffer_t & buffer)
+    const size_t write_label(const std::string& domain, dns_buffer_t & buffer)
     {
+				using std::string;
+
         // no length? no service
         if( !domain.length() )
             return 0;
@@ -150,8 +152,10 @@ class rfc1035_414_t
       \param buffer Memory buffer to read the domain from
       \throws std::out_of_range
     */
-    void read_label(string& domain, dns_buffer_t & buffer)
+    void read_label(std::string& domain, dns_buffer_t & buffer)
     {
+				using std::string;
+
         while( true )
         {
             uint8_t   len;
