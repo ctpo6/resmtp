@@ -30,7 +30,6 @@ using std::list;
 using std::string;
 using namespace y::net;
 
-
 smtp_connection::smtp_connection(boost::asio::io_service &_io_service, smtp_connection_manager &_manager, boost::asio::ssl::context& _context)
         : io_service_(_io_service),
           m_ssl_socket(_io_service, _context),
@@ -95,9 +94,14 @@ void smtp_connection::start( bool _force_ssl )
 
     m_remote_host_name =  m_connected_ip.to_string();
 
-    m_resolver.async_resolve( rev_order_av4_str(m_connected_ip.to_v4(), "in-addr.arpa"),
-            dns::type_ptr, strand_.wrap(boost::bind(&smtp_connection::handle_back_resolve,
-                            shared_from_this(), _1, _2)));
+    // a.bagrintsev [ 1.10.2015 ]
+
+    //m_resolver.async_resolve( rev_order_av4_str(m_connected_ip.to_v4(), "in-addr.arpa"),
+    //        dns::type_ptr, strand_.wrap(boost::bind(&smtp_connection::handle_back_resolve,
+    //                        shared_from_this(), _1, _2)));
+    
+    g_log.msg(MSG_NORMAL, str(boost::format("%1%-RECV: connect from %2%") % m_session_id % m_remote_host_name ) );
+    start_proto();
 }
 
 void smtp_connection::handle_back_resolve(const boost::system::error_code& ec, dns::resolver::iterator it)
@@ -116,9 +120,9 @@ void smtp_connection::handle_back_resolve(const boost::system::error_code& ec, d
     if (m_remote_host_name.empty())
         m_remote_host_name = "unknown";
 
-    g_log.msg(MSG_NORMAL, str(boost::format("%1%-RECV: connect from %2%[%3%]") % m_session_id % m_remote_host_name % m_connected_ip.to_string()));
-
-    if (g_config.m_rbl_active)
+    g_log.msg(MSG_NORMAL, str(boost::format("%1%-RECV: connect from %2%[%3%] here") % m_session_id % m_remote_host_name % m_connected_ip.to_string()));
+    
+if (g_config.m_rbl_active)
     {
         m_rbl_check.reset(new rbl_check(io_service_));
 
