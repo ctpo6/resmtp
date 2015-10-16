@@ -88,6 +88,7 @@ class smtp_connection
     typedef boost::function< bool (smtp_connection*, const std::string&, std::ostream&) > proto_func_t;
     typedef boost::unordered_map < std::string, proto_func_t> proto_map_t;
 
+    // map: smtp command name -> command handler ptr
     proto_map_t m_proto_map;
 
     void add_new_command(const char *_command, proto_func_t _func);
@@ -153,6 +154,7 @@ class smtp_connection
     y::net::dns::resolver m_resolver;
 
     void handle_back_resolve(const boost::system::error_code& ec, y::net::dns::resolver::iterator it);
+    void handle_dnsbl_check();
     void start_proto();
 
     void handle_start_hello_write(const boost::system::error_code& _error, bool _close);
@@ -183,7 +185,13 @@ class smtp_connection
 
     //---
 
-    rbl_client_ptr m_rbl_check;
+    rbl_client_ptr m_dnsbl_check;
+    bool m_dnsbl_status; // true: IP is blacklisted
+    std::string m_dnsbl_status_str;
+
+    // don't look to 'rbl' - it is actually used as an whitelist checker )))
+    rbl_client_ptr m_dnswl_check;
+    bool m_dnswl_status;
 
     //--
     check_rcpt_t m_check_rcpt;

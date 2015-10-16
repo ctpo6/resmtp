@@ -11,9 +11,9 @@ set(Boost_USE_STATIC_RUNTIME OFF)
 find_package(Boost REQUIRED COMPONENTS filesystem program_options regex system timer thread)
 find_package(Protobuf REQUIRED)
 
-add_definitions(-O2 -std=c++11 -Wall -Wno-parentheses -DBOOST_THREAD_USE_LIB)
+#add_definitions(-O2 -std=c++11 -Wall -Wno-parentheses -DBOOST_THREAD_USE_LIB)
 #add_definitions(-g -O1 -std=c++11 -Wall -Wno-parentheses -DBOOST_THREAD_USE_LIB)
-#add_definitions(-g -O0 -std=c++11 -Wall -Wno-parentheses -DBOOST_THREAD_USE_LIB)
+add_definitions(-g -O0 -std=c++11 -Wall -Wno-parentheses -DBOOST_THREAD_USE_LIB)
 
 #set(CMAKE_EXE_LINKER_FLAGS "-static -static-libstdc++ -static-libgcc")
 

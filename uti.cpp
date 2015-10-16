@@ -1,10 +1,27 @@
+#include <stdarg.h>
+#include <stdio.h>
+
 #include <iostream>
 #include <sstream>
 #include <iterator>
 #include <algorithm>
+
 #include <boost/format.hpp>
 
 #include "uti.h"
+
+using namespace std;
+
+
+string strf(const char* format, ...) {
+    char buf[400];
+    va_list ap;
+    va_start(ap, format);
+    vsnprintf(buf, sizeof(buf), format, ap);
+    va_end(ap);
+    return string{ buf };
+}
+
 
 static std::string conv_cr_lf(char _ch)
 {

@@ -8,9 +8,17 @@
 #include <boost/thread/mutex.hpp>
 #include <queue>
 
+#include "uti.h"
+
 const int MSG_NORMAL    =       20;
 const int MSG_CRITICAL  =       10;
 const int MSG_VERY_CRITICAL     =       10;
+
+#if 1
+#define PDBG(fmt, args...) g_log.msg(MSG_NORMAL, strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
+#else
+#define PDBG(fmt, args...)
+#endif
 
 class logger
 {

@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+
+g++ -Wall -std=c++11 -I. dns_simple.cpp dns_util.cpp -lboost_system -lboost_thread -lboost_date_time -lpthread -o dns_simple

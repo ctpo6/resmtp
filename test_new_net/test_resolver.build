@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+
+g++ -Wall -std=c++11 -I. test_resolver.cc -lboost_system -lboost_thread -lboost_date_time -lpthread -o test_resolver
