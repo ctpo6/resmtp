@@ -5,6 +5,8 @@
 #include <boost/asio.hpp>
 
 std::string strf(const char *fmt, ...);
+std::string str_from_buf(boost::asio::streambuf const &buf);
+
 
 std::string trim(const std::string &_str); // smtp_connection.cpp
 

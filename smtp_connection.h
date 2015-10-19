@@ -156,6 +156,7 @@ class smtp_connection
     void handle_back_resolve(const boost::system::error_code& ec, y::net::dns::resolver::iterator it);
     void handle_dnsbl_check();
     void start_proto();
+    void start_proto2();
 
     void handle_start_hello_write(const boost::system::error_code& _error, bool _close);
 
@@ -191,6 +192,7 @@ class smtp_connection
 
     // don't look to 'rbl' - it is actually used as an whitelist checker )))
     rbl_client_ptr m_dnswl_check;
+    std::string m_dnswl_status_str;
     bool m_dnswl_status;
 
     //--
@@ -265,6 +267,7 @@ class smtp_connection
 
     boost::asio::deadline_timer m_timer;
     boost::asio::deadline_timer m_timer_spfdkim;
+    boost::asio::deadline_timer m_tarpit_timer;
 
     unsigned int m_timer_value;
 

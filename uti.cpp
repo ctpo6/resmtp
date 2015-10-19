@@ -23,6 +23,14 @@ string strf(const char* format, ...) {
 }
 
 
+string str_from_buf(boost::asio::streambuf const &buf) {
+    boost::asio::streambuf::const_buffers_type bufs = buf.data();
+    string s(boost::asio::buffers_begin(bufs),
+             boost::asio::buffers_begin(bufs) + buf.size());
+    return s;
+}
+
+
 static std::string conv_cr_lf(char _ch)
 {
     switch (_ch)
