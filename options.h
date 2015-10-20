@@ -56,6 +56,9 @@ struct server_parameters
     bool m_rbl_active;
     std::string m_rbl_hosts;
 
+    // whitelist DNS server
+    std::string m_dnswl_host;
+
     unsigned int m_debug_level;
 
     // blackbox

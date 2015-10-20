@@ -75,6 +75,7 @@ boost::asio::ip::tcp::socket& smtp_connection::socket()
     return m_ssl_socket.next_layer();
 }
 
+
 void smtp_connection::start( bool _force_ssl )
 {
 #if defined(HAVE_PA_ASYNC_H)
@@ -112,6 +113,7 @@ void smtp_connection::start( bool _force_ssl )
                                  shared_from_this(), _1, _2)));
 }
 
+
 void smtp_connection::handle_back_resolve(const boost::system::error_code& ec, dns::resolver::iterator it)
 {
     PDBG("ENTER");
@@ -144,8 +146,7 @@ void smtp_connection::handle_back_resolve(const boost::system::error_code& ec, d
         m_dnsbl_check->start(m_connected_ip.to_v4(),
                              bind(&smtp_connection::handle_dnsbl_check, shared_from_this()));
     }
-    else
-    {
+    else {
         handle_dnsbl_check();
     }
 }
@@ -162,8 +163,9 @@ void smtp_connection::handle_dnsbl_check() {
         m_dnsbl_status = false;
 
         // start whitelist check
+        PDBG("start DNSWL check, server: %s", g_config.m_dnswl_host.c_str());
         m_dnswl_check.reset(new rbl_check(io_service_));
-        m_dnswl_check->add_rbl_source("list.dnswl.org");
+        m_dnswl_check->add_rbl_source(g_config.m_dnswl_host);
         m_dnswl_check->start(
                     m_connected_ip.to_v4(),
                     bind(&smtp_connection::start_proto, shared_from_this()));

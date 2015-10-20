@@ -296,6 +296,7 @@ bool server_parameters::parse_config(int _argc, char* _argv[], std::ostream& _ou
                 ("workers", bpo::value<unsigned int>(&m_worker_count), "workers count")
                 ("rbl_check", bpo::value<bool>(&m_rbl_active)->default_value(false), "RBL active ?")
                 ("rbl_hosts", bpo::value<std::string>(&m_rbl_hosts), "RBL hosts list")
+                ("dnswl_host", bpo::value<std::string>(&m_dnswl_host), "DNSWL host")
                 ("debug", bpo::value<unsigned int>(&m_debug_level)->default_value(0), "debug level")
 
                 ("bb_primary", bpo::value<remote_point>(&m_bb_primary_host), "blackbox host")
