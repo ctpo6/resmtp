@@ -193,6 +193,9 @@ class smtp_connection
     // don't look to 'rbl' - it is actually used as an whitelist checker )))
     rbl_client_ptr m_dnswl_check;
     std::string m_dnswl_status_str;
+    // true: IP is whitelisted
+    // false: since blacklisted IP are being disconnected, actually means that
+    // IP is greylisted
     bool m_dnswl_status;
 
     //--
@@ -267,16 +270,21 @@ class smtp_connection
 
     boost::asio::deadline_timer m_timer;
     boost::asio::deadline_timer m_timer_spfdkim;
-    boost::asio::deadline_timer m_tarpit_timer;
-
     unsigned int m_timer_value;
 
     void handle_timer( const boost::system::error_code &_error);
     void restart_timeout();
     void cancel_timer();
 
-    template<class Socket, class Response>
-    void async_say_goodbye(Socket& s, Response& r);
+
+    void send_response(
+            boost::function<void(const boost::system::error_code &)> handler);
+    void send_response2(
+            boost::function<void(const boost::system::error_code &)> handler);
+    boost::asio::deadline_timer m_tarpit_timer;
+
+
+    void async_say_goodbye();
 
     unsigned int m_max_rcpt_count;
     bool m_read_pending_;

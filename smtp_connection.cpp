@@ -28,6 +28,7 @@
 #include "log.h"
 #include "yield.hpp"
 
+namespace ba = boost::asio;
 using std::list;
 using std::string;
 using namespace y::net;
@@ -60,13 +61,15 @@ smtp_connection::~smtp_connection()
 }
 
 
-template <class Socket, class Response>
-void smtp_connection::async_say_goodbye(Socket& s, Response& r)
+void smtp_connection::async_say_goodbye()
 {
-    boost::asio::async_write(s, r,
-            strand_.wrap(boost::bind(&smtp_connection::handle_last_write_request,
-                            shared_from_this(),
-                            boost::asio::placeholders::error)));
+    boost::asio::async_write(
+        m_ssl_socket,
+        m_response,
+        strand_.wrap(boost::bind(
+            &smtp_connection::handle_last_write_request,
+            shared_from_this(),
+            boost::asio::placeholders::error)));
 }
 
 
@@ -244,18 +247,7 @@ void smtp_connection::start_proto()
     m_dnswl_check.reset(new rbl_check(io_service_));
     PDBG("m_dnswl_status:%d  m_dnswl_status_str:%s", m_dnswl_status, m_dnswl_status_str.c_str());
 
-    if(m_dnswl_status) {
-        // proceed immediately
-        start_proto2();
-    }
-    else {
-        // proceed with a timeout
-        PDBG("tarpit timeout...");
-        m_tarpit_timer.expires_from_now(
-            boost::posix_time::seconds(1));
-        m_tarpit_timer.async_wait(strand_.wrap(
-            boost::bind(&smtp_connection::start_proto2, shared_from_this())));
-    }
+    start_proto2();
 }
 
 
@@ -278,12 +270,13 @@ void smtp_connection::start_proto2() {
                                 boost::asio::placeholders::error, false)));
 		}
 		else {
-//			PDBG("response: %s", str_from_buf(m_response).c_str());
 			g_log.msg(MSG_NORMAL,
-					  str(boost::format("%1%-SEND: %2%") % m_session_id % str_from_buf(m_response)));
-			boost::asio::async_write(socket(), m_response,
-				strand_.wrap(boost::bind(&smtp_connection::handle_write_request,
-								shared_from_this(), boost::asio::placeholders::error)));
+					  str(boost::format("%1%-SEND: %2%")
+						  % m_session_id % str_from_buf(m_response)));
+			send_response(boost::bind(
+				&smtp_connection::handle_write_request,
+				shared_from_this(),
+				boost::asio::placeholders::error));
 		}
     }
     else {
@@ -300,48 +293,48 @@ void smtp_connection::start_proto2() {
                                 boost::asio::placeholders::error, true)));
         }
         else {
-            boost::asio::async_write(socket(), m_response,
-                strand_.wrap(boost::bind(&smtp_connection::handle_last_write_request, shared_from_this(),
-                                boost::asio::placeholders::error)));
+            send_response(boost::bind(
+                &smtp_connection::handle_last_write_request,
+                shared_from_this(),
+                boost::asio::placeholders::error));
         }
     }
 }
 
 
-void smtp_connection::handle_start_hello_write(const boost::system::error_code& _error, bool _close)
-{
-    if (!_error)
-    {
-        if (_close)
-        {
-            if (ssl_state_ == ssl_active)
-            {
-                async_say_goodbye(m_ssl_socket, m_response);
-            }
-            else
-            {
-                boost::asio::async_write(socket(), m_response,
-                        strand_.wrap(boost::bind(&smtp_connection::handle_last_write_request, shared_from_this(),
-                                    boost::asio::placeholders::error)));
-            }
+void smtp_connection::handle_start_hello_write(
+        const boost::system::error_code& _error,
+        bool _close) {
+    if(_error) {
+        return;
+    }
 
-        }
-        else
-        {
-            if (ssl_state_ == ssl_active)
-            {
-                boost::asio::async_write(m_ssl_socket, m_response,
-                    strand_.wrap(boost::bind(&smtp_connection::handle_write_request, shared_from_this(),
-                                boost::asio::placeholders::error)));
-
-            }
-            else
-            {
-                boost::asio::async_write(socket(), m_response,
-                        strand_.wrap(boost::bind(&smtp_connection::handle_write_request, shared_from_this(),
-                                    boost::asio::placeholders::error)));
-            }
-        }
+    if (_close) {
+        send_response(boost::bind(
+            &smtp_connection::handle_last_write_request,
+            shared_from_this(),
+            boost::asio::placeholders::error));
+//        if (ssl_state_ == ssl_active) {
+//            async_say_goodbye();
+//        } else {
+//            boost::asio::async_write(socket(), m_response,
+//                    strand_.wrap(boost::bind(&smtp_connection::handle_last_write_request, shared_from_this(),
+//                                boost::asio::placeholders::error)));
+//        }
+    } else {
+        send_response(boost::bind(
+            &smtp_connection::handle_write_request,
+            shared_from_this(),
+            boost::asio::placeholders::error));
+//        if (ssl_state_ == ssl_active) {
+//            boost::asio::async_write(m_ssl_socket, m_response,
+//                strand_.wrap(boost::bind(&smtp_connection::handle_write_request, shared_from_this(),
+//                            boost::asio::placeholders::error)));
+//        } else {
+//            boost::asio::async_write(socket(), m_response,
+//                    strand_.wrap(boost::bind(&smtp_connection::handle_write_request, shared_from_this(),
+//                                boost::asio::placeholders::error)));
+//        }
     }
 }
 
@@ -453,64 +446,68 @@ bool smtp_connection::handle_read_data_helper(const yconst_buffers_iterator& b, 
  * parsed: iterator pointing directly past the parsed and processed part of the input range;
  * read: iterator pointing directly past the last read character of the input range (anything in between [parsed, read) is a prefix of a command);
 */
-bool smtp_connection::handle_read_command_helper(const yconst_buffers_iterator& b, const yconst_buffers_iterator& e,
-        yconst_buffers_iterator& parsed, yconst_buffers_iterator& read)
-{
-    if ((read = std::find(b, e, '\n')) != e)
-    {
-        std::string command (parsed, read);
-        parsed = ++read;
+bool smtp_connection::handle_read_command_helper(
+        const yconst_buffers_iterator& b,
+        const yconst_buffers_iterator& e,
+        yconst_buffers_iterator& parsed,
+        yconst_buffers_iterator& read) {
+    if ((read = std::find(b, e, '\n')) == e) {
+        return true;
+    }
 
-        std::ostream response_stream(&m_response);
+    std::string command (parsed, read);
+    parsed = ++read;
+
+    std::ostream response_stream(&m_response);
 
 #ifdef ENABLE_AUTH_BLACKBOX
-        bool res = (m_proto_state == STATE_AUTH_MORE) ?
-                continue_smtp_auth(command, response_stream) :
-                execute_command(command, response_stream);
+    bool res = (m_proto_state == STATE_AUTH_MORE) ?
+            continue_smtp_auth(command, response_stream) :
+            execute_command(command, response_stream);
 #else
-        bool res = execute_command(command, response_stream);
+    bool res = execute_command(command, response_stream);
 #endif // ENABLE_AUTH_BLACKBOX
 
-        if (res)
+    if (res) {
+        switch (ssl_state_)
         {
-            switch (ssl_state_)
-            {
-                case ssl_none:
-                    boost::asio::async_write(socket(), m_response,
-                            strand_.wrap(boost::bind(&smtp_connection::handle_write_request, shared_from_this(),
-                                            boost::asio::placeholders::error)));
-                    break;
+        case ssl_none:
+        case ssl_active:
+            send_response(boost::bind(
+                &smtp_connection::handle_write_request,
+                shared_from_this(),
+                boost::asio::placeholders::error));
+//            boost::asio::async_write(socket(), m_response,
+//                    strand_.wrap(boost::bind(&smtp_connection::handle_write_request, shared_from_this(),
+//                                    boost::asio::placeholders::error)));
+            break;
 
-                case ssl_hand_shake:
-                    boost::asio::async_write(socket(), m_response,
-                            strand_.wrap(boost::bind(&smtp_connection::handle_ssl_handshake, shared_from_this(),
-                                            boost::asio::placeholders::error)));
-                    break;
+        case ssl_hand_shake:
+            boost::asio::async_write(socket(), m_response,
+                    strand_.wrap(boost::bind(&smtp_connection::handle_ssl_handshake, shared_from_this(),
+                                    boost::asio::placeholders::error)));
+            break;
 
-                case ssl_active:
-                    boost::asio::async_write(m_ssl_socket, m_response,
-                            strand_.wrap(boost::bind(&smtp_connection::handle_write_request, shared_from_this(),
-                                            boost::asio::placeholders::error)));
-                    break;
-            }
-
+//        case ssl_active:
+//            boost::asio::async_write(m_ssl_socket, m_response,
+//                    strand_.wrap(boost::bind(&smtp_connection::handle_write_request, shared_from_this(),
+//                                    boost::asio::placeholders::error)));
+//            break;
         }
-        else
-        {
-            if (ssl_state_ == ssl_active)
-            {
-                async_say_goodbye(m_ssl_socket, m_response);
-            }
-            else
-            {
-                boost::asio::async_write(socket(), m_response,
-                        strand_.wrap(boost::bind(&smtp_connection::handle_last_write_request, shared_from_this(),
-                                        boost::asio::placeholders::error)));
-            }
-        }
-        return false;
+    } else {
+        send_response(boost::bind(
+            &smtp_connection::handle_last_write_request,
+            shared_from_this(),
+            boost::asio::placeholders::error));
+//        if (ssl_state_ == ssl_active) {
+//            async_say_goodbye();
+//        } else {
+//            boost::asio::async_write(socket(), m_response,
+//                    strand_.wrap(boost::bind(&smtp_connection::handle_last_write_request, shared_from_this(),
+//                                    boost::asio::placeholders::error)));
+//        }
     }
-    return true;
+    return false;
 }
 
 // Parses the first size characters of buffers_.data().
@@ -1417,6 +1414,41 @@ void smtp_connection::end_check_data()
     }
 }
 
+
+void smtp_connection::send_response(
+        boost::function<void(const boost::system::error_code &)> handler) {
+    if (m_dnswl_status) {
+        // send immediately
+        send_response2(handler);
+        return;
+    }
+
+    // send with tarpit timeout
+    PDBG("... tarpit delay ...");
+    m_tarpit_timer.expires_from_now(boost::posix_time::seconds(5));
+    m_tarpit_timer.async_wait(strand_.wrap(
+        boost::bind(&smtp_connection::send_response2,
+                    shared_from_this(),
+                    handler)));
+}
+
+
+void smtp_connection::send_response2(
+        boost::function<void(const boost::system::error_code &)> handler) {
+    if(ssl_state_ == ssl_active) {
+        ba::async_write(
+            m_ssl_socket,
+            m_response,
+            strand_.wrap(boost::bind(handler, boost::asio::placeholders::error)));
+    } else {
+        ba::async_write(
+            socket(),
+            m_response,
+            strand_.wrap(boost::bind(handler, boost::asio::placeholders::error)));
+    }
+}
+
+
 void smtp_connection::handle_write_request(const boost::system::error_code& _err)
 {
     if (!_err)
@@ -1620,7 +1652,7 @@ bool smtp_connection::smtp_ehlo( const std::string& _cmd, std::ostream &_respons
         esmtp_flags += str(boost::format("250-SIZE %1%\r\n") % g_config.m_message_size_limit);
     }
 
-     if (g_config.m_use_tls && !force_ssl_)
+    if (g_config.m_use_tls && !force_ssl_)
     {
         esmtp_flags += "250-STARTTLS\r\n";
     }
@@ -2149,7 +2181,7 @@ void smtp_connection::handle_timer(const boost::system::error_code& _e)
 
         if (ssl_state_ == ssl_active)
 		{
-            async_say_goodbye(m_ssl_socket, m_response);
+			async_say_goodbye();
 		}
 		else
 		{
