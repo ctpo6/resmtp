@@ -52,7 +52,7 @@ class smtp_connection
 
     explicit smtp_connection(boost::asio::io_service &_io_service, smtp_connection_manager &_manager, boost::asio::ssl::context& _context);
 
-    ~smtp_connection();
+    ~smtp_connection() = default;
 
     boost::asio::ip::tcp::socket& socket();
 
@@ -287,7 +287,7 @@ class smtp_connection
     // isn't RFC compliant
     bool check_socket_read_buffer_is_empty();
 
-    void async_say_goodbye();
+//    void async_say_goodbye();
 
     unsigned int m_max_rcpt_count;
     bool m_read_pending_;

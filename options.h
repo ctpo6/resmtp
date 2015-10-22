@@ -4,6 +4,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <cstdint>
 #include <iostream>
 #include <set>
 #include <vector>
@@ -55,6 +56,7 @@ struct server_parameters {
     unsigned int m_worker_count;
 
     bool m_socket_check;
+    uint32_t m_tarpit_delay_seconds;
 
     bool m_rbl_active;
     std::string m_rbl_hosts;

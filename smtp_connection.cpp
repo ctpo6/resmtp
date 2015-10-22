@@ -56,21 +56,16 @@ smtp_connection::smtp_connection(
 }
 
 
-smtp_connection::~smtp_connection()
-{
-}
-
-
-void smtp_connection::async_say_goodbye()
-{
-    boost::asio::async_write(
-        m_ssl_socket,
-        m_response,
-        strand_.wrap(boost::bind(
-            &smtp_connection::handle_last_write_request,
-            shared_from_this(),
-            boost::asio::placeholders::error)));
-}
+//void smtp_connection::async_say_goodbye()
+//{
+//    boost::asio::async_write(
+//        m_ssl_socket,
+//        m_response,
+//        strand_.wrap(boost::bind(
+//            &smtp_connection::handle_last_write_request,
+//            shared_from_this(),
+//            boost::asio::placeholders::error)));
+//}
 
 
 boost::asio::ip::tcp::socket& smtp_connection::socket()
@@ -79,8 +74,7 @@ boost::asio::ip::tcp::socket& smtp_connection::socket()
 }
 
 
-void smtp_connection::start( bool _force_ssl )
-{
+void smtp_connection::start( bool _force_ssl ) {
 #if defined(HAVE_PA_ASYNC_H)
     m_pa_timer.start();
 #endif
@@ -93,8 +87,7 @@ void smtp_connection::start( bool _force_ssl )
 
     ip_options_config::ip_options_t opt;
 
-    if (g_ip_config.check(m_connected_ip.to_v4(), opt))
-    {
+    if (g_ip_config.check(m_connected_ip.to_v4(), opt)) {
         m_max_rcpt_count = opt.m_rcpt_count;
     }
 
@@ -102,33 +95,36 @@ void smtp_connection::start( bool _force_ssl )
 
     m_timer_value = g_config.m_smtpd_cmd_timeout;
 
-    boost::asio::ip::tcp::endpoint ep(m_connected_ip, 0);
-
-    m_remote_host_name =  m_connected_ip.to_string();
-
-    PDBG("g_config.m_rbl_active: %d", g_config.m_rbl_active);
-    PDBG("call async_resolve() %s", m_connected_ip.to_string().c_str());
-    m_resolver.async_resolve(
-                rev_order_av4_str(m_connected_ip.to_v4(), "in-addr.arpa"),
-                dns::type_ptr,
-                strand_.wrap(boost::bind(
-                                 &smtp_connection::handle_back_resolve,
-                                 shared_from_this(), _1, _2)));
+    // handle 127.0.0.1 in a special way because it's resolved very slowly (30 sec)
+    // TODO: is it a bug in the resolver???
+    if(!m_connected_ip.is_loopback()) {
+        m_remote_host_name.clear();
+        PDBG("call async_resolve() %s", m_connected_ip.to_string().c_str());
+        m_resolver.async_resolve(
+                    rev_order_av4_str(m_connected_ip.to_v4(), "in-addr.arpa"),
+                    dns::type_ptr,
+                    strand_.wrap(boost::bind(
+                                     &smtp_connection::handle_back_resolve,
+                                     shared_from_this(), _1, _2)));
+    } else {
+        m_remote_host_name.assign("localhost");
+        PDBG("call handle_back_resolve()");
+        handle_back_resolve(boost::system::error_code(), dns::resolver::iterator());
+    }
 }
 
 
-void smtp_connection::handle_back_resolve(const boost::system::error_code& ec, dns::resolver::iterator it)
-{
-    PDBG("ENTER");
-
-    m_remote_host_name.clear();
-
-    if (ec == boost::asio::error::operation_aborted)
-        return;
-
+void smtp_connection::handle_back_resolve(
+        const boost::system::error_code& ec,
+        dns::resolver::iterator it) {
     if (!ec) {
-        if (const boost::shared_ptr<dns::ptr_resource> ptr = boost::dynamic_pointer_cast<dns::ptr_resource>(*it))
-            m_remote_host_name = unfqdn( ptr->pointer() );
+        if (it != dns::resolver::iterator()) {
+            if (auto ptr = boost::dynamic_pointer_cast<dns::ptr_resource>(*it)) {
+                m_remote_host_name = unfqdn(ptr->pointer());
+            }
+        }
+    } else if(ec == boost::asio::error::operation_aborted) {
+        return;
     }
 
     if (m_remote_host_name.empty()) {
@@ -1416,7 +1412,8 @@ void smtp_connection::end_check_data()
 
 void smtp_connection::send_response(
         boost::function<void(const boost::system::error_code &)> handler) {
-    if (m_dnswl_status) {
+    if (m_dnswl_status ||
+            g_config.m_tarpit_delay_seconds == 0) {
         // send immediately
         send_response2(handler);
         return;
@@ -1424,7 +1421,8 @@ void smtp_connection::send_response(
 
     // send with tarpit timeout
     PDBG("... tarpit delay ...");
-    m_tarpit_timer.expires_from_now(boost::posix_time::seconds(5));
+    m_tarpit_timer.expires_from_now(
+        boost::posix_time::seconds(g_config.m_tarpit_delay_seconds));
     m_tarpit_timer.async_wait(strand_.wrap(
         boost::bind(&smtp_connection::send_response2,
                     shared_from_this(),
@@ -2149,51 +2147,56 @@ boost::asio::ip::address smtp_connection::remote_address()
 
 void smtp_connection::handle_timer(const boost::system::error_code& _e)
 {
-    if (!_e)
+    if(_e) return;
+
+    std::ostream response_stream(&m_response);
+    response_stream << "421 4.4.2 " << boost::asio::ip::host_name()
+                    << " Error: timeout exceeded\r\n";
+
+    if ( m_proto_state == STATE_BLAST_FILE )
     {
-        std::ostream response_stream(&m_response);
-        response_stream << "421 4.4.2 " << boost::asio::ip::host_name() << " Error: timeout exceeded\r\n";
-
-        if ( m_proto_state == STATE_BLAST_FILE )
-        {
-            g_log.msg(MSG_NORMAL,str(boost::format("%1%-RECV: timeout after DATA (%2% bytes) from %3%[%4%]")
-                            % m_session_id % buffers_.size() % m_remote_host_name % m_connected_ip.to_string()
-                                     ));
-        }
-        else
-        {
-            const char* state_desc = "";
-            switch (m_proto_state)
-            {
-                case STATE_START:
-                    state_desc = "CONNECT";
-                    break;
-                case STATE_AFTER_MAIL:
-                    state_desc = "MAIL FROM";
-                    break;
-                case STATE_RCPT_OK:
-                    state_desc = "RCPT TO";
-                    break;
-                case STATE_HELLO:
-                default:
-                    state_desc = "HELO";
-                    break;
-            }
-            g_log.msg(MSG_NORMAL, str(boost::format("%1%-RECV: timeout after %2% from %3%[%4%]")
-                                      % m_session_id % state_desc % m_remote_host_name % m_connected_ip.to_string()));
-        }
-
-        if (ssl_state_ == ssl_active)
-		{
-			async_say_goodbye();
-		}
-		else
-		{
-    	    boost::asio::async_write(socket(), m_response,
-                strand_.wrap(boost::bind(&smtp_connection::handle_last_write_request, shared_from_this(),
-                                boost::asio::placeholders::error)));
-		}
+        g_log.msg(MSG_NORMAL,str(boost::format("%1%-RECV: timeout after DATA (%2% bytes) from %3%[%4%]")
+                        % m_session_id % buffers_.size() % m_remote_host_name % m_connected_ip.to_string()
+                                 ));
     }
+    else
+    {
+        const char* state_desc = "";
+        switch (m_proto_state)
+        {
+            case STATE_START:
+                state_desc = "CONNECT";
+                break;
+            case STATE_AFTER_MAIL:
+                state_desc = "MAIL FROM";
+                break;
+            case STATE_RCPT_OK:
+                state_desc = "RCPT TO";
+                break;
+            case STATE_HELLO:
+            default:
+                state_desc = "HELO";
+                break;
+        }
+        g_log.msg(MSG_NORMAL, str(boost::format("%1%-RECV: timeout after %2% from %3%[%4%]")
+                                  % m_session_id % state_desc % m_remote_host_name % m_connected_ip.to_string()));
+    }
+
+    send_response(boost::bind(
+        &smtp_connection::handle_last_write_request,
+        shared_from_this(),
+        boost::asio::placeholders::error));
+
+//        if (ssl_state_ == ssl_active)
+//		{
+//			async_say_goodbye();
+//		}
+//		else
+//		{
+//    	    boost::asio::async_write(socket(), m_response,
+//                strand_.wrap(boost::bind(&smtp_connection::handle_last_write_request, shared_from_this(),
+//                                boost::asio::placeholders::error)));
+//		}
 }
 
 void smtp_connection::restart_timeout()

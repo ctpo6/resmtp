@@ -294,6 +294,8 @@ bool server_parameters::parse_config(int _argc, char* _argv[], std::ostream& _ou
 
                 ("socket_check", bpo::value<bool>(&m_socket_check)->default_value(false), "check socket emptiness before sending greeting ?")
 
+                ("tarpit_delay_seconds", bpo::value<uint32_t>(&m_tarpit_delay_seconds)->default_value(0), "tarpit delay")
+
                 ("smtp_banner", bpo::value<std::string>(&m_smtp_banner), "smtp banner")
                 ("workers", bpo::value<unsigned int>(&m_worker_count), "workers count")
                 ("rbl_check", bpo::value<bool>(&m_rbl_active)->default_value(false), "RBL active ?")
