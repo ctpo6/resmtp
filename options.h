@@ -3,11 +3,14 @@
 
 #include <sys/types.h>
 #include <unistd.h>
+
 #include <iostream>
 #include <set>
 #include <vector>
+
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/unordered_set.hpp>
+
 #include "rc_clients/greylisting.h"
 
 #if defined(HAVE_CONFIG_H)
@@ -32,11 +35,9 @@ struct gid_value
     gid_t gid;
 };
 
-struct server_parameters
-{
+struct server_parameters {
 
-    struct remote_point
-    {
+    struct remote_point {
         // [proto://]host_name[:port][/url]
         // [proto://]host_name[:port]
         std::string m_proto;
@@ -52,6 +53,8 @@ struct server_parameters
     std::string m_smtp_banner;
 
     unsigned int m_worker_count;
+
+    bool m_socket_check;
 
     bool m_rbl_active;
     std::string m_rbl_hosts;

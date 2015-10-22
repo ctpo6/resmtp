@@ -1436,7 +1436,8 @@ void smtp_connection::send_response2(
         boost::function<void(const boost::system::error_code &)> handler) {
     // check that the client hasn't sent something to us before it hadn't
     // received our greeting msg
-    if (m_proto_state == STATE_START &&
+    if (g_config.m_socket_check &&
+            m_proto_state == STATE_START &&
             !check_socket_read_buffer_is_empty()) {
         g_log.msg(MSG_NORMAL,
             str(boost::format("%1%: ABORT SESSION (bad client behavior)")

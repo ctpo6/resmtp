@@ -292,6 +292,8 @@ bool server_parameters::parse_config(int _argc, char* _argv[], std::ostream& _ou
                 ("user", bpo::value<uid_value>(&m_uid), "set uid after port bindings")
                 ("group", bpo::value<gid_value>(&m_gid), "set gid after port bindings")
 
+                ("socket_check", bpo::value<bool>(&m_socket_check)->default_value(false), "check socket emptiness before sending greeting ?")
+
                 ("smtp_banner", bpo::value<std::string>(&m_smtp_banner), "smtp banner")
                 ("workers", bpo::value<unsigned int>(&m_worker_count), "workers count")
                 ("rbl_check", bpo::value<bool>(&m_rbl_active)->default_value(false), "RBL active ?")
