@@ -156,7 +156,6 @@ class smtp_connection
     void handle_back_resolve(const boost::system::error_code& ec, y::net::dns::resolver::iterator it);
     void handle_dnsbl_check();
     void start_proto();
-    void start_proto2();
 
     void handle_start_hello_write(const boost::system::error_code& _error, bool _close);
 
@@ -283,6 +282,10 @@ class smtp_connection
             boost::function<void(const boost::system::error_code &)> handler);
     boost::asio::deadline_timer m_tarpit_timer;
 
+    // check is performed in the STATE_START before sending the greeting msg:
+    // if there is something in the read buffer, it indicates that the client
+    // isn't RFC compliant
+    bool check_socket_read_buffer_is_empty();
 
     void async_say_goodbye();
 

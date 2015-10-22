@@ -176,12 +176,11 @@ void smtp_connection::handle_dnsbl_check() {
 }
 
 
-void smtp_connection::start_proto()
-{
-    PDBG("ENTER");
-
+void smtp_connection::start_proto() {
     m_proto_state = STATE_START;
     restart_timeout();
+    ssl_state_ = ssl_none;
+    bool tls_flag = false;
 
     add_new_command("rcpt", &smtp_connection::smtp_rcpt);
     add_new_command("mail", &smtp_connection::smtp_mail);
@@ -192,36 +191,33 @@ void smtp_connection::start_proto()
     add_new_command("rset", &smtp_connection::smtp_rset);
     add_new_command("noop", &smtp_connection::smtp_noop);
 
-    ssl_state_ = ssl_none;
-    string tls_flag = "NOTLS";
     if (g_config.m_use_tls && !force_ssl_) {
+        tls_flag = true;
         add_new_command("starttls", &smtp_connection::smtp_starttls);
-        tls_flag = "TLS";
     }
 
 #ifdef ENABLE_AUTH_BLACKBOX
-    if (g_config.m_use_auth)
-    {
+    if (g_config.m_use_auth) {
         add_new_command("auth", &smtp_connection::smtp_auth);
-
         auth_.initialize(m_connected_ip.to_v4().to_string());
     }
-#endif // ENABLE_AUTH_BLACKBOX
+#endif
 
+    std::ostream response_stream(&m_response);
+
+    //--------------------------------------------------------------------------
+    // check if IP is blacklisted
+    //--------------------------------------------------------------------------
     PDBG("m_dnsbl_status:%d  m_dnsbl_status_str:%s", m_dnsbl_status, m_dnsbl_status_str.c_str());
-
     if (m_dnsbl_status) {
-        PDBG("IP is blacklisted!!!");
-
-        std::ostream response_stream(&m_response);
-
         m_dnsbl_check->stop();
         m_dnsbl_check.reset(new rbl_check(io_service_));
 
         g_log.msg(MSG_NORMAL,
-                  str(boost::format("%1%-RECV: reject: CONNECT from %2%[%3%]: %4%; proto=SMTP, flags=%5%")
-                      % m_session_id % m_remote_host_name % m_connected_ip.to_v4().to_string()
-                      % m_dnsbl_status_str % tls_flag));
+            str(boost::format("%1%-RECV: reject: CONNECT from %2%[%3%]: %4%; proto=SMTP, flags=%5%")
+                % m_session_id % m_remote_host_name % m_connected_ip.to_v4().to_string()
+                % m_dnsbl_status_str
+                % (tls_flag ? "TLS" : "NOTLS")));
 
         response_stream << m_dnsbl_status_str;
 
@@ -231,30 +227,30 @@ void smtp_connection::start_proto()
             	    strand_.wrap(boost::bind(&smtp_connection::handle_start_hello_write, shared_from_this(),
                                 boost::asio::placeholders::error, true)));
         } else {
-    	    boost::asio::async_write(socket(), m_response,
-                strand_.wrap(boost::bind(&smtp_connection::handle_last_write_request, shared_from_this(),
-                                boost::asio::placeholders::error)));
+            send_response(boost::bind(
+                &smtp_connection::handle_last_write_request,
+                shared_from_this(),
+                boost::asio::placeholders::error));
+//    	    boost::asio::async_write(socket(), m_response,
+//                strand_.wrap(boost::bind(&smtp_connection::handle_last_write_request, shared_from_this(),
+//                                boost::asio::placeholders::error)));
         }
 
         return;
     }
 
+    //--------------------------------------------------------------------------
     // get whitelist check result, reset checker
+    //--------------------------------------------------------------------------
     assert(m_dnswl_check);
     m_dnswl_status = m_dnswl_check->get_status(m_dnswl_status_str);
     m_dnswl_check->stop();
     m_dnswl_check.reset(new rbl_check(io_service_));
     PDBG("m_dnswl_status:%d  m_dnswl_status_str:%s", m_dnswl_status, m_dnswl_status_str.c_str());
 
-    start_proto2();
-}
-
-
-void smtp_connection::start_proto2() {
-    PDBG("ENTER");
-
-    std::ostream response_stream(&m_response);
-
+    //--------------------------------------------------------------------------
+    // send greeting msg
+    //--------------------------------------------------------------------------
     string error;
     if (m_manager.start(shared_from_this(),
                         g_config.m_client_connection_count_limit,
@@ -267,8 +263,7 @@ void smtp_connection::start_proto2() {
     	    m_ssl_socket.async_handshake(boost::asio::ssl::stream_base::server,
             	    strand_.wrap(boost::bind(&smtp_connection::handle_start_hello_write, shared_from_this(),
                                 boost::asio::placeholders::error, false)));
-		}
-		else {
+        } else {
 			g_log.msg(MSG_NORMAL,
 					  str(boost::format("%1%-SEND: %2%")
 						  % m_session_id % str_from_buf(m_response)));
@@ -289,14 +284,20 @@ void smtp_connection::start_proto2() {
     	    m_ssl_socket.async_handshake(boost::asio::ssl::stream_base::server,
             	    strand_.wrap(boost::bind(&smtp_connection::handle_start_hello_write, shared_from_this(),
                                 boost::asio::placeholders::error, true)));
-        }
-        else {
+        } else {
             send_response(boost::bind(
                 &smtp_connection::handle_last_write_request,
                 shared_from_this(),
                 boost::asio::placeholders::error));
         }
     }
+}
+
+
+bool smtp_connection::check_socket_read_buffer_is_empty() {
+    ba::socket_base::bytes_readable command(true);
+    socket().io_control(command);
+    return command.get() == 0;
 }
 
 
@@ -1433,6 +1434,16 @@ void smtp_connection::send_response(
 
 void smtp_connection::send_response2(
         boost::function<void(const boost::system::error_code &)> handler) {
+    // check that the client hasn't sent something to us before it hadn't
+    // received our greeting msg
+    if (m_proto_state == STATE_START &&
+            !check_socket_read_buffer_is_empty()) {
+        g_log.msg(MSG_NORMAL,
+            str(boost::format("%1%: ABORT SESSION (bad client behavior)")
+                % m_session_id));
+        m_manager.stop(shared_from_this());
+    }
+
     if(ssl_state_ == ssl_active) {
         ba::async_write(
             m_ssl_socket,

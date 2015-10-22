@@ -52,7 +52,6 @@ void rbl_check::handle_resolve(const boost::system::error_code& ec, dns::resolve
 {
     if (!ec)
     {
-        PDBG("------------- !ec");
         m_message = str(boost::format("554 5.7.1 Service unavailable; Client host [%1%] blocked using %2%; Blocked by spam statistics - see http://feedback.yandex.ru/?from=mail-rejects&subject=%3%\r\n")
                 % m_address.to_string() %  *m_current_source % m_address.to_string());
 
@@ -61,7 +60,6 @@ void rbl_check::handle_resolve(const boost::system::error_code& ec, dns::resolve
     }
     else
     {
-        PDBG("------------- ec");
         if (++m_current_source == m_source_list.end())
         {
             m_message.clear();
