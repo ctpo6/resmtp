@@ -230,8 +230,7 @@ void smtp_connection::start_proto()
     	    m_ssl_socket.async_handshake(boost::asio::ssl::stream_base::server,
             	    strand_.wrap(boost::bind(&smtp_connection::handle_start_hello_write, shared_from_this(),
                                 boost::asio::placeholders::error, true)));
-        }
-        else {
+        } else {
     	    boost::asio::async_write(socket(), m_response,
                 strand_.wrap(boost::bind(&smtp_connection::handle_last_write_request, shared_from_this(),
                                 boost::asio::placeholders::error)));
@@ -278,8 +277,7 @@ void smtp_connection::start_proto2() {
 				shared_from_this(),
 				boost::asio::placeholders::error));
 		}
-    }
-    else {
+	} else {
         g_log.msg(MSG_NORMAL, str(boost::format("%1%-RECV: reject: CONNECT from %2%[%3%]: %4%")
                                   % m_session_id % m_remote_host_name
                                   % m_connected_ip.to_v4().to_string() % error));
@@ -1478,22 +1476,16 @@ void smtp_connection::handle_write_request(const boost::system::error_code& _err
     }
 }
 
-void smtp_connection::handle_last_write_request(const boost::system::error_code& _err)
-{
-    if (!_err)
-    {
-        try
-        {
+void smtp_connection::handle_last_write_request(
+        const boost::system::error_code& _err) {
+    if (!_err) {
+        try {
             socket().shutdown(boost::asio::ip::tcp::socket::shutdown_both);
             socket().close();
-        }
-        catch (boost::system::system_error &_err)
-        {
-        }
+        } catch (boost::system::system_error &) {}
     }
 
-    if (_err != boost::asio::error::operation_aborted)
-    {
+    if (_err != boost::asio::error::operation_aborted) {
         m_manager.stop(shared_from_this());
     }
 }

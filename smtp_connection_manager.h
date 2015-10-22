@@ -13,7 +13,11 @@ class smtp_connection_manager
 {
   public:
 
-    bool start(smtp_connection_ptr _session, unsigned int _max_sessions_per_ip, unsigned int _max_sessions, std::string &_msg);
+    bool start(
+            smtp_connection_ptr _session,
+            unsigned int _max_sessions_per_ip,
+            unsigned int _max_sessions,
+            std::string &_msg);
 
     void stop(smtp_connection_ptr _session);
 
