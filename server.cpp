@@ -1,11 +1,13 @@
+#include "server.h"
+
+#include <iostream>
+
 #include <boost/bind.hpp>
 #include <boost/thread/thread.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string/compare.hpp>
-#include <iostream>
 #include <boost/format.hpp>
 
-#include "server.h"
 #include "log.h"
 
 server::server(std::size_t _io_service_pool_size,  uid_t _user, gid_t _group)
@@ -40,17 +42,15 @@ server::server(std::size_t _io_service_pool_size,  uid_t _user, gid_t _group)
         }
     }
 
-    std::for_each(g_config.m_listen_points.begin(), g_config.m_listen_points.end(),
-            boost::bind(&server::setup_acceptor, this, _1, false)
-                  );
-
-    if (g_config.m_use_tls)
-        std::for_each(g_config.m_ssl_listen_points.begin(), g_config.m_ssl_listen_points.end(),
-                boost::bind(&server::setup_acceptor, this, _1, true)
-                      );
-
-    if ( acceptors_.empty() )
-    {
+    for(auto &s: g_config.m_listen_points) {
+        setup_acceptor(s, false);
+    }
+    if (g_config.m_use_tls) {
+        for(auto &s: g_config.m_ssl_listen_points) {
+            setup_acceptor(s, true);
+        }
+    }
+    if (acceptors_.empty()) {
         throw std::logic_error("No address to bind to!");
     }
 
@@ -97,18 +97,18 @@ bool server::setup_acceptor(const std::string& address, bool ssl)
 }
 
 
-void server::run()
-{
-    for (std::size_t i = 0; i < m_io_service_pool_size; ++i)
-        m_threads_pool.create_thread(boost::bind(&boost::asio::io_service::run, &m_io_service));
+void server::run() {
+    for (std::size_t i = 0; i < m_io_service_pool_size; ++i) {
+        m_threads_pool.create_thread( [this](){ m_io_service.run(); } );
+    }
 }
 
-void server::stop()
-{
+
+void server::stop() {
     boost::mutex::scoped_lock lock(m_mutex);
-
-    std::for_each(acceptors_.begin(), acceptors_.end(), boost::bind(&acceptor_ptr::element_type::close, _1));
-
+    for (auto a: acceptors_) {
+        a->close();
+    }
     lock.unlock();
 
     m_threads_pool.join_all();
@@ -127,7 +127,6 @@ void server::handle_accept(acceptor_list::iterator acceptor, smtp_connection_ptr
         try
         {
             _connection->start( _force_ssl );
-
         }
         catch(boost::system::system_error &e)
         {
