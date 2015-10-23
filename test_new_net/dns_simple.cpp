@@ -9,64 +9,56 @@ using namespace boost::net;
 
 void show_message(dns::message & dns_message);
 
-void request( dns::message & dns_message ) {
-  boost::asio::io_service ioservice;
+void request(dns::message & dns_message) {
   dns::resolve resolver;
 
-  ip::address rambler_dns_1( ip::address::from_string("81.19.70.16") );
-  ip::address rambler_dns_2( ip::address::from_string("81.19.94.163") );
-  resolver.addServer( rambler_dns_1 );
-  resolver.addServer( rambler_dns_2 );
+  ip::address rambler_dns_1(ip::address::from_string("81.19.70.16"));
+  ip::address rambler_dns_2(ip::address::from_string("81.19.94.163"));
+  // resolver.addServer( rambler_dns_1 );
+  // resolver.addServer( rambler_dns_2 );
 
   // Resolve the message and show the results
   show_message( resolver.query(dns_message) );
 }
 
+
 void test_bl() {
 	cout << "#################### TEST BL ##################\n";
-	cout << "BAD pbl.spamhaus.org ----------------------------\n";
+	cout << "IN LIST pbl.spamhaus.org ----------------------------\n";
 	dns::message test_rbl_bad_a1("67.44.160.1.pbl.spamhaus.org", dns::type_a );
   request( test_rbl_bad_a1 );
-	// dns::message test_rbl_bad_txt1("67.44.160.1.pbl.spamhaus.org", dns::type_txt );
-  // request( test_rbl_bad_txt1 );
-	cout << "BAD pbl.spamhaus.org ----------------------------\n\n\n\n\n";
+	cout << "IN LIST pbl.spamhaus.org ----------------------------\n\n\n\n\n";
 
-	cout << "BAD bl.spamcop.net ----------------------------\n";
+	cout << "NOT IN LIST bl.spamcop.net ----------------------------\n";
 	dns::message test_rbl_bad_a2("133.100.46.89.bl.spamcop.net", dns::type_a );
   request( test_rbl_bad_a2 );
-	// dns::message test_rbl_bad_txt2("133.100.46.89.bl.spamcop.net", dns::type_txt );
-  // request( test_rbl_bad_txt2 );
-	cout << "BAD bl.spamcop.net ----------------------------\n\n\n\n\n";
+	cout << "NOT IN LIST bl.spamcop.net ----------------------------\n\n\n\n\n";
 
-	cout << "GOOD bl.spamcop.net ---------------------------------------------\n";
+	cout << "NOT IN LIST bl.spamcop.net ---------------------------------------------\n";
 	dns::message test_rbl_good_a1("67.44.160.1.bl.spamcop.net", dns::type_a );
   request( test_rbl_good_a1 );
-	// dns::message test_rbl_good_txt1("67.44.160.1.bl.spamcop.net", dns::type_txt );
-  // request( test_rbl_good_txt1 );
-	cout << "GOOD bl.spamcop.net ---------------------------------------------\n\n\n\n\n";
+	cout << "NOT IN LIST bl.spamcop.net ---------------------------------------------\n\n\n\n\n";
 }
 
 
 void test_wl() {
 	cout << "#################### TEST WL ##################\n";
-	cout << "GOOD list.dnswl.org ----------------------------\n";
+	cout << "IN LIST list.dnswl.org ----------------------------\n";
 	dns::message test_wl_good_a1("26.66.19.81.list.dnswl.org", dns::type_a );
   request( test_wl_good_a1 );
-	dns::message test_wl_good_txt1("26.66.19.81.list.dnswl.org", dns::type_txt );
-  request( test_wl_good_txt1 );
-	cout << "GOOD list.dnswl.org ----------------------------\n\n\n\n\n";
+	cout << "IN LIST list.dnswl.org ----------------------------\n\n\n\n\n";
 	
-	cout << "BAD list.dnswl.org ----------------------------\n";
+	cout << "NOT IN LIST list.dnswl.org ----------------------------\n";
 	dns::message test_wl_bad_a1("133.100.46.89.list.dnswl.org", dns::type_a );
   request( test_wl_bad_a1 );
-	dns::message test_wl_bad_txt1("133.100.46.89.list.dnswl.org", dns::type_txt );
-  request( test_wl_bad_txt1 );
-	cout << "BAD list.dnswl.org ----------------------------\n\n\n\n\n";
+	// dns::message test_wl_bad_txt1("133.100.46.89.list.dnswl.org", dns::type_txt );
+  // request( test_wl_bad_txt1 );
+	cout << "NOT IN LIST list.dnswl.org ----------------------------\n\n\n\n\n";
 }
 
 int main(int argc, char* argv[]) {
-	// test_bl();
-	test_wl();
+	test_bl();
+	//	test_wl();
 	
   // dns::message test_a("cnn.com", dns::type_a );
 	// dns::message test_a("mail.rambler.ru", dns::type_mx );

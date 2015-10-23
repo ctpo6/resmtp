@@ -1,6 +1,7 @@
 #include "rbl.h"
 
 #include <iostream>
+
 #include <boost/bind.hpp>
 #include <boost/format.hpp>
 
@@ -16,10 +17,12 @@ rbl_check::rbl_check(boost::asio::io_service& _io_service):
 {
 }
 
+
 void rbl_check::add_rbl_source(const std::string &_host_name)
 {
     m_source_list.push_back(_host_name);
 }
+
 
 void rbl_check::start(const boost::asio::ip::address_v4 &_address, complete_cb _callback)
 {
@@ -39,6 +42,7 @@ void rbl_check::start(const boost::asio::ip::address_v4 &_address, complete_cb _
     start_resolve(m_address, *m_current_source);
 }
 
+
 void rbl_check::start_resolve(const boost::asio::ip::address_v4& av4, const std::string& d)
 {
     PDBG("ENTER %s %s", av4.to_string().c_str(), d.c_str());
@@ -47,6 +51,7 @@ void rbl_check::start_resolve(const boost::asio::ip::address_v4& av4, const std:
         dns::type_a,
         boost::bind(&rbl_check::handle_resolve, shared_from_this(), _1, _2));
 }
+
 
 void rbl_check::handle_resolve(const boost::system::error_code& ec, dns::resolver::iterator)
 {

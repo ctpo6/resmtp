@@ -1,32 +1,38 @@
 #if !defined(_RBL_H_)
 #define _RBL_H_
 
+#include <list>
+#include <string>
+
 #include <boost/asio.hpp>
+#include <boost/enable_shared_from_this.hpp>
 #include <boost/function.hpp>
 #include <boost/noncopyable.hpp>
-#include <boost/enable_shared_from_this.hpp>
-#include <net/dns_resolver.hpp>
-#include <list>
+#include <boost/shared_ptr.hpp>
 
-class rbl_check
-        :public boost::enable_shared_from_this<rbl_check>,
-         private boost::noncopyable
-{
-  public:
+#include <net/dns_resolver.hpp>
+
+class rbl_check:
+        public boost::enable_shared_from_this<rbl_check>,
+        private boost::noncopyable {
+public:
 
     rbl_check(boost::asio::io_service& io_service);
 
+    void add_nameserver(const boost::asio::ip::address &addr) {
+        m_resolver.add_nameserver(addr);
+    }
+
     void add_rbl_source(const std::string &_host_name);         // Add rbl source host
 
-    typedef boost::function< void ()> complete_cb;
+    typedef boost::function<void ()> complete_cb;
 
     void start(const boost::asio::ip::address_v4 &_address, complete_cb _callback);     // Start async check
-
     void stop();                        // stop all active resolve
 
     bool get_status(std::string &_message);
 
-  private:
+private:
 
     void handle_resolve(const boost::system::error_code& ec, y::net::dns::resolver::iterator it);
 

@@ -4,6 +4,8 @@
 // TODO: now use automake-generated config.h ... ugly!
 #include "config.h"
 
+#include <cstdint>
+
 #include <boost/unordered_map.hpp>
 #include <boost/function.hpp>
 #include <boost/asio.hpp>
@@ -79,7 +81,13 @@ class smtp_connection
     void start_read();
 
     boost::asio::io_service &io_service_;
+    boost::asio::io_service::strand strand_;
     ssl_socket_t m_ssl_socket;
+
+    uint32_t m_timer_value = 0;
+    boost::asio::deadline_timer m_timer;
+    boost::asio::deadline_timer m_timer_spfdkim;
+    boost::asio::deadline_timer m_tarpit_timer;
 
     boost::asio::streambuf m_response;
 
@@ -181,7 +189,6 @@ class smtp_connection
     void handle_dkim_check(dkim_check::DKIM_STATUS status, const std::string& identity);
     void handle_dkim_timeout(const boost::system::error_code& ec);
 
-    boost::asio::io_service::strand strand_;
 
     //---
 
@@ -267,10 +274,6 @@ class smtp_connection
     std::string m_session_id;
     // ---
 
-    boost::asio::deadline_timer m_timer;
-    boost::asio::deadline_timer m_timer_spfdkim;
-    unsigned int m_timer_value;
-
     void handle_timer( const boost::system::error_code &_error);
     void restart_timeout();
     void cancel_timer();
@@ -280,7 +283,6 @@ class smtp_connection
             boost::function<void(const boost::system::error_code &)> handler);
     void send_response2(
             boost::function<void(const boost::system::error_code &)> handler);
-    boost::asio::deadline_timer m_tarpit_timer;
 
     // check is performed in the STATE_START before sending the greeting msg:
     // if there is something in the read buffer, it indicates that the client
