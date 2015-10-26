@@ -1,50 +1,49 @@
-#if !defined(_LOG_H_)
+#ifndef _LOG_H_
 #define _LOG_H_
 
 #include <syslog.h>
+
+#include <queue>
 #include <string>
+
 #include <boost/thread.hpp>
 #include <boost/thread/condition.hpp>
 #include <boost/thread/mutex.hpp>
-#include <queue>
 
 #include "uti.h"
 
-const int MSG_NORMAL    =       20;
-const int MSG_CRITICAL  =       10;
-const int MSG_VERY_CRITICAL     =       10;
+const uint32_t MSG_VERY_CRITICAL = 1;
+const uint32_t MSG_CRITICAL      = 10;
+const uint32_t MSG_NORMAL        = 20;
+const uint32_t MSG_DEBUG         = 100;
 
 #if 1
-#define PDBG(fmt, args...) g_log.msg(MSG_NORMAL, strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
+#define PDBG(fmt, args...) g_log.msg(MSG_DEBUG, strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
 #else
 #define PDBG(fmt, args...)
 #endif
 
-class logger
-{
-  public:
-    logger();
+class logger {
+public:
+    void init(const char *ident, int log_prio);
 
-    void initlog(const std::string &_info, int _log_prio);
+    void msg(uint32_t prio, const std::string &msg_) noexcept;
 
-    void msg(int _prio, const std::string &_msg);
-
-    void msg(int _prio, const char *_msg);
+    void msg(uint32_t prio, const char *msg_) noexcept {
+        msg(prio, std::string(msg_));
+    }
 
     void run();
-
     void stop();
 
-  protected:
+protected:
+    bool m_exit = false;
+    uint32_t m_log_prio = MSG_CRITICAL;
 
     std::queue<std::string> m_queue;
 
     boost::mutex m_condition_mutex;
     boost::condition m_condition;
-
-    bool m_exit;
-    int m_log_prio;
-
 };
 
 extern logger g_log;

@@ -1478,20 +1478,15 @@ void smtp_connection::handle_ssl_handshake(const boost::system::error_code& _err
 
 bool smtp_connection::execute_command(const std::string &_cmd, std::ostream &_response)
 {
+    g_log.msg(MSG_NORMAL, str(boost::format("%1%-RECV: exec cmd='%2%'") % m_session_id % cleanup_str(_cmd)));
+
     std::string buffer(_cmd);
 
-    if (g_config.m_debug_level > 0)
-    {
-        g_log.msg(MSG_NORMAL, str(boost::format("%1%-RECV: exec cmd='%2%'") % m_session_id % cleanup_str(_cmd)));
-    }
-
     std::string::size_type pos = buffer.find_first_not_of( " \t" );
-
     if ( pos != std::string::npos )
         buffer.erase( 0, pos );    // Strip starting whitespace
 
     pos = buffer.find_last_not_of( " \t\r\n" );
-
     if ( pos != std::string::npos )
         buffer.erase( pos + 1 );    // .. and ending whitespace
 
@@ -2014,7 +2009,7 @@ bool smtp_connection::smtp_data( const std::string& _cmd, std::ostream &_respons
     time_t now;
     time(&now);
 
-    append(str( boost::format("Received: from %1% (%1% [%2%])\r\n\tby %3% (nwsmtp/Yandex) with %4% id %5%;\r\n\t%6%\r\n")
+    append(str( boost::format("Received: from %1% (%1% [%2%])\r\n\tby %3% (resmtp/Rambler) with %4% id %5%;\r\n\t%6%\r\n")
                     % m_remote_host_name % m_connected_ip.to_string() % boost::asio::ip::host_name()
                     % (m_ehlo ? "ESMTP": "SMTP") % m_envelope->m_id % mail_date(now)
                 ),

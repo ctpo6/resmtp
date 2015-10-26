@@ -34,7 +34,10 @@ int main(int argc, char* argv[]) {
         return 200;
     }
 
-    g_log.initlog("nwsmtp", 9999);
+    uint32_t log_level =
+            g_config.m_log_level == 0 ? MSG_CRITICAL :
+            g_config.m_log_level == 1 ? MSG_NORMAL : MSG_DEBUG;
+    g_log.init("resmtp", log_level);
     boost::thread log;
 
     if (!g_config.init_dns_settings()) {

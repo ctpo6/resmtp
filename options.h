@@ -75,7 +75,7 @@ struct server_parameters {
     // whitelist DNS server
     std::string m_dnswl_host;
 
-    unsigned int m_debug_level;
+    uint32_t m_log_level;
 
     // blackbox
 
