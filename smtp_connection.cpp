@@ -95,7 +95,9 @@ void smtp_connection::start( bool _force_ssl ) {
 
     m_timer_value = g_config.m_smtpd_cmd_timeout;
 
-    m_resolver.add_nameserver(ba::ip::address::from_string("81.19.70.16"));
+    for (auto &s: g_config.m_dns_servers) {
+        m_resolver.add_nameserver(ba::ip::address::from_string(s));
+    }
 
     // resolve client IP to host name
     m_remote_host_name.clear();
@@ -137,7 +139,9 @@ void smtp_connection::handle_back_resolve(
     // start blacklist check
     //--------------------------------------------------------------------------
     m_dnsbl_check.reset(new rbl_check(io_service_));
-    m_dnsbl_check->add_nameserver(ba::ip::address::from_string("81.19.70.16"));
+    for (auto &s: g_config.m_dns_servers) {
+        m_dnsbl_check->add_nameserver(ba::ip::address::from_string(s));
+    }
     std::istringstream is(g_config.m_rbl_hosts);
     for (std::istream_iterator<std::string> it(is);
          it != std::istream_iterator<std::string>();
@@ -194,7 +198,9 @@ void smtp_connection::handle_dnsbl_check() {
     //--------------------------------------------------------------------------
     PDBG("start DNSWL check, server: %s", g_config.m_dnswl_host.c_str());
     m_dnswl_check.reset(new rbl_check(io_service_));
-    m_dnswl_check->add_nameserver(ba::ip::address::from_string("81.19.70.16"));
+    for (auto &s: g_config.m_dns_servers) {
+        m_dnswl_check->add_nameserver(ba::ip::address::from_string(s));
+    }
     m_dnswl_check->add_rbl_source(g_config.m_dnswl_host);
     m_dnswl_check->start(
                 m_connected_ip.to_v4(),

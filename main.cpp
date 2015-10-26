@@ -37,6 +37,18 @@ int main(int argc, char* argv[]) {
     g_log.initlog("nwsmtp", 9999);
     boost::thread log;
 
+    if (!g_config.init_dns_settings()) {
+        log_err(MSG_NORMAL, str(boost::format(
+            "Can't obtain DNS settings (cfg: use_system_dns_servers=%1% custom_dns_servers=%2%")
+                % (g_config.m_use_system_dns_servers ? "yes" : "no")
+                % g_config.m_custom_dns_servers),
+                true);
+        return 200;
+    }
+    for (const auto &s: g_config.m_dns_servers) {
+        g_log.msg(MSG_NORMAL, str(boost::format("Using DNS server: %1%") % s));
+    }
+
 #if defined(HAVE_HOSTSEARCH_HOSTSEARCH_H)
     if (g_config.m_so_check && !g_config.m_so_file_path.empty())
     {

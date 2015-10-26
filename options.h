@@ -47,15 +47,26 @@ struct server_parameters {
         std::string m_url;
     };
 
-    std::vector< std::string > m_listen_points;
+    std::vector<std::string> m_listen_points;
 
-    std::vector< std::string > m_ssl_listen_points;
+    std::vector<std::string> m_ssl_listen_points;
 
     std::string m_smtp_banner;
 
     unsigned int m_worker_count;
 
+    //
+    // DNS settings
+    //
+    bool m_use_system_dns_servers;
+    std::string m_custom_dns_servers;
+    // actual values, not directly from config file
+    std::vector<std::string> m_dns_servers;
+
+    // check if client doesn't send anything before greeting
     bool m_socket_check;
+
+    // tarpitting delay
     uint32_t m_tarpit_delay_seconds;
 
     bool m_rbl_active;
@@ -168,7 +179,7 @@ struct server_parameters {
 
     bool m_remove_headers;
     std::string m_remove_headers_list;
-    boost::unordered_set< std::string > m_remove_headers_set;
+    boost::unordered_set<std::string> m_remove_headers_set;
 
     bool m_remove_extra_cr;
 
@@ -195,7 +206,8 @@ struct server_parameters {
 
     int m_hard_error_limit;
 
-    bool parse_config(int _argc, char* _argv[], std::ostream& _out);
+    bool parse_config(int _argc, char* _argv[], std::ostream& _out) noexcept;
+    bool init_dns_settings() noexcept;
 };
 
 extern server_parameters g_config;

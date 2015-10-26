@@ -1,24 +1,34 @@
+#include "options.h"
+
+#include <grp.h>
 #include <netdb.h>
+#include <netinet/in.h>
+#include <pwd.h>
+#include <sys/types.h>
+
+#include <algorithm>
+#include <fstream>
+#include <functional>
+#include <exception>
+#include <memory>
+
 #include <boost/program_options.hpp>
 #include <boost/format.hpp>
 #include <boost/asio.hpp>
 #include <boost/iterator/transform_iterator.hpp>
 #include <boost/function_output_iterator.hpp>
 #include <boost/algorithm/string/trim.hpp>
-#include <functional>
-#include <algorithm>
-#include <exception>
-#include <fstream>
-#include <netdb.h>
-#include <sys/types.h>
-#include <pwd.h>
-#include <grp.h>
+
+#include <resolv.h>
+
 #include "host_seq_resolver.h"
-#include "options.h"
+
 
 #if defined(HAVE_HOSTSEARCH_HOSTSEARCH_H)
 #include <hostsearch/hostsearch.h>
 #endif
+
+namespace ba = boost::asio;
 
 const char *temp_error = "451 4.7.1 Service unavailable - try again later";
 const char *temp_user_error = "451 4.7.1 Requested action aborted: error in processing";
@@ -264,10 +274,37 @@ void validate (boost::any& v, std::vector<std::string> const& values, server_par
     v = boost::any(rp);
 }
 
+
+bool server_parameters::init_dns_settings() noexcept {
+    if (m_use_system_dns_servers) {
+        // get DNS servers from libresolv
+        typedef struct __res_state TResState;
+        std::unique_ptr<TResState> rs(new TResState);
+        if(res_ninit(rs.get()) != 0) {
+            return false;
+        }
+        if(rs->nscount <= 0) {
+            return false;
+        }
+        for(int i = 0; i < rs->nscount; ++i) {
+            ba::ip::address_v4 addr(
+                static_cast<unsigned long>(htonl(rs->nsaddr_list[i].sin_addr.s_addr)));
+            m_dns_servers.push_back(addr.to_string());
+        }
+    } else {
+        // get space separated list of DNS hosts from config file
+        std::istringstream iss(m_custom_dns_servers);
+        std::copy(std::istream_iterator<std::string>(iss),
+                  std::istream_iterator<std::string>(),
+                  std::back_inserter(m_dns_servers));
+    }
+    return true;
+}
+
+
 #define DEF_CONFIG      "/etc/nwsmtp/nwsmtp.conf"
 #define DEF_PID_FILE    "/var/run/nwsmtp.pid"
-
-bool server_parameters::parse_config(int _argc, char* _argv[], std::ostream& _out)
+bool server_parameters::parse_config(int _argc, char* _argv[], std::ostream& _out) noexcept
 {
     try
     {
@@ -291,6 +328,9 @@ bool server_parameters::parse_config(int _argc, char* _argv[], std::ostream& _ou
                 ("ssl_listen", bpo::value< std::vector<std::string> >(&m_ssl_listen_points), "SSL listen on host:port")
                 ("user", bpo::value<uid_value>(&m_uid), "set uid after port bindings")
                 ("group", bpo::value<gid_value>(&m_gid), "set gid after port bindings")
+
+                ("use_system_dns_servers", bpo::value<bool>(&m_use_system_dns_servers)->default_value(true), "use host's DNS servers settings?")
+                ("custom_dns_servers", bpo::value<std::string>(&m_custom_dns_servers), "custom DNS servers IP addresses list")
 
                 ("socket_check", bpo::value<bool>(&m_socket_check)->default_value(false), "check socket emptiness before sending greeting ?")
 
