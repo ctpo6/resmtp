@@ -30,7 +30,6 @@
 #include "rbl.h"
 
 #include "so_client.h"
-#include "avir_client.h"
 #include "smtp_client.h"
 #include "eom_parser.h"
 #include "atormoz.h"
@@ -40,13 +39,16 @@
 
 class smtp_connection_manager;
 
-class smtp_connection
-        : public boost::enable_shared_from_this<smtp_connection>,
-          private boost::noncopyable
+class smtp_connection :
+        public boost::enable_shared_from_this<smtp_connection>,
+        private boost::noncopyable
 {
   public:
 
-    explicit smtp_connection(boost::asio::io_service &_io_service, smtp_connection_manager &_manager, boost::asio::ssl::context& _context);
+    smtp_connection(
+            boost::asio::io_service &_io_service,
+            smtp_connection_manager &_manager,
+            boost::asio::ssl::context& _context);
 
     ~smtp_connection() = default;
 
@@ -220,17 +222,14 @@ class smtp_connection
 
     so_client_ptr m_so_check;
 
-    avir_client_ptr m_avir_check;
-
     smtp_client_ptr m_smtp_client;
 
     check_data_t m_check_data;
 
     void start_check_data();
     void start_so_avir_checks();
-    void avir_check_data();
     void handle_so_check();
-    void handle_avir_check();
+    void avir_check_data();
     void smtp_delivery_start();
     void end_check_data();
     void end_lmtp_proto();
@@ -261,8 +260,6 @@ class smtp_connection
     // if there is something in the read buffer, it indicates that the client
     // isn't RFC compliant
     bool check_socket_read_buffer_is_empty();
-
-//    void async_say_goodbye();
 
     unsigned int m_max_rcpt_count;
     bool m_read_pending_;

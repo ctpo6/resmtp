@@ -26,9 +26,7 @@ class switchcfg
     boost::mutex m_config_mutex;
 };
 
-extern switchcfg g_bb_switch;
 extern switchcfg g_so_switch;
-extern switchcfg g_av_switch;
 
 #endif // _SWITCHCFG_H_
 

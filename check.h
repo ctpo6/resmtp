@@ -1,7 +1,7 @@
-#if !defined(_CHECK_H_)
+#ifndef _CHECK_H_
 #define _CHECK_H_
 
-//#include <envelope.h>
+#include <string>
 
 struct check
 {
@@ -32,10 +32,6 @@ struct check_rcpt_t:
 struct check_data_t:
         public check
 {
-    check_data_t()
-    {
-    }
-
     std::string m_remote_host;
     std::string m_helo_host;
 };

@@ -98,17 +98,6 @@ struct server_parameters {
     std::string m_so_file_path;
 #endif
 
-    // AV
-
-//    time_t m_av_fallback_time;
-//    time_t m_av_return_time;
-
-    time_t m_av_connect_timeout;
-    time_t m_av_timeout;
-
-    remote_point m_av_primary_host;
-    remote_point m_av_secondary_host;
-
     // RC
 
     std::string m_rc_host_listconf;
@@ -151,11 +140,7 @@ struct server_parameters {
     bool m_so_check;
     bool so_trust_xyandexspam_;
 
-    bool m_av_check;
-    int m_action_virus;
-
     unsigned int m_so_try;
-    unsigned int m_av_try;
 
     unsigned int m_message_size_limit;
 

@@ -522,7 +522,6 @@ void smtp_connection::start_check_data()
     }
     else
     {
-        //        start_so_avir_checks();
         smtp_delivery_start();
     }
 }
@@ -938,9 +937,10 @@ void smtp_connection::start_so_avir_checks()
     }
     else
     {
-        avir_check_data();
+        handle_so_check();
     }
 }
+
 
 void smtp_connection::handle_so_check()
 {
@@ -953,39 +953,19 @@ void smtp_connection::handle_so_check()
     avir_check_data();
 }
 
-void smtp_connection::handle_avir_check()
-{
-    if (m_avir_check)
-    {
-        m_check_data = m_avir_check->check_data();
-        m_avir_check->stop();
-        m_avir_check.reset();
-    }
-    smtp_delivery_start();
-}
 
-void smtp_connection::avir_check_data()
-{
+void smtp_connection::avir_check_data() {
+    // avir check code is really removed
     if ( m_check_data.m_result == check::CHK_ACCEPT )
     {
-        if (g_config.m_av_check && m_envelope->orig_message_size_ > 0)
-        {
-            m_avir_check.reset(new avir_client(io_service_, &g_av_switch));
-            m_avir_check->start(m_check_data,
-                    strand_.wrap(
-                        bind(&smtp_connection::handle_avir_check,
-                                shared_from_this())), m_envelope
-                                );
-        }
-        else
-            smtp_delivery_start();
+        smtp_delivery_start();
     }
     else
     {
         end_check_data();
     }
-
 }
+
 
 void smtp_connection::handle_spf_timeout(const boost::system::error_code& ec)
 {
@@ -1006,6 +986,7 @@ void smtp_connection::handle_spf_timeout(const boost::system::error_code& ec)
         start_so_avir_checks();
     }
 }
+
 
 void smtp_connection::handle_dkim_timeout(const boost::system::error_code& ec)
 {
@@ -1982,12 +1963,6 @@ void smtp_connection::stop() {
     {
         m_so_check->stop();
         m_so_check.reset();
-    }
-
-    if (m_avir_check)
-    {
-        m_avir_check->stop();
-        m_avir_check.reset();
     }
 
     if (m_smtp_client)

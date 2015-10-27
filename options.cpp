@@ -364,13 +364,6 @@ bool server_parameters::parse_config(int _argc, char* _argv[], std::ostream& _ou
                 ("so_port", bpo::value<int>(&m_so_port)->default_value(2525), "so port used only for so_file_path")
 #endif
 
-                ("av_primary", bpo::value<remote_point>(&m_av_primary_host), "av host")
-                ("av_secondary", bpo::value<remote_point>(&m_av_secondary_host), "av secondary")
-//                ("av_fallback_time", bpo::value<time_t>(&m_av_fallback_time), "av fallback time")
-//                ("av_return_time", bpo::value<time_t>(&m_av_return_time), "av return time")
-                ("av_connect_timeout", bpo::value<time_t>(&m_av_connect_timeout), "av connect timeout")
-                ("av_data_timeout", bpo::value<time_t>(&m_av_timeout), "av session timeout")
-
                 ("relay_connect_timeout", bpo::value<time_t>(&m_relay_connect_timeout), "smtp relay connect timeout")
                 ("relay_cmd_timeout", bpo::value<time_t>(&m_relay_cmd_timeout), "smtp relay command timeout")
                 ("relay_data_timeout", bpo::value<time_t>(&m_relay_data_timeout), "smtp relay data send timeout")
@@ -386,18 +379,14 @@ bool server_parameters::parse_config(int _argc, char* _argv[], std::ostream& _ou
                 ("so_check", bpo::value<bool>(&m_so_check)->default_value(false), "SO on/off")
                 ("so_trust_xyandexspam", bpo::value<bool>(&so_trust_xyandexspam_)->default_value(false),
                         "Trust X-Yandex-Spam header field?")
-                ("av_check", bpo::value<bool>(&m_av_check)->default_value(false), "antivirus on/off")
 
                 ("so_try", bpo::value<unsigned int>(&m_so_try)->default_value(3), "SO try")
-                ("av_try", bpo::value<unsigned int>(&m_av_try)->default_value(3), "antivirus try")
 
                 ("rc_host_list", bpo::value<std::string>(&m_rc_host_listconf)->default_value("/etc/yamail/rchost_list.conf"), "rc host list")
                 ("rc_port", bpo::value<int>(&m_rc_port)->default_value(8888), "rc port")
                 ("rc_timeout", bpo::value<int>(&m_rc_timeout)->default_value(1), "rc timeout in secs")
                 ("rc_verbose", bpo::value<int>(&m_rc_verbose)->default_value(0), "rc verbose on/off")
                 ("rc_check", bpo::value<int>(&m_rc_check)->default_value(0), "rc on/off")
-
-                ("action_virus", bpo::value<int>(&m_action_virus)->default_value(1), "action_virus 0-discard 1-reject")
 
                 ("message_size_limit", bpo::value<unsigned int>(&m_message_size_limit)->default_value(10240000), "Message size limit")
 
