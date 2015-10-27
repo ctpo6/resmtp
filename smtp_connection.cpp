@@ -226,13 +226,6 @@ void smtp_connection::start_proto() {
         add_new_command("starttls", &smtp_connection::smtp_starttls);
     }
 
-#ifdef ENABLE_AUTH_BLACKBOX
-    if (g_config.m_use_auth) {
-        add_new_command("auth", &smtp_connection::smtp_auth);
-        auth_.initialize(m_connected_ip.to_v4().to_string());
-    }
-#endif
-
     // get whitelist check result, reset checker
     assert(m_dnswl_check);
     m_dnswl_status = m_dnswl_check->get_status(m_dnswl_status_str);
@@ -430,13 +423,7 @@ bool smtp_connection::handle_read_command_helper(
 
     std::ostream response_stream(&m_response);
 
-#ifdef ENABLE_AUTH_BLACKBOX
-    bool res = (m_proto_state == STATE_AUTH_MORE) ?
-            continue_smtp_auth(command, response_stream) :
-            execute_command(command, response_stream);
-#else
     bool res = execute_command(command, response_stream);
-#endif // ENABLE_AUTH_BLACKBOX
 
     if (res) {
         switch (ssl_state_) {
@@ -1611,13 +1598,6 @@ bool smtp_connection::smtp_ehlo( const std::string& _cmd, std::ostream &_respons
         esmtp_flags += "250-STARTTLS\r\n";
     }
 
-#if ENABLE_AUTH_BLACKBOX
-    if (g_config.m_use_auth)
-    {
-        esmtp_flags += "250-AUTH " + auth_.get_methods() + "\r\n";
-    }
-#endif // ENABLE_AUTH_BLACKBOX
-
     esmtp_flags += "250 ENHANCEDSTATUSCODES\r\n";
 
     if ( hello( _cmd ) )
@@ -1773,22 +1753,8 @@ bool smtp_connection::smtp_rcpt( const std::string& _cmd, std::ostream &_respons
 
     m_timer.cancel();
 
-#ifdef ENABLE_AUTH_BLACKBOX
-    if (g_config.m_bb_check)
-    {
-        if (m_bb_check_rcpt)
-            m_bb_check_rcpt->stop();
-
-        m_bb_check_rcpt.reset( new black_box_client_rcpt(io_service_, &g_bb_switch) );
-        m_bb_check_rcpt->start( m_check_rcpt, strand_.wrap(bind(&smtp_connection::handle_bb_result, shared_from_this())), m_envelope );
-    }
-    else
-    {
-        socket().get_io_service().post( strand_.wrap(boost::bind(&smtp_connection::handle_bb_result_helper, shared_from_this())) );
-    }
-#else
-    socket().get_io_service().post( strand_.wrap(boost::bind(&smtp_connection::handle_bb_result_helper, shared_from_this())) );
-#endif // ENABLE_AUTH_BLACKBOX
+    socket().get_io_service().post( strand_.wrap(boost::bind(
+        &smtp_connection::handle_bb_result_helper, shared_from_this())) );
 
     return true;
 }
@@ -1858,22 +1824,6 @@ void smtp_connection::handle_bb_result_helper()
                                 boost::asio::placeholders::error)));
     }
 }
-
-#if ENABLE_AUTH_BLACKBOX
-void smtp_connection::handle_bb_result()
-{
-    if (!m_bb_check_rcpt)
-        return;
-
-    m_check_rcpt = m_bb_check_rcpt->check_rcpt();
-
-    if (m_bb_check_rcpt)
-        m_bb_check_rcpt->stop();
-    m_bb_check_rcpt.reset();
-
-    handle_bb_result_helper();
-}
-#endif // ENABLE_AUTH_BLACKBOX
 
 void smtp_connection::handle_spf_check(boost::optional<std::string> result, boost::optional<std::string> expl)
 {
@@ -1952,32 +1902,7 @@ bool smtp_connection::smtp_mail( const std::string& _cmd, std::ostream &_respons
 
     m_proto_state = STATE_CHECK_MAILFROM;
 
-#ifdef ENABLE_AUTH_BLACKBOX
-    if (authenticated_)
-    {
-        if (m_bb_check_mailfrom)
-            m_bb_check_mailfrom->stop();
-
-	black_box_client_mailfrom::mailfrom_info_t info;
-
-	info.session_id_ = m_session_id;
-	info.mailfrom_ = addr;
-	info.ip_ = m_connected_ip.to_string();
-
-        m_bb_check_mailfrom.reset( new black_box_client_mailfrom(io_service_, &g_bb_switch));
-        m_bb_check_mailfrom->start( info, strand_.wrap(bind(&smtp_connection::handle_bb_mailfrom_result, shared_from_this(), _1, _2)));
-    }
-    else
-    {
-	end_mail_from_command(true, false, addr, "");
-    }
-
-    black_box_client_mailfrom::mailfrom_result_t res;
-#else
-
-
     end_mail_from_command(true, false, addr, "");
-#endif // ENABLE_AUTH_BLACKBOX
 
     return true;
 }
@@ -2064,14 +1989,6 @@ void smtp_connection::stop() {
         m_avir_check->stop();
         m_avir_check.reset();
     }
-
-#if ENABLE_AUTH_BLACKBOX
-    if (m_bb_check_rcpt)
-    {
-        m_bb_check_rcpt->stop();
-        m_bb_check_rcpt.reset();
-    }
-#endif // ENABLE_AUTH_BLACKBOX
 
     if (m_smtp_client)
     {
@@ -2184,25 +2101,8 @@ void smtp_connection::end_mail_from_command(bool _start_spf, bool _start_async, 
                             shared_from_this(), boost::asio::placeholders::error)));
     }
 
-#ifdef ENABLE_AUTH_BLACKBOX
-    int karma = m_envelope->karma_;
-    int karma_status = m_envelope->karma_status_;
-    time_t born_time  = m_envelope->time_stamp_;
-    bool auth_mailfrom = m_envelope->auth_mailfrom_;
-#endif
-
     m_envelope.reset(new envelope());
 
-#ifdef ENABLE_AUTH_BLACKBOX
-    if (auth_mailfrom && _start_spf)			// setup karma params
-    {
-		m_envelope->karma_ = karma;
-		m_envelope->karma_status_ = karma_status;
-		m_envelope->time_stamp_ = born_time;
-		m_envelope->auth_mailfrom_ = true;
-    }
-
-#endif
     gr_headers_ = greylisting_client::headers();
 
     m_smtp_from = _addr;

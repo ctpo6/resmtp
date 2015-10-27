@@ -29,12 +29,6 @@
 #include "buffers.h"
 #include "rbl.h"
 
-#ifdef ENABLE_AUTH_BLACKBOX
-#include "bb_client_rcpt.h"
-#include "bb_client_auth.h"
-#include "bb_client_mailfrom.h"
-#endif // ENABLE_AUTH_BLACKBOX
-
 #include "so_client.h"
 #include "avir_client.h"
 #include "smtp_client.h"
@@ -206,27 +200,6 @@ class smtp_connection
 
     //--
     check_rcpt_t m_check_rcpt;
-
-#ifdef ENABLE_AUTH_BLACKBOX
-    black_box_client_rcpt_ptr m_bb_check_rcpt;
-    black_box_client_auth_ptr m_bb_check_auth;
-
-    black_box_client_mailfrom_ptr m_bb_check_mailfrom;
-
-    void handle_bb_result();
-
-    void start_passport_auth(const black_box_client_auth::auth_info_t &_info);
-    void start_mailfrom_check(const black_box_client_mailfrom::mailfrom_info_t &_info);
-
-    void handle_bb_auth_result(check::chk_status _check, unsigned long long _suid);
-    void handle_bb_auth_result_helper(check::chk_status _check, unsigned long long _suid);
-
-    void handle_bb_mailfrom_result(check::chk_status _check, black_box_client_mailfrom::mailfrom_result_t _result);		// by value
-    void handle_bb_mailfrom_helper(check::chk_status _check, black_box_client_mailfrom::mailfrom_result_t _result);
-
-    long long unsigned m_suid;
-
-#endif // ENABLE_AUTH_BLACKBOX
 
     void end_mail_from_command(bool _start_spf, bool _start_async, std::string _addr, const std::string &_response);
 

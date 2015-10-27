@@ -17,13 +17,6 @@ envelope::envelope()
           m_no_local_relay(false),
           m_timer(),
           smtp_delivery_coro_()
-#ifdef ENABLE_AUTH_BLACKBOX
-	,karma_(0),
-	karma_status_(0),
-	time_stamp_(0),
-	auth_mailfrom_(false)
-#endif
-
 {
 }
 

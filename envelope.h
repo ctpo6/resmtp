@@ -2,17 +2,21 @@
 #define _ENVELOPE_H_
 
 #include <sys/types.h>
-#include <string>
+
 #include <list>
+#include <string>
+
 #include <boost/noncopyable.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/enable_shared_from_this.hpp>
+
 #include "buffers.h"
 #include "check.h"
 #include "timer.h"
 #include "rc_check.h"
 #include "rc_clients/greylisting.h"
 #include "coroutine.hpp"
+
 
 struct envelope
         : public boost::enable_shared_from_this<envelope>,
@@ -84,14 +88,6 @@ struct envelope
     bool m_no_local_relay;              // no local relay if we have one or more aliases
     timer m_timer;
     resmtp::coroutine smtp_delivery_coro_;
-
-#ifdef ENABLE_AUTH_BLACKBOX
-    int karma_;
-    int karma_status_;
-    time_t time_stamp_;
-    bool auth_mailfrom_;
-#endif
-
 };
 
 typedef boost::shared_ptr<envelope> envelope_ptr;

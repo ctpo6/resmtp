@@ -77,21 +77,6 @@ struct server_parameters {
 
     uint32_t m_log_level;
 
-    // blackbox
-
-//    time_t m_bb_fallback_time;
-//    time_t m_bb_return_time;
-
-    time_t m_bb_connect_timeout;
-    time_t m_bb_timeout;
-
-    remote_point m_bb_primary_host;
-    remote_point m_bb_secondary_host;
-
-#if defined(HAVE_HOSTSEARCH_HOSTSEARCH_H)
-    std::string m_bb_file_path;
-    int m_bb_port;
-#endif
 
     std::string m_aliases_file;
 
@@ -169,10 +154,7 @@ struct server_parameters {
     bool m_av_check;
     int m_action_virus;
 
-    bool m_bb_check;
-
     unsigned int m_so_try;
-    unsigned int m_bb_try;
     unsigned int m_av_try;
 
     unsigned int m_message_size_limit;

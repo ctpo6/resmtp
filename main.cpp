@@ -66,7 +66,6 @@ int main(int argc, char* argv[]) {
 
     int rval = 0;
     try {
-        g_bb_switch.initialize( g_config.m_bb_primary_host, g_config.m_bb_secondary_host);
         g_so_switch.initialize( g_config.m_so_primary_host, g_config.m_so_secondary_host);
         g_av_switch.initialize( g_config.m_av_primary_host, g_config.m_av_secondary_host);
 

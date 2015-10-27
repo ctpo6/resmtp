@@ -452,26 +452,11 @@ void so_client::start(const check_data_t& _data, complete_cb_t _complete, envelo
 
     extra_headers_ = str(boost::format("X-Yandex-QueueID: %1%-%2%\r\n") % m_data.m_session_id % m_envelope->m_id);
 
-    #ifdef ENABLE_AUTH_BLACKBOX
-    if (m_envelope->auth_mailfrom_)
-    {
-	extra_headers_ += str(boost::format("X-Yandex-KarmaStatus: %1%\r\nX-Yandex-Karma: %2%\r\nX-BornDate: %3%\r\n") % m_envelope->karma_status_ % m_envelope->karma_ % m_envelope->time_stamp_);
-    }
-    else
-    {
-	 if (spf_result && spf_expl)
-	{
-    	    extra_headers_ += str(boost::format("Received-SPF: %1% (%2%) envelope-from=%3%\r\n")
-                % spf_result.get() % spf_expl.get() % smtp_from);
-	}
-    }
-    #else
     if (spf_result && spf_expl)
     {
         extra_headers_ += str(boost::format("Received-SPF: %1% (%2%) envelope-from=%3%\r\n")
             % spf_result.get() % spf_expl.get() % smtp_from);
     }
-    #endif
 
     if (g_config.add_xyg_after_greylisting_ && _envelope->m_spam)
     {

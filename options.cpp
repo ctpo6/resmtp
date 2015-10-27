@@ -343,16 +343,6 @@ bool server_parameters::parse_config(int _argc, char* _argv[], std::ostream& _ou
                 ("dnswl_host", bpo::value<std::string>(&m_dnswl_host), "DNSWL host")
                 ("log_level", bpo::value<uint32_t>(&m_log_level)->default_value(0), "log output level 0|1|2")
 
-                ("bb_primary", bpo::value<remote_point>(&m_bb_primary_host), "blackbox host")
-                ("bb_secondary", bpo::value<remote_point>(&m_bb_secondary_host), "blackbox secondary")
-//                ("bb_fallback_time", bpo::value<time_t>(&m_bb_fallback_time), "black box fallback time")
-//                ("bb_return_time", bpo::value<time_t>(&m_bb_return_time), "black box return time")
-                ("bb_timeout", bpo::value<time_t>(&m_bb_timeout), "black box session timeout")
-#if defined(HAVE_HOSTSEARCH_HOSTSEARCH_H)
-                ("bb_file_path", bpo::value<std::string>(&m_bb_file_path), "bb path")
-                ("bb_port", bpo::value<int>(&m_bb_port)->default_value(80), "bb port used only for bb_file_path")
-#endif
-
                 ("spf_timeout", bpo::value<time_t>(&m_spf_timeout)->default_value(15), "spf calculation timeout")
                 ("dkim_timeout", bpo::value<time_t>(&m_dkim_timeout)->default_value(15), "dkim calculation timeout")
 
@@ -397,11 +387,9 @@ bool server_parameters::parse_config(int _argc, char* _argv[], std::ostream& _ou
                 ("so_trust_xyandexspam", bpo::value<bool>(&so_trust_xyandexspam_)->default_value(false),
                         "Trust X-Yandex-Spam header field?")
                 ("av_check", bpo::value<bool>(&m_av_check)->default_value(false), "antivirus on/off")
-                ("bb_check", bpo::value<bool>(&m_bb_check)->default_value(false), "blackbox on/off")
 
                 ("so_try", bpo::value<unsigned int>(&m_so_try)->default_value(3), "SO try")
                 ("av_try", bpo::value<unsigned int>(&m_av_try)->default_value(3), "antivirus try")
-                ("bb_try", bpo::value<unsigned int>(&m_bb_try)->default_value(3), "blackbox try")
 
                 ("rc_host_list", bpo::value<std::string>(&m_rc_host_listconf)->default_value("/etc/yamail/rchost_list.conf"), "rc host list")
                 ("rc_port", bpo::value<int>(&m_rc_port)->default_value(8888), "rc port")
