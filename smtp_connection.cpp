@@ -46,13 +46,8 @@ smtp_connection::smtp_connection(
     m_manager(_manager),
     m_connected_ip(boost::asio::ip::address_v4::any()),
     m_resolver(_io_service),
-    m_smtp_delivery_pending(false),
-    m_so_check_pending(false),
     m_dkim_status(dkim_check::DKIM_NONE),
-    m_envelope(new envelope()),
-    m_read_pending_(false),
-    m_error_count(0),
-    authenticated_(false) {
+    m_envelope(new envelope()) {
 }
 
 
@@ -771,28 +766,12 @@ struct smtp_connection::handle_greylisting_probe
 
         assert(rcpt_beg == rcpt_end);
 
-        if (!c->m_envelope->m_spam
-                || g_config.enable_so_after_greylisting_)
-        {
-            if (g_config.m_so_check
-                    && c->m_envelope->orig_message_size_ > 0)
-            {
-                c->m_so_check.reset(new so_client(c->io_service_, &g_so_switch));
-                return c->m_so_check->start(
-                    c->m_check_data,
-                    c->strand_.wrap(bind(&smtp_connection::handle_so_check, c)),
-                    c->m_envelope, c->m_smtp_from, c->m_spf_result, c->m_spf_expl);
-            }
-        }
-        else if (c->m_envelope->m_spam)
-            append("X-Yandex-Spam: 4\r\n", c->m_envelope->added_headers_);
-
         return c->avir_check_data();
     }
 };
 
-struct smtp_connection::handle_rc_get
-        : private resmtp::coroutine
+struct smtp_connection::handle_rc_get :
+        private resmtp::coroutine
 {
     boost::shared_ptr<smtp_connection> c;
     boost::weak_ptr<envelope> env;
@@ -916,47 +895,20 @@ void smtp_connection::start_so_avir_checks()
         m_so_check_pending = true;
         return;
     }
-    m_so_check_pending = false;
 
-    if (m_so_check)
-        m_so_check->stop();
-
-    if (g_config.use_greylisting_ && g_config.m_so_check)
-    {
-        return handle_greylisting_probe(shared_from_this(),
-                m_envelope->m_rcpt_list.begin(),
-                m_envelope->m_rcpt_list.end())();
-    }
-
-    if (g_config.m_so_check && m_envelope->orig_message_size_ > 0)
-    {
-        m_so_check.reset(new so_client(io_service_, &g_so_switch));
-        m_so_check->start(m_check_data,
-                strand_.wrap(bind(&smtp_connection::handle_so_check, shared_from_this())),
-                m_envelope, m_smtp_from, m_spf_result, m_spf_expl);
-    }
-    else
-    {
-        handle_so_check();
-    }
+    handle_so_check();
 }
 
 
 void smtp_connection::handle_so_check()
 {
-    if (m_so_check)
-    {
-        m_check_data = m_so_check->check_data();
-        m_so_check->stop();
-        m_so_check.reset();
-    }
     avir_check_data();
 }
 
 
 void smtp_connection::avir_check_data() {
     // avir check code is really removed
-    if ( m_check_data.m_result == check::CHK_ACCEPT )
+    if (m_check_data.m_result == check::CHK_ACCEPT)
     {
         smtp_delivery_start();
     }
@@ -1126,11 +1078,6 @@ void smtp_connection::smtp_delivery_start()
                 if ( unique_h.find("to") == unique_h.end() )
                 {
                     append("To: undisclosed-recipients:;\r\n", added_h);
-                }
-                if ( g_config.so_trust_xyandexspam_
-                        && unique_h.find("x-yandex-spam") != unique_h.end() )
-                {
-                    skip_so_avir_checks = true;
                 }
 
                 has_dkim_headers_ = unique_h.find("dkim-signature") != unique_h.end();
@@ -1946,8 +1893,7 @@ void smtp_connection::stop() {
     try {
         socket().shutdown(boost::asio::ip::tcp::socket::shutdown_both);
         socket().close();
-    }
-    catch(...){}
+    } catch(...){}
 
     if (m_dnsbl_check) {
         m_dnsbl_check->stop();
@@ -1959,14 +1905,7 @@ void smtp_connection::stop() {
         m_dnswl_check.reset();
     }
 
-    if (m_so_check)
-    {
-        m_so_check->stop();
-        m_so_check.reset();
-    }
-
-    if (m_smtp_client)
-    {
+    if (m_smtp_client) {
         m_smtp_client->stop();
         m_smtp_client.reset();
     }

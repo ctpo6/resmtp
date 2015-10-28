@@ -82,22 +82,6 @@ struct server_parameters {
 
     unsigned int m_max_rcpt_count;
 
-    // SO
-
-//    time_t m_so_fallback_time;
-//    time_t m_so_return_time;
-
-    time_t m_so_connect_timeout;
-    time_t m_so_timeout;
-
-    remote_point m_so_primary_host;
-    remote_point m_so_secondary_host;
-
-#if defined(HAVE_HOSTSEARCH_HOSTSEARCH_H)
-    int m_so_port;
-    std::string m_so_file_path;
-#endif
-
     // RC
 
     std::string m_rc_host_listconf;
@@ -137,11 +121,6 @@ struct server_parameters {
     unsigned int m_client_connection_count_limit;
     unsigned int m_connection_count_limit;
 
-    bool m_so_check;
-    bool so_trust_xyandexspam_;
-
-    unsigned int m_so_try;
-
     unsigned int m_message_size_limit;
 
     bool m_remove_headers;
@@ -156,7 +135,6 @@ struct server_parameters {
     std::string greylisting_config_file_;
     greylisting_options greylisting_;
     bool use_greylisting_;
-    bool enable_so_after_greylisting_;
     bool add_xyg_after_greylisting_;
 
     std::string m_ip_config_file;

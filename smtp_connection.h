@@ -29,7 +29,6 @@
 #include "buffers.h"
 #include "rbl.h"
 
-#include "so_client.h"
 #include "smtp_client.h"
 #include "eom_parser.h"
 #include "atormoz.h"
@@ -168,8 +167,8 @@ class smtp_connection :
     // SPF
 
     std::string m_smtp_from;
-    bool m_smtp_delivery_pending;
-    bool m_so_check_pending;
+    bool m_smtp_delivery_pending = false;
+    bool m_so_check_pending = false;
     boost::optional<std::string> m_spf_result;
     boost::optional<std::string> m_spf_expl;
     void handle_spf_check(boost::optional<std::string> result, boost::optional<std::string> expl);
@@ -220,8 +219,6 @@ class smtp_connection :
     friend struct handle_rc_get;
     friend struct handle_rc_put;
 
-    so_client_ptr m_so_check;
-
     smtp_client_ptr m_smtp_client;
 
     check_data_t m_check_data;
@@ -262,15 +259,15 @@ class smtp_connection :
     bool check_socket_read_buffer_is_empty();
 
     unsigned int m_max_rcpt_count;
-    bool m_read_pending_;
-    int m_error_count;
+    bool m_read_pending_ = false;
+    int m_error_count = 0;
 
 #if defined(HAVE_PA_ASYNC_H)
     pa::stimer_t m_pa_timer;
 #endif
 
     auth auth_;
-    bool authenticated_;
+    bool authenticated_ = false;
 };
 
 typedef boost::shared_ptr<smtp_connection> smtp_connection_ptr;

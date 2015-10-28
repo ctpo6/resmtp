@@ -353,17 +353,6 @@ bool server_parameters::parse_config(int _argc, char* _argv[], std::ostream& _ou
                 ("smtpd_connection_count_limit", bpo::value<unsigned int>(&m_connection_count_limit)->default_value(1000), "maximum connection")
                 ("smtpd_hard_error_limit", bpo::value<int>(&m_hard_error_limit)->default_value(20), "maximal number of errors a remote SMTP client is allowed to make")
 
-                ("so_primary", bpo::value<remote_point>(&m_so_primary_host), "so host")
-                ("so_secondary", bpo::value<remote_point>(&m_so_secondary_host), "so secondary")
-//                ("so_fallback_time", bpo::value<time_t>(&m_so_fallback_time), "so falback time")
-//                ("so_return_time", bpo::value<time_t>(&m_so_return_time), "so return time")
-                ("so_connect_timeout", bpo::value<time_t>(&m_so_connect_timeout), "so connect timeout")
-                ("so_data_timeout", bpo::value<time_t>(&m_so_timeout), "so session timeout")
-#if defined(HAVE_HOSTSEARCH_HOSTSEARCH_H)
-                ("so_file_path", bpo::value<std::string>(&m_so_file_path), "so libhostsearch path")
-                ("so_port", bpo::value<int>(&m_so_port)->default_value(2525), "so port used only for so_file_path")
-#endif
-
                 ("relay_connect_timeout", bpo::value<time_t>(&m_relay_connect_timeout), "smtp relay connect timeout")
                 ("relay_cmd_timeout", bpo::value<time_t>(&m_relay_cmd_timeout), "smtp relay command timeout")
                 ("relay_data_timeout", bpo::value<time_t>(&m_relay_data_timeout), "smtp relay data send timeout")
@@ -375,12 +364,6 @@ bool server_parameters::parse_config(int _argc, char* _argv[], std::ostream& _ou
                 ("fallback_relay_host", bpo::value<remote_point>(&m_relay_host), "relay")
                 ("local_relay_host", bpo::value<remote_point>(&m_local_relay_host), "local relay")
                 ("use_local_relay", bpo::value<bool>(&m_use_local_relay), "use local relay ?")
-
-                ("so_check", bpo::value<bool>(&m_so_check)->default_value(false), "SO on/off")
-                ("so_trust_xyandexspam", bpo::value<bool>(&so_trust_xyandexspam_)->default_value(false),
-                        "Trust X-Yandex-Spam header field?")
-
-                ("so_try", bpo::value<unsigned int>(&m_so_try)->default_value(3), "SO try")
 
                 ("rc_host_list", bpo::value<std::string>(&m_rc_host_listconf)->default_value("/etc/yamail/rchost_list.conf"), "rc host list")
                 ("rc_port", bpo::value<int>(&m_rc_port)->default_value(8888), "rc port")
@@ -408,8 +391,6 @@ bool server_parameters::parse_config(int _argc, char* _argv[], std::ostream& _ou
 
                 ("use_greylisting", bpo::value<bool>(&use_greylisting_), "Use greylisting ?")
                 ("greylisting_config_file", bpo::value<std::string>(&greylisting_config_file_), "The name of the greylisting configuration file")
-                ("enable_so_after_greylisting", bpo::value<bool>(&enable_so_after_greylisting_)->default_value(false), "if set to true, SO checks will be made for all "
-                        "messages irregardless of their greylisting checks status")
                 ("add_xyg_after_greylisting", bpo::value<bool>(&add_xyg_after_greylisting_)->default_value(true), "if set to true, fake X-Yandex-Greylisting "
                         "header will be appended for messages sent to SO hosts")
                 ;
@@ -521,35 +502,9 @@ bool server_parameters::parse_config(int _argc, char* _argv[], std::ostream& _ou
             }
         }
 
-#if defined(HAVE_HOSTSEARCH_HOSTSEARCH_H)
-        if (m_so_check && !m_so_file_path.empty())
-        {
-	    char big_buffer[1024];
-            if ((bbUrls2(m_so_file_path.c_str(), big_buffer, 1024) == 0) && (big_buffer[0] != 0))
-            {
-                m_so_primary_host.m_host_name = big_buffer;
-                m_so_primary_host.m_port = m_so_port;
-            }
-        }
-
-        if (m_bb_check && !m_bb_file_path.empty())
-        {
-
-            char big_buffer[1024];
-
-            if ((bbUrls2(m_bb_file_path.c_str(), big_buffer, 1024) == 0) && (big_buffer[0] != 0))
-            {
-                if (parse_strong_http_with_out_port(std::string(big_buffer), m_bb_primary_host))
-                {
-                    m_bb_primary_host.m_port = m_bb_port;
-                }
-            }
-        }
-#endif
-
         return true;
     }
-    catch(std::exception& e)
+    catch(const std::exception& e)
     {
         _out << "Config file error:" << e.what() << std::endl;
         return false;
