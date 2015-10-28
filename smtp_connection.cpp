@@ -51,18 +51,6 @@ smtp_connection::smtp_connection(
 }
 
 
-//void smtp_connection::async_say_goodbye()
-//{
-//    boost::asio::async_write(
-//        m_ssl_socket,
-//        m_response,
-//        strand_.wrap(boost::bind(
-//            &smtp_connection::handle_last_write_request,
-//            shared_from_this(),
-//            boost::asio::placeholders::error)));
-//}
-
-
 boost::asio::ip::tcp::socket& smtp_connection::socket()
 {
     return m_ssl_socket.next_layer();
@@ -70,10 +58,6 @@ boost::asio::ip::tcp::socket& smtp_connection::socket()
 
 
 void smtp_connection::start( bool _force_ssl ) {
-#if defined(HAVE_PA_ASYNC_H)
-    m_pa_timer.start();
-#endif
-
     force_ssl_ = _force_ssl;
 
     m_connected_ip = socket().remote_endpoint().address();
@@ -844,10 +828,6 @@ void smtp_connection::end_check_data()
     }
 
     response_stream << " " << m_session_id << "-" <<  m_envelope->m_id << "\r\n";
-
-#if defined(HAVE_PA_ASYNC_H)
-    pa::async_profiler::add(pa::smtp_client, m_remote_host_name, "smtp_client_session", m_session_id + "-" + m_envelope->m_id, m_pa_timer.stop());
-#endif
 
     if (ssl_state_ == ssl_active)
     {

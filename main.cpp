@@ -9,10 +9,6 @@
 #include <boost/format.hpp>
 #include <boost/thread.hpp>
 
-#if defined(HAVE_PA_ASYNC_H)
-#include <pa/async.h>
-#endif
-
 #include "server.h"
 #include "options.h"
 #include "log.h"
@@ -86,10 +82,6 @@ int main(int argc, char* argv[]) {
             }
             daemonized = true;
         }
-
-#if defined(HAVE_PA_ASYNC_H)
-        pa::async_profiler::init(1000000, 500);
-#endif
 
         // start logging thread
         log = boost::thread( [](){ g_log.run(); } );

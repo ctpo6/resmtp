@@ -12,9 +12,6 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/unordered_set.hpp>
 
-#if defined(HAVE_CONFIG_H)
-#include "../config.h"
-#endif
 
 struct uid_value
 {

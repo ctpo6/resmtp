@@ -1,19 +1,13 @@
-#if !defined(_SMTP_CLIENT_H_)
+#ifndef _SMTP_CLIENT_H_
 #define _SMTP_CLIENT_H_
 
+#include <boost/asio/ssl.hpp>
+#include <boost/enable_shared_from_this.hpp>
 #include <boost/function.hpp>
 #include <boost/noncopyable.hpp>
 #include <boost/shared_ptr.hpp>
-#include <boost/enable_shared_from_this.hpp>
-#include <net/dns_resolver.hpp>
-#include <boost/asio/ssl.hpp>
 
-#if defined(HAVE_CONFIG_H)
-#include "../config.h"
-#endif
-#if defined(HAVE_PA_ASYNC_H)
-#include <pa/async.h>
-#endif
+#include "net/dns_resolver.hpp"
 
 #include "envelope.h"
 #include "check.h"
@@ -115,11 +109,6 @@ class smtp_client:
 
     boost::asio::ip::tcp::endpoint m_endpoint;
     void handle_simple_connect(const boost::system::error_code& error);
-
-#if defined(HAVE_PA_ASYNC_H)
-    pa::stimer_t m_pa_timer;
-#endif
-
 };
 
 typedef boost::shared_ptr<smtp_client> smtp_client_ptr;

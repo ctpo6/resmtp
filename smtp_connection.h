@@ -1,9 +1,6 @@
 #ifndef _SMTP_CONNECTION_H_
 #define _SMTP_CONNECTION_H_
 
-// TODO: now use automake-generated config.h ... ugly!
-#include "config.h"
-
 #include <cstdint>
 
 #include <boost/unordered_map.hpp>
@@ -17,13 +14,6 @@
 #include <boost/optional.hpp>
 
 #include "net/dns_resolver.hpp"
-
-#if defined(HAVE_CONFIG_H)
-#include "config.h"
-#endif
-#if defined(HAVE_PA_ASYNC_H)
-#include <pa/async.h>
-#endif
 
 #include "envelope.h"
 #include "buffers.h"
@@ -142,7 +132,6 @@ class smtp_connection :
     std::string m_helo_host;
 
     //---
-//    unsigned int m_rcpt_count;
     unsigned int m_message_count;
 
     //---
@@ -246,10 +235,6 @@ class smtp_connection :
     unsigned int m_max_rcpt_count;
     bool m_read_pending_ = false;
     int m_error_count = 0;
-
-#if defined(HAVE_PA_ASYNC_H)
-    pa::stimer_t m_pa_timer;
-#endif
 
     auth auth_;
     bool authenticated_ = false;

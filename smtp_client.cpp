@@ -331,10 +331,6 @@ void smtp_client::start(const check_data_t& _data,
         const server_parameters::remote_point &_remote,
         const char *_proto_name )
 {
-#if defined(HAVE_PA_ASYNC_H)
-    m_pa_timer.start();
-#endif
-
     m_data = _data;
     m_complete = _complete;
     m_envelope = _envelope;
@@ -530,10 +526,6 @@ check::chk_status smtp_client::report_rcpt(bool _success, const std::string &_lo
                         % m_envelope->m_timer.mark()
                         % rcpt_success_str % remote ));
     }
-
-#if defined(HAVE_PA_ASYNC_H)
-    pa::async_profiler::add(pa::smtp_out, m_relay_name + "[" + m_relay_ip+ "]", m_lmtp ? "lmtp_out_session" : "smtp_out_session", m_data.m_session_id + "-" + m_envelope->m_id, m_pa_timer.stop());
-#endif
 
     return accept ? check::CHK_ACCEPT : check::CHK_TEMPFAIL;
 }

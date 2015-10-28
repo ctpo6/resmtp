@@ -23,10 +23,6 @@
 #include <resolv.h>
 
 
-#if defined(HAVE_HOSTSEARCH_HOSTSEARCH_H)
-#include <hostsearch/hostsearch.h>
-#endif
-
 namespace ba = boost::asio;
 
 const char *temp_error = "451 4.7.1 Service unavailable - try again later";
@@ -325,6 +321,7 @@ bool server_parameters::parse_config(int _argc, char* _argv[], std::ostream& _ou
         config_options.add_options()
                 ("listen", bpo::value< std::vector< std::string > >(&m_listen_points), "listen on host:port")
                 ("ssl_listen", bpo::value< std::vector<std::string> >(&m_ssl_listen_points), "SSL listen on host:port")
+
                 ("user", bpo::value<uid_value>(&m_uid), "set uid after port bindings")
                 ("group", bpo::value<gid_value>(&m_gid), "set gid after port bindings")
 
