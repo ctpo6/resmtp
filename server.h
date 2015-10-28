@@ -17,7 +17,7 @@ class server
 {
   public:
 
-    explicit server(std::size_t _io_service_pool_size, uid_t _user = 0, gid_t _group = 0);
+    server(std::size_t _io_service_pool_size, uid_t _user = 0, gid_t _group = 0);
 
     void run();
 

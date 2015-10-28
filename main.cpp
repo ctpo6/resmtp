@@ -73,6 +73,9 @@ int main(int argc, char* argv[]) {
         sigset_t old_mask;
         pthread_sigmask(SIG_BLOCK, &new_mask, &old_mask);
 
+        g_log.msg(MSG_DEBUG, str(boost::format("UID:%1% GID:%2%")
+            % g_config.m_uid
+            % g_config.m_gid));
         server s(g_config.m_worker_count, g_config.m_uid, g_config.m_gid );
 
         // Daemonize as late as possible, so as to be able to copy fatal error to stderr in case the server can't start

@@ -34,7 +34,7 @@ server_parameters g_config;
 template <typename T>
 struct get_first : public std::unary_function<T, typename T::first_type&>
 {
-    typename T::first_type& operator()(T& x) const
+    typename T::first_type& operator()(T& x)
     {
         return x.first;
     }
@@ -48,7 +48,7 @@ struct get_first : public std::unary_function<T, typename T::first_type&>
 template <typename T>
 struct get_second : public std::unary_function<T, typename T::second_type&>
 {
-    typename T::second_type& operator()(T& x) const
+    typename T::second_type& operator()(T& x)
     {
         return x.second;
     }
@@ -61,7 +61,6 @@ struct get_second : public std::unary_function<T, typename T::second_type&>
 
 std::string get_part(const std::string &_str, const std::string &_delim, std::string::size_type &_pos)
 {
-
     std::string part;
     std::string::size_type pos = _str.find(_delim, _pos);
 
