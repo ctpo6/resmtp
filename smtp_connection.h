@@ -31,7 +31,6 @@
 
 #include "smtp_client.h"
 #include "eom_parser.h"
-#include "atormoz.h"
 #include "adkim.h"
 #include "coroutine.hpp"
 #include "auth.h"
@@ -93,9 +92,7 @@ class smtp_connection :
 
     // map: smtp command name -> command handler ptr
     proto_map_t m_proto_map;
-
     void add_new_command(const char *_command, proto_func_t _func);
-
     bool execute_command(const std::string &_cmd, std::ostream &_response);
 
     //---
@@ -207,18 +204,6 @@ class smtp_connection :
     void handle_bb_result_helper();
 
     //---
-    boost::shared_ptr<greylisting_client> gr_check_;
-    greylisting_client::headers gr_headers_;
-
-    struct handle_greylisting_probe;
-    struct handle_greylisting_mark;
-    struct handle_rc_get;
-    struct handle_rc_put;
-    friend struct handle_greylisting_probe;
-    friend struct handle_greylisting_mark;
-    friend struct handle_rc_get;
-    friend struct handle_rc_put;
-
     smtp_client_ptr m_smtp_client;
 
     check_data_t m_check_data;

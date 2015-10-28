@@ -1,4 +1,4 @@
-#if !defined(_ENVELOPE_H_)
+#ifndef _ENVELOPE_H_
 #define _ENVELOPE_H_
 
 #include <sys/types.h>
@@ -13,46 +13,32 @@
 #include "buffers.h"
 #include "check.h"
 #include "timer.h"
-#include "rc_check.h"
-#include "rc_clients/greylisting.h"
 #include "coroutine.hpp"
 
 
-struct envelope
-        : public boost::enable_shared_from_this<envelope>,
-          private boost::noncopyable
-
+struct envelope :
+        public boost::enable_shared_from_this<envelope>,
+        private boost::noncopyable
 {
     typedef ystreambuf::mutable_buffers_type ymutable_buffers;
     typedef ystreambuf::const_buffers_type yconst_buffers;
     typedef ybuffers_iterator<yconst_buffers> yconst_buffers_iterator;
 
-    struct rcpt
-    {
+    struct rcpt {
         std::string m_name;
 
-        long long unsigned m_suid;
+        long long unsigned m_suid = 0;
         std::string m_uid;
 
         std::string m_remote_answer;
 
-        check::chk_status m_delivery_status;
+        check::chk_status m_delivery_status = check::CHK_TEMPFAIL;
 
-        unsigned int m_spam_status;
+        unsigned int m_spam_status = 0;
 
-        boost::shared_ptr<greylisting_client> gr_check_;
-        boost::shared_ptr<rc_check> rc_check_;
-
-        bool operator == (struct rcpt &_rcpt)
-        {
+        bool operator == (const struct rcpt &_rcpt) const {
             return m_name == _rcpt.m_name;
         }
-
-        rcpt()
-                : m_suid(0),
-                  m_delivery_status(check::CHK_TEMPFAIL),
-                  m_spam_status(0)
-        {}
     };
 
     typedef std::list<rcpt> rcpt_list_t;

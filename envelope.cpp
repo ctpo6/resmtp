@@ -1,6 +1,6 @@
-#include <stdio.h>
-
 #include "envelope.h"
+
+#include <stdio.h>
 
 envelope::envelope()
         : added_headers_(),
@@ -153,5 +153,3 @@ void envelope::cleanup_answers()
         it->m_remote_answer.clear();
     }
 }
-
-

@@ -521,372 +521,6 @@ void smtp_connection::start_check_data()
     }
 }
 
-struct smtp_connection::handle_greylisting_mark
-        : private resmtp::coroutine
-{
-    boost::shared_ptr<smtp_connection> c;
-    envelope::rcpt_list_t::iterator rcpt_beg;
-    envelope::rcpt_list_t::iterator rcpt_end;
-    bool someone_failed;
-    boost::weak_ptr<envelope> env;
-
-    handle_greylisting_mark(
-        boost::shared_ptr<smtp_connection> cc,
-        envelope::rcpt_list_t::iterator b,
-        envelope::rcpt_list_t::iterator e)
-            : c(cc),
-              rcpt_beg(b),
-              rcpt_end(e),
-              someone_failed(false),
-              env(c->m_envelope)
-    {
-    }
-
-    typedef boost::system::error_code error_code;
-    typedef greylisting_client::hostlist hostlist;
-
-    void operator()(const error_code& ec = error_code(),
-            hostlist::value_type host = hostlist::value_type())
-    {
-        if (env.expired())
-            return;
-
-        //        assert(rcpt_beg != rcpt_end);
-        if (rcpt_beg == rcpt_end)
-        {
-            c->m_check_data.m_result = check::CHK_TEMPFAIL;
-            c->m_check_data.m_answer =  "451 4.7.1 Service unavailable - try again later";
-            return c->end_check_data();
-        }
-
-        reenter(*this)
-        do
-        {
-            assert (rcpt_beg->gr_check_);
-
-            yield return
-                    rcpt_beg->gr_check_->mark(
-                        str(boost::format("%1%-%2%")
-                                % c->m_session_id % rcpt_beg->m_suid),
-                        c->strand_.wrap(*this));
-
-            if (ec == boost::asio::error::operation_aborted)
-                return;
-
-            if (ec == greylisting_client::too_early
-                    || ec == greylisting_client::too_late)
-                someone_failed = true;
-
-            g_log.msg(MSG_NORMAL,
-                    str(boost::format("%1%-%2%-GR %3% status:%4%; host=%5%")
-                            % c->m_session_id
-                            % c->m_envelope->m_id
-                            % rcpt_beg->m_suid
-                            % ec.message()
-                            % rcpt_beg->gr_check_->info().host));
-
-        } while (++rcpt_beg != rcpt_end);
-
-        assert(rcpt_beg == rcpt_end);
-
-        if (someone_failed)
-        {
-            c->m_check_data.m_result = check::CHK_TEMPFAIL;
-            c->m_check_data.m_answer =  "451 4.7.1 Sorry, the service is currently unavailable. Please come back later.";
-            return c->end_check_data();
-        }
-        return c->smtp_delivery_start();
-    }
-};
-
-struct smtp_connection::handle_rc_put
-        : private resmtp::coroutine
-{
-    boost::shared_ptr<smtp_connection> c;
-    envelope::rcpt_list_t::iterator rcpt_beg;
-    envelope::rcpt_list_t::iterator rcpt_end;
-    bool someone_failed;
-    boost::weak_ptr<envelope> env;
-
-    handle_rc_put(
-        boost::shared_ptr<smtp_connection> cc,
-        envelope::rcpt_list_t::iterator b,
-        envelope::rcpt_list_t::iterator e)
-            : c(cc),
-              rcpt_beg(b),
-              rcpt_end(e),
-              someone_failed(false),
-              env(c->m_envelope)
-    {
-    }
-
-    typedef boost::system::error_code error_code;
-
-    void operator()(const error_code& ec = error_code(),
-            boost::optional<rc_result> rc = boost::optional<rc_result>())
-    {
-        if (env.expired())
-            return;
-
-        //        assert(rcpt_beg != rcpt_end);
-        if (rcpt_beg == rcpt_end)
-        {
-            c->m_check_data.m_result = check::CHK_TEMPFAIL;
-            c->m_check_data.m_answer =  "451 4.7.1 Service unavailable - try again later";
-            return c->end_check_data();
-        }
-
-        boost::shared_ptr<rc_check> q = rcpt_beg->rc_check_;
-
-        reenter(*this)
-        do
-        {
-            if (!rcpt_beg->rc_check_) // case of multiple aliases
-                continue;
-
-            yield return
-                    rcpt_beg->rc_check_->put(
-                        c->strand_.wrap(*this),
-                        c->m_envelope->orig_message_size_);
-
-            if (ec == boost::asio::error::operation_aborted)
-                return;
-
-            if (!rc || rc->ok)
-            {
-                if (!rc)
-                {
-                    g_log.msg(MSG_NORMAL,
-                            str(boost::format(
-                                "%1%-RC-DATA failed to "
-                                "commit iprate PUT check because of the server"
-                                " being down or bad config; ignored (host=[%2%], rcpt=[%3%])") %
-                                    c->m_session_id % q->get_hostname() % q->get_email())
-                              );
-                }
-            }
-            else
-            {
-                someone_failed = true;
-                break;
-            }
-        } while (++rcpt_beg != rcpt_end);
-
-        if (someone_failed)
-        {
-                const rc_parameters& p = q->get_parameters();
-                g_log.msg(MSG_NORMAL, str(boost::format("%1%-RC-DATA "
-                                        "the recipient has exceeded their message rate"
-                                        " limit (from=%2%,rcpt=<%3%>,uid=%4%,host=[%5%])") %
-                                c->m_session_id %
-                                c->m_smtp_from %
-                                q->get_email() %
-                                p.ukey %
-                                q->get_hostname()));
-
-                c->m_check_data.m_answer = str(boost::format("451 4.5.1 The "
-                                "recipient <%1%> has exceeded their message rate "
-                                "limit. Try again later.") % q->get_email());
-                c->m_check_data.m_result = check::CHK_TEMPFAIL;
-
-            c->m_check_data.m_result = check::CHK_TEMPFAIL;
-            c->m_check_data.m_answer =
-                    "451 4.7.1 Sorry, the service is currently unavailable. Please come back later.";
-            return c->end_check_data();
-        }
-
-        c->m_check_data.m_result = check::CHK_ACCEPT;
-        return c->smtp_delivery_start();
-    }
-};
-
-
-struct smtp_connection::handle_greylisting_probe
-        : private resmtp::coroutine
-{
-    boost::shared_ptr<smtp_connection> c;
-    envelope::rcpt_list_t::iterator rcpt_beg;
-    envelope::rcpt_list_t::iterator rcpt_end;
-    boost::weak_ptr<envelope> env;
-
-    handle_greylisting_probe(
-        boost::shared_ptr<smtp_connection> cc,
-        envelope::rcpt_list_t::iterator b,
-        envelope::rcpt_list_t::iterator e)
-            : c(cc),
-              rcpt_beg(b),
-              rcpt_end(e),
-              env(c->m_envelope)
-    {
-    }
-
-    typedef boost::system::error_code error_code;
-    typedef greylisting_client::hostlist hostlist;
-    typedef greylisting_client::iter_range_t iter_range_t;
-
-    void operator()(const error_code& ec = error_code(),
-            hostlist::value_type host = hostlist::value_type())
-    {
-        if (env.expired())
-            return;
-
-        //        assert(rcpt_beg != rcpt_end);
-        if (rcpt_beg == rcpt_end)
-            return c->avir_check_data();
-
-        reenter(*this)
-        do
-        {
-            rcpt_beg->gr_check_.reset(
-                new greylisting_client(c->strand_.get_io_service(),
-                        g_config.greylisting_,
-                        g_config.greylisting_.hosts));
-
-            yield return
-                    rcpt_beg->gr_check_->probe(
-                        greylisting_client::key(
-                            c->m_connected_ip,
-                            c->m_smtp_from,
-                            boost::lexical_cast<std::string>(rcpt_beg->m_suid),
-                            c->gr_headers_,
-                            iter_range_t(c->m_envelope->orig_message_body_beg_,
-                                    ybuffers_end(c->m_envelope->orig_message_))),
-                        str(boost::format("%1%-%2%")
-                                % c->m_session_id % rcpt_beg->m_suid),
-                        c->strand_.wrap(*this));
-
-            if (ec == boost::asio::error::operation_aborted)
-                return;
-
-            if (rcpt_beg->gr_check_->info().valid
-                    && rcpt_beg->gr_check_->info().n > 0)
-                c->m_envelope->m_spam = true;
-
-        } while (++rcpt_beg != rcpt_end);
-
-        assert(rcpt_beg == rcpt_end);
-
-        return c->avir_check_data();
-    }
-};
-
-struct smtp_connection::handle_rc_get :
-        private resmtp::coroutine
-{
-    boost::shared_ptr<smtp_connection> c;
-    boost::weak_ptr<envelope> env;
-    boost::shared_ptr<rc_check> q;
-
-    handle_rc_get(
-        boost::shared_ptr<smtp_connection> cc)
-            : c(cc),
-              env(c->m_envelope),
-              q()
-    {
-    }
-
-    typedef boost::system::error_code error_code;
-
-    void operator()(const error_code& ec = error_code(),
-            boost::optional<rc_result> rc = boost::optional<rc_result>())
-    {
-        if (env.expired())
-            return;
-
-        reenter(*this)
-        {
-            q.reset(
-                new rc_check(c->io_service_,
-                        c->m_check_rcpt.m_rcpt,
-                        c->m_check_rcpt.m_uid,
-                        g_config.m_rc_host_list,
-                        g_config.m_rc_timeout));
-
-            yield return
-                    q->get(c->strand_.wrap(*this));
-
-            if (ec == boost::asio::error::operation_aborted)
-                return;
-
-
-            if (!c->m_envelope->m_rcpt_list.empty())
-                c->m_proto_state = STATE_RCPT_OK;
-            else
-                c->m_proto_state = STATE_AFTER_MAIL;
-
-            if (!rc && ec != boost::asio::error::operation_aborted)
-            {
-                g_log.msg(MSG_NORMAL, str(boost::format("%1%-RC-RCPT failed to "
-                                        "commit iprate check in GET because of the server"
-                                        " being down or bad config; ignored (host=[%2%], rcpt=[%3%])") %
-                                c->m_session_id % q->get_hostname() % c->m_check_rcpt.m_rcpt));
-            }
-            else if (!rc->ok)
-            {
-                c->m_error_count++;
-
-                const rc_parameters& p = q->get_parameters();
-                g_log.msg(MSG_NORMAL, str(boost::format("%1%-RC-RCPT "
-                                        "the recipient has exceeded their message rate"
-                                        " limit (from=%2%,rcpt=<%3%>,uid=%4%,host=[%5%])") %
-                                c->m_session_id % c->m_smtp_from %
-                                c->m_check_rcpt.m_rcpt % p.ukey % q->get_hostname()));
-
-                std::string result = str(boost::format("451 4.5.1 The "
-                                "recipient <%1%> has exceeded their message rate "
-                                "limit. Try again later.") % c->m_check_rcpt.m_rcpt);
-
-                std::ostream response_stream(&c->m_response);
-                response_stream << result;
-
-                boost::asio::async_write(c->socket(), c->m_response,
-                        c->strand_.wrap(boost::bind(&smtp_connection::handle_write_request,
-                                        c, boost::asio::placeholders::error)));
-                return;
-            }
-
-            // Add this recipient
-            c->m_proto_state = STATE_RCPT_OK;
-            c->m_envelope->m_no_local_relay |= g_aliases.process(c->m_check_rcpt.m_rcpt,
-                    c->m_check_rcpt.m_suid,
-                    boost::bind(&handle_rc_get::add_rcpt, *this, _1, _2));
-            q.reset();
-
-            std::string result = str(boost::format(
-                "250 2.1.5 <%1%> recipient ok\r\n") % c->m_check_rcpt.m_rcpt);
-            std::ostream response_stream(&c->m_response);
-
-            response_stream << result;
-
-            if (c->ssl_state_ == ssl_active)
-            {
-                boost::asio::async_write(c->m_ssl_socket, c->m_response,
-                        c->strand_.wrap(
-                            boost::bind(&smtp_connection::handle_write_request, c,
-                                    boost::asio::placeholders::error)));
-            }
-            else
-            {
-                boost::asio::async_write(c->socket(), c->m_response,
-                        c->strand_.wrap(
-                            boost::bind(&smtp_connection::handle_write_request, c,
-                                        boost::asio::placeholders::error)));
-            }
-        }
-    }
-
-  private:
-    void add_rcpt(const std::string& rcpt, long long unsigned suid)
-    {
-        envelope::rcpt_list_t::iterator it =
-                c->m_envelope->add_recipient(rcpt, suid, c->m_check_rcpt.m_uid);
-        if (it != c->m_envelope->m_rcpt_list.end())
-        {
-            it->rc_check_ = q;
-            q.reset(); // we don't want to RC a user more than once if she has multiple aliases
-        }
-    }
-};
 
 void smtp_connection::start_so_avir_checks()
 {
@@ -959,36 +593,6 @@ void log_message_id(Range message_id, const string& session_id, const string& en
     g_log.msg(MSG_NORMAL,
             str(boost::format("%1%-%2%-RECV: message-id=%3%") % session_id % envelope_id % message_id));
 }
-
-void handle_parse_header(const header_iterator_range_t& name, const header_iterator_range_t& header,
-        const header_iterator_range_t& value, list <header_iterator_range_t>& h,
-        header_iterator_range_t& message_id, boost::unordered_set<string>& unique_h,
-        const boost::unordered_set<string>& rem_h, greylisting_client::headers& gr_headers)
-{
-    string lname; // lower-cased header name
-    size_t name_sz = name.size();
-    lname.reserve(name_sz);
-    std::transform(name.begin(), name.end(), back_inserter(lname), ::tolower);
-    unique_h.insert( lname );
-
-    if ( !strcmp(lname.c_str(), "message-id") )
-    {
-        message_id = value;
-        gr_headers.messageid = message_id;
-    }
-    else if ( !strcmp(lname.c_str(), "to") )
-        gr_headers.to = value;
-    else if ( !strcmp(lname.c_str(), "from") )
-        gr_headers.from = value;
-    else if ( !strcmp(lname.c_str(), "subject") )
-        gr_headers.subject = value;
-    else if ( !strcmp(lname.c_str(), "date") )
-        gr_headers.date = value;
-
-    // add a header field to the list only if we don't have to remove it from the message
-    if (!g_config.m_remove_headers || rem_h.find(lname) == rem_h.end())
-        h.push_back( header );
-}
 }
 
 void smtp_connection::smtp_delivery_start()
@@ -1024,11 +628,7 @@ void smtp_connection::smtp_delivery_start()
                 header_iterator_range_t::iterator b = ybuffers_begin(orig_m);
                 header_iterator_range_t::iterator e = ybuffers_end(orig_m);
                 header_iterator_range_t r (b, e);
-                m_envelope->orig_message_body_beg_ = parse_header(r,
-                        boost::bind(&handle_parse_header, _1, _2, _3,
-                                boost::ref(h), boost::ref(message_id), boost::ref(unique_h),
-                                boost::cref(g_config.m_remove_headers_set),
-                                boost::ref(gr_headers_)));
+                m_envelope->orig_message_body_beg_ = parse_header(r);
 
                 shared_const_chunk crlf (new chunk_csl("\r\n"));
                 for (hl_t::const_iterator it=h.begin(); it!=h.end(); ++it)
@@ -1099,25 +699,6 @@ void smtp_connection::smtp_delivery_start()
 
             if (m_check_data.m_result != check::CHK_ACCEPT)
                 return end_check_data();
-
-            if (m_envelope->m_spam
-                    &&  g_config.use_greylisting_)
-            {
-                yield return
-                        handle_greylisting_mark (
-                            shared_from_this(),
-                            m_envelope->m_rcpt_list.begin(),
-                            m_envelope->m_rcpt_list.end())();
-            }
-
-            if (g_config.m_rc_check)
-            {
-                yield return
-                        handle_rc_put (
-                            shared_from_this(),
-                            m_envelope->m_rcpt_list.begin(),
-                            m_envelope->m_rcpt_list.end())();
-            }
 
             if (has_dkim_headers_)
             {
@@ -1646,19 +1227,11 @@ bool smtp_connection::smtp_rcpt( const std::string& _cmd, std::ostream &_respons
         return true;
     }
 
-    if (addr.find("%") != std::string::npos)                    // percent hack
+    if (addr.find("%") != std::string::npos)
     {
-        if (g_config.m_allow_percent_hack)              // allow
-        {
-            addr = addr.substr(0, perc_pos) + "@" + addr.substr(perc_pos + 1, dog_pos - perc_pos - 1);
-        }
-        else
-        {
-            m_error_count++;
-
-            _response << "501 5.1.3 Bad recipient address syntax.\r\n";
-            return true;
-        }
+        m_error_count++;
+        _response << "501 5.1.3 Bad recipient address syntax.\r\n";
+        return true;
     }
 
     m_proto_state = STATE_CHECK_RCPT;
@@ -1693,35 +1266,28 @@ void smtp_connection::handle_bb_result_helper()
 
     switch (m_check_rcpt.m_result)
     {
-        case check::CHK_ACCEPT:
-            {
-                if (!g_config.m_rc_check || !m_check_rcpt.m_suid || m_envelope->has_recipient(m_check_rcpt.m_suid))
-                {
-                    m_proto_state = STATE_RCPT_OK;
-                    m_envelope->m_no_local_relay |= g_aliases.process(m_check_rcpt.m_rcpt,
-                            m_check_rcpt.m_suid,  boost::bind(&envelope::add_recipient, m_envelope, _1, _2, m_check_rcpt.m_uid));
-                }
-                else
-                {
-                    // perform rc check
-                    return handle_rc_get(shared_from_this())();
-                }
-            }
+    case check::CHK_ACCEPT:
+    {
+        m_proto_state = STATE_RCPT_OK;
+        m_envelope->m_no_local_relay |= g_aliases.process(m_check_rcpt.m_rcpt,
+                m_check_rcpt.m_suid,  boost::bind(&envelope::add_recipient, m_envelope, _1, _2, m_check_rcpt.m_uid));
+    }
+        break;
 
-        case check::CHK_DISCARD:
-            break;
+    case check::CHK_DISCARD:
+        break;
 
-        case check::CHK_REJECT:
-            m_error_count++;
+    case check::CHK_REJECT:
+        m_error_count++;
 
-            result = "550 5.7.1 No such user!\r\n";
-            break;
+        result = "550 5.7.1 No such user!\r\n";
+        break;
 
-        case check::CHK_TEMPFAIL:
-            m_error_count++;
+    case check::CHK_TEMPFAIL:
+        m_error_count++;
 
-            result = "450 4.7.1 No such user!\r\n";
-            break;
+        result = "450 4.7.1 No such user!\r\n";
+        break;
     }
 
     if (!m_envelope->m_rcpt_list.empty())
@@ -1837,18 +1403,14 @@ bool smtp_connection::smtp_mail( const std::string& _cmd, std::ostream &_respons
 
 bool smtp_connection::smtp_data( const std::string& _cmd, std::ostream &_response )
 {
-    if ( ( m_proto_state != STATE_RCPT_OK ) )
-    {
+    if (m_proto_state != STATE_RCPT_OK) {
         m_error_count++;
-
         _response << "503 5.5.4 Bad sequence of commands.\r\n";
         return true;
     }
 
-    if (m_envelope->m_rcpt_list.empty())
-    {
+    if (m_envelope->m_rcpt_list.empty()) {
         m_error_count++;
-
         _response << "503 5.5.4 No correct recipients.\r\n";
         return true;
     }
@@ -1868,15 +1430,15 @@ bool smtp_connection::smtp_data( const std::string& _cmd, std::ostream &_respons
                 ),
             m_envelope->added_headers_);
 
-    append(str( boost::format("X-Yandex-Front: %1%\r\n")
-                % boost::asio::ip::host_name()
-                ),
-            m_envelope->added_headers_);
+//    append(str( boost::format("X-Yandex-Front: %1%\r\n")
+//                % boost::asio::ip::host_name()
+//                ),
+//            m_envelope->added_headers_);
 
-    append(str( boost::format("X-Yandex-TimeMark: %1%\r\n")
-                    % now
-                ),
-            m_envelope->added_headers_);
+//    append(str( boost::format("X-Yandex-TimeMark: %1%\r\n")
+//                    % now
+//                ),
+//            m_envelope->added_headers_);
 
     return true;
 }
@@ -1908,16 +1470,6 @@ void smtp_connection::stop() {
     if (m_smtp_client) {
         m_smtp_client->stop();
         m_smtp_client.reset();
-    }
-
-    for (std::list<envelope::rcpt>::iterator it=m_envelope->m_rcpt_list.begin();
-         it != m_envelope->m_rcpt_list.end();
-         ++it)
-    {
-        if (it->gr_check_)
-            it->gr_check_->stop();
-        if (it->rc_check_)
-            it->rc_check_->stop();
     }
 
     m_connected_ip = boost::asio::ip::address_v4::any();
@@ -1992,7 +1544,6 @@ void smtp_connection::restart_timeout()
 
 void smtp_connection::end_mail_from_command(bool _start_spf, bool _start_async, std::string _addr, const std::string &_response)
 {
-
     if (_start_spf)
     {
         // start SPF check
@@ -2016,8 +1567,6 @@ void smtp_connection::end_mail_from_command(bool _start_spf, bool _start_async, 
     }
 
     m_envelope.reset(new envelope());
-
-    gr_headers_ = greylisting_client::headers();
 
     m_smtp_from = _addr;
 

@@ -1,4 +1,4 @@
-#if !defined(_CONFIG_H_)
+#ifndef _CONFIG_H_
 #define _CONFIG_H_
 
 #include <sys/types.h>
@@ -11,8 +11,6 @@
 
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/unordered_set.hpp>
-
-#include "rc_clients/greylisting.h"
 
 #if defined(HAVE_CONFIG_H)
 #include "../config.h"
@@ -82,16 +80,6 @@ struct server_parameters {
 
     unsigned int m_max_rcpt_count;
 
-    // RC
-
-    std::string m_rc_host_listconf;
-    std::vector< std::pair<std::string,
-                           boost::asio::ip::tcp::endpoint> > m_rc_host_list;
-    int m_rc_port;
-    int m_rc_timeout;
-    int m_rc_verbose;
-    int m_rc_check;
-
     // SPF
 
     time_t m_spf_timeout;
@@ -107,10 +95,7 @@ struct server_parameters {
     time_t m_smtpd_cmd_timeout;
     time_t m_smtpd_data_timeout;
 
-    bool m_allow_percent_hack;
-
     remote_point m_relay_host;
-
     remote_point m_local_relay_host;
     bool m_use_local_relay;
 
@@ -131,11 +116,6 @@ struct server_parameters {
 
     uid_value m_uid;
     gid_value m_gid;
-
-    std::string greylisting_config_file_;
-    greylisting_options greylisting_;
-    bool use_greylisting_;
-    bool add_xyg_after_greylisting_;
 
     std::string m_ip_config_file;
     std::string m_profiler_log;

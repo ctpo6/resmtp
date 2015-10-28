@@ -12,16 +12,15 @@
 #include <exception>
 #include <memory>
 
-#include <boost/program_options.hpp>
-#include <boost/format.hpp>
-#include <boost/asio.hpp>
-#include <boost/iterator/transform_iterator.hpp>
-#include <boost/function_output_iterator.hpp>
 #include <boost/algorithm/string/trim.hpp>
+#include <boost/algorithm/string/case_conv.hpp>
+#include <boost/asio.hpp>
+#include <boost/format.hpp>
+#include <boost/function_output_iterator.hpp>
+#include <boost/iterator/transform_iterator.hpp>
+#include <boost/program_options.hpp>
 
 #include <resolv.h>
-
-#include "host_seq_resolver.h"
 
 
 #if defined(HAVE_HOSTSEARCH_HOSTSEARCH_H)
@@ -359,17 +358,10 @@ bool server_parameters::parse_config(int _argc, char* _argv[], std::ostream& _ou
 
                 ("smtpd_command_timeout", bpo::value<time_t>(&m_smtpd_cmd_timeout), "smtpd command timeout")
                 ("smtpd_data_timeout", bpo::value<time_t>(&m_smtpd_data_timeout), "smtpd data timeout")
-                ("allow_percent_hack", bpo::value<bool>(&m_allow_percent_hack)->default_value(true), "use percent hack")
 
                 ("fallback_relay_host", bpo::value<remote_point>(&m_relay_host), "relay")
                 ("local_relay_host", bpo::value<remote_point>(&m_local_relay_host), "local relay")
                 ("use_local_relay", bpo::value<bool>(&m_use_local_relay), "use local relay ?")
-
-                ("rc_host_list", bpo::value<std::string>(&m_rc_host_listconf)->default_value("/etc/yamail/rchost_list.conf"), "rc host list")
-                ("rc_port", bpo::value<int>(&m_rc_port)->default_value(8888), "rc port")
-                ("rc_timeout", bpo::value<int>(&m_rc_timeout)->default_value(1), "rc timeout in secs")
-                ("rc_verbose", bpo::value<int>(&m_rc_verbose)->default_value(0), "rc verbose on/off")
-                ("rc_check", bpo::value<int>(&m_rc_check)->default_value(0), "rc on/off")
 
                 ("message_size_limit", bpo::value<unsigned int>(&m_message_size_limit)->default_value(10240000), "Message size limit")
 
@@ -388,47 +380,33 @@ bool server_parameters::parse_config(int _argc, char* _argv[], std::ostream& _ou
 
                 ("use_auth",bpo::value<bool>(&m_use_auth)->default_value(false), "Use auth ?")
                 ("use_auth_after_tls", bpo::value<bool>(&m_use_tls)->default_value(false), "Use auth only after TLS ?")
-
-                ("use_greylisting", bpo::value<bool>(&use_greylisting_), "Use greylisting ?")
-                ("greylisting_config_file", bpo::value<std::string>(&greylisting_config_file_), "The name of the greylisting configuration file")
-                ("add_xyg_after_greylisting", bpo::value<bool>(&add_xyg_after_greylisting_)->default_value(true), "if set to true, fake X-Yandex-Greylisting "
-                        "header will be appended for messages sent to SO hosts")
                 ;
 
         bpo::variables_map vm;
         bpo::positional_options_description p;
 
         bpo::store(bpo::command_line_parser(_argc, _argv).options(command_line_opt).run(), vm);
-
         notify(vm);
-
 
         m_foreground = (vm.count("fg") != 0);
 
-        if (vm.count("help"))
-        {
+        if (vm.count("help")) {
             _out << command_line_opt << std::endl;
             return false;
         }
 
-        if (vm.count("version"))
-        {
+        if (vm.count("version")) {
             _out << "0.0.1" << std::endl;
             return false;
         }
 
         std::ifstream ifs(config_file.c_str());
-
-        if (!ifs)
-        {
+        if (!ifs) {
             _out << "Can not open config file: " << config_file << std::endl;
             return false;
         }
-        else
-        {
-            store(parse_config_file(ifs, config_options, true), vm);
-            notify(vm);
-        }
+        store(parse_config_file(ifs, config_options, true), vm);
+        notify(vm);
 
         if (m_remove_headers)
         {
@@ -451,63 +429,10 @@ bool server_parameters::parse_config(int _argc, char* _argv[], std::ostream& _ou
                 return false;
             }
         }
-
-        if (use_greylisting_)
-        {
-            try
-            {
-                greylisting_options_parser parser(greylisting_);
-                parser.parse_from_file(greylisting_config_file_.c_str());
-            }
-            catch (const std::exception& e)
-            {
-                _out << "Config file error: greylisting_config_file: config file \"" << greylisting_config_file_ << "\" invalid: "
-                     << e.what();
-
-                return false;
-            }
-        }
-
-        if (m_rc_check)
-        {
-            if (m_rc_host_listconf.empty())
-            {
-                _out << "Config file error: rc_host_list param not specified" << std::endl;
-                return false;
-            }
-
-            // Try and parse RC config & resolve RC hosts
-            std::ifstream ifs( m_rc_host_listconf.c_str(), std::ios_base::in );
-            typedef boost::asio::ip::tcp::endpoint endpoint_t;
-            while (ifs && !ifs.eof())
-            {
-                std::string host;
-                ifs >> host;
-                if (!host.empty())
-                    m_rc_host_list.push_back( std::make_pair(host, endpoint_t()));
-            }
-            typedef std::vector< std::pair<std::string,
-                    boost::asio::ip::tcp::endpoint> > rclist_t;
-            resolve_host_sequence<endpoint_t>(
-                boost::make_transform_iterator<get_first<rclist_t::value_type> >(m_rc_host_list.begin()),
-                boost::make_transform_iterator<get_first<rclist_t::value_type> >(m_rc_host_list.end()),
-                boost::make_transform_iterator<get_second<rclist_t::value_type> >(m_rc_host_list.begin()),
-                m_rc_port);
-            std::sort(m_rc_host_list.begin(), m_rc_host_list.end());
-            if (m_rc_host_list.empty())
-            {
-                _out << "Config file error: rc_host_list: config file "
-                     << m_rc_host_listconf << " invalid" << std::endl;
-                return false;
-            }
-        }
-
-        return true;
-    }
-    catch(const std::exception& e)
-    {
+    } catch (const std::exception& e) {
         _out << "Config file error:" << e.what() << std::endl;
         return false;
     }
-}
 
+    return true;
+}
