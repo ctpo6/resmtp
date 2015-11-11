@@ -557,8 +557,7 @@ void smtp_connection::handle_dkim_timeout(const boost::system::error_code& ec)
         smtp_delivery_start();
 }
 
-namespace
-{
+namespace {
 template <class Range>
 void log_message_id(Range message_id, const string& session_id, const string& envelope_id)
 {
@@ -730,16 +729,18 @@ void smtp_connection::smtp_delivery_start()
             append(crlf, alt_m);
             append(m_envelope->orig_message_body_beg_, ybuffers_end(orig_m), alt_m);
 
-            if (m_smtp_client)
-                m_smtp_client->stop();
-            m_smtp_client.reset(new smtp_client(io_service_));
+            if (g_config.m_use_local_relay) {
+                if (m_smtp_client)
+                    m_smtp_client->stop();
+                m_smtp_client.reset(new smtp_client(io_service_));
 
-            if (g_config.m_use_local_relay)
-            {
-                m_smtp_client->start(m_check_data, strand_.wrap(bind(&smtp_connection::end_lmtp_proto, shared_from_this())), m_envelope, g_config.m_local_relay_host, "LOCAL");
-            }
-            else
-            {
+                m_smtp_client->start(
+                    m_check_data,
+                    strand_.wrap(bind(&smtp_connection::end_lmtp_proto, shared_from_this())),
+                    m_envelope,
+                    g_config.m_local_relay_host,
+                    "LOCAL");
+            } else {
                 smtp_delivery();
             }
         }
@@ -749,25 +750,25 @@ void smtp_connection::smtp_delivery_start()
 void smtp_connection::end_lmtp_proto()
 {
     m_envelope->remove_delivered_rcpt();
-
-    if (m_envelope->m_rcpt_list.empty())
-    {
+    if (m_envelope->m_rcpt_list.empty()) {
         end_check_data();
-    }
-    else
-    {
+    } else {
         smtp_delivery();
     }
 }
 
 void smtp_connection::smtp_delivery()
 {
-    if (m_smtp_client)
-    {
+    if (m_smtp_client) {
         m_smtp_client->stop();
     }
     m_smtp_client.reset(new smtp_client(io_service_));
-    m_smtp_client->start(m_check_data, strand_.wrap(bind(&smtp_connection::end_check_data, shared_from_this())), m_envelope, g_config.m_relay_host, "SMTP");
+    m_smtp_client->start(
+        m_check_data,
+        strand_.wrap(bind(&smtp_connection::end_check_data, shared_from_this())),
+        m_envelope,
+        g_config.m_relay_host,
+        "SMTP");
 }
 
 void smtp_connection::end_check_data()
