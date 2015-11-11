@@ -232,9 +232,10 @@ class smtp_connection :
     // isn't RFC compliant
     bool check_socket_read_buffer_is_empty();
 
-    unsigned int m_max_rcpt_count;
+    uint32_t m_max_rcpt_count;
     bool m_read_pending_ = false;
-    int m_error_count = 0;
+
+    uint32_t m_error_count = 0;
 
     auth auth_;
     bool authenticated_ = false;

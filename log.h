@@ -49,4 +49,3 @@ protected:
 extern logger g_log;
 
 #endif // _LOG_H_
-

@@ -334,7 +334,7 @@ bool server_parameters::parse_config(int _argc, char* _argv[], std::ostream& _ou
                 ("tarpit_delay_seconds", bpo::value<uint32_t>(&m_tarpit_delay_seconds)->default_value(0), "tarpit delay")
 
                 ("smtp_banner", bpo::value<std::string>(&m_smtp_banner), "smtp banner")
-                ("workers", bpo::value<unsigned int>(&m_worker_count), "workers count")
+                ("workers", bpo::value<uint32_t>(&m_worker_count), "workers count")
                 ("rbl_check", bpo::value<bool>(&m_rbl_active)->default_value(false), "RBL active ?")
                 ("rbl_hosts", bpo::value<std::string>(&m_rbl_hosts), "RBL hosts list")
                 ("dnswl_host", bpo::value<std::string>(&m_dnswl_host), "DNSWL host")
@@ -342,10 +342,12 @@ bool server_parameters::parse_config(int _argc, char* _argv[], std::ostream& _ou
                 ("spf_timeout", bpo::value<time_t>(&m_spf_timeout)->default_value(15), "spf calculation timeout")
                 ("dkim_timeout", bpo::value<time_t>(&m_dkim_timeout)->default_value(15), "dkim calculation timeout")
 
-                ("smtpd_recipient_limit", bpo::value<unsigned int>(&m_max_rcpt_count)->default_value(100), "maximum recipient per mail")
-                ("smtpd_client_connection_count_limit", bpo::value<unsigned int>(&m_client_connection_count_limit)->default_value(5), "maximum connection per ip")
-                ("smtpd_connection_count_limit", bpo::value<unsigned int>(&m_connection_count_limit)->default_value(1000), "maximum connection")
-                ("smtpd_hard_error_limit", bpo::value<int>(&m_hard_error_limit)->default_value(20), "maximal number of errors a remote SMTP client is allowed to make")
+                ("smtpd_recipient_limit", bpo::value<uint32_t>(&m_max_rcpt_count)->default_value(100), "maximum recipient per mail")
+
+                ("smtpd_client_connection_count_limit", bpo::value<uint32_t>(&m_client_connection_count_limit)->default_value(50), "maximum connection per ip")
+                ("smtpd_connection_count_limit", bpo::value<uint32_t>(&m_connection_count_limit)->default_value(10000), "maximum connection")
+
+                ("smtpd_hard_error_limit", bpo::value<uint32_t>(&m_hard_error_limit)->default_value(100), "maximum number of errors that a remote SMTP client is allowed to make")
 
                 ("relay_connect_timeout", bpo::value<time_t>(&m_relay_connect_timeout), "smtp relay connect timeout")
                 ("relay_cmd_timeout", bpo::value<time_t>(&m_relay_cmd_timeout), "smtp relay command timeout")
@@ -358,7 +360,7 @@ bool server_parameters::parse_config(int _argc, char* _argv[], std::ostream& _ou
                 ("local_relay_host", bpo::value<remote_point>(&m_local_relay_host), "local relay")
                 ("use_local_relay", bpo::value<bool>(&m_use_local_relay), "use local relay ?")
 
-                ("message_size_limit", bpo::value<unsigned int>(&m_message_size_limit)->default_value(10240000), "Message size limit")
+                ("message_size_limit", bpo::value<uint32_t>(&m_message_size_limit)->default_value(10240000), "Message size limit")
 
                 ("remove_headers", bpo::value<bool>(&m_remove_headers)->default_value(false), "Remove headers on/off")
                 ("remove_headers_list", bpo::value<std::string>(&m_remove_headers_list), "List of headers to remove")
@@ -366,7 +368,6 @@ bool server_parameters::parse_config(int _argc, char* _argv[], std::ostream& _ou
                 ("remove_extra_cr", bpo::value<bool>(&m_remove_extra_cr)->default_value(true), "Remove extra carriage returns on/off")
 
                 ("ip_config_file", bpo::value<std::string>(&m_ip_config_file), "IP address depended config params")
-                ("profiler_log", bpo::value<std::string>(&m_profiler_log), "Profiler log path")
 
                 ("use_tls", bpo::value<bool>(&m_use_tls)->default_value(false), "Use TLS ?")
                 ("tls_key_file", bpo::value<std::string>(&m_tls_key_file), "Use a private key from file")

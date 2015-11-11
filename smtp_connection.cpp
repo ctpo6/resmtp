@@ -63,8 +63,8 @@ void smtp_connection::start( bool _force_ssl ) {
 
     m_max_rcpt_count = g_config.m_max_rcpt_count;
 
+    // if specified, get the number of recipients for specific IP
     ip_options_config::ip_options_t opt;
-
     if (g_ip_config.check(m_connected_ip.to_v4(), opt)) {
         m_max_rcpt_count = opt.m_rcpt_count;
     }
@@ -323,60 +323,49 @@ void smtp_connection::start_read() {
  * parsed: iterator pointing directly past the parsed and processed part of the input range;
  * read: iterator pointing directly past the last read character of the input range (anything in between [parsed, read) is a prefix of a eom token);
  */
-bool smtp_connection::handle_read_data_helper(const yconst_buffers_iterator& b, const yconst_buffers_iterator& e,
-        yconst_buffers_iterator& parsed, yconst_buffers_iterator& read)
+bool smtp_connection::handle_read_data_helper(
+        const yconst_buffers_iterator& b,
+        const yconst_buffers_iterator& e,
+        yconst_buffers_iterator& parsed,
+        yconst_buffers_iterator& read)
 {
     yconst_buffers_iterator eom;
     bool eom_found = eom_parser_.parse(b, e, eom, read);
 
-    if (g_config.m_remove_extra_cr)
-    {
+    if (g_config.m_remove_extra_cr) {
         yconst_buffers_iterator p = b;
         yconst_buffers_iterator crlf_b, crlf_e;
         bool crlf_found = false;
-        while (p != eom)
-        {
+        while (p != eom) {
             crlf_found = crlf_parser_.parse(p, eom, crlf_b, crlf_e);
-            if (crlf_found)
-            {
-                if (crlf_e - crlf_b > 2) // \r{2+}\n
-                {
+            if (crlf_found) {
+                if (crlf_e - crlf_b > 2) { // \r{2+}\n
                     m_envelope->orig_message_size_ += append(p, crlf_b, m_envelope->orig_message_);        // text preceeding \r+\n token
                     m_envelope->orig_message_size_ += append(crlf_e-2, crlf_e, m_envelope->orig_message_); // \r\n
                     parsed = crlf_e;
-                }
-                else
-                {
+                } else {
                     m_envelope->orig_message_size_ += append(p, crlf_e, m_envelope->orig_message_);
                     parsed = crlf_e;
                 }
-            }
-            else
-            {
+            } else {
                 m_envelope->orig_message_size_ += append(p, crlf_b, m_envelope->orig_message_);
                 parsed = crlf_b;
             }
             p = crlf_e;
         }
-    }
-    else
-    {
+    } else {
         m_envelope->orig_message_size_ += append(b, eom, m_envelope->orig_message_);
         parsed = eom;
     }
 
-    if (eom_found)
-    {
+    if (eom_found) {
         m_proto_state = STATE_CHECK_DATA;
         io_service_.post(strand_.wrap(bind(&smtp_connection::start_check_data, shared_from_this())));
-
         parsed = read;
         return false;
     }
-    else
-    {
-        return true;
-    }
+
+    return true;
 }
 
 // Parses and executes commands from [b, e) input range.
@@ -892,28 +881,22 @@ void smtp_connection::send_response2(
 
 void smtp_connection::handle_write_request(const boost::system::error_code& _err)
 {
-    if (!_err)
-    {
-        if (m_error_count >= std::max(g_config.m_hard_error_limit, 1))
-        {
-            g_log.msg(MSG_NORMAL, str(boost::format("%1%: too many errors")
-                            % m_session_id));
+    if (!_err) {
+        if (m_error_count > g_config.m_hard_error_limit) {
+            g_log.msg(MSG_NORMAL,
+                      str(boost::format("%1%: too many errors")
+                          % m_session_id));
 
             std::ostream response_stream(&m_response);
             response_stream << "421 4.7.0 " << boost::asio::ip::host_name() << " Error: too many errors\r\n";
             boost::asio::async_write(socket(), m_response,
                     strand_.wrap(boost::bind(&smtp_connection::handle_last_write_request, shared_from_this(),
                                     boost::asio::placeholders::error)));
-
             return;
         }
-
         start_read();
-    }
-    else
-    {
-        if (_err != boost::asio::error::operation_aborted)
-        {
+    } else {
+        if (_err != boost::asio::error::operation_aborted) {
             m_manager.stop(shared_from_this());
         }
     }
@@ -1517,7 +1500,10 @@ void smtp_connection::restart_timeout()
                         shared_from_this(), boost::asio::placeholders::error)));
 }
 
-void smtp_connection::end_mail_from_command(bool _start_spf, bool _start_async, std::string _addr, const std::string &_response)
+void smtp_connection::end_mail_from_command(bool _start_spf,
+                                            bool _start_async,
+                                            std::string _addr,
+                                            const std::string &_response)
 {
     if (_start_spf)
     {
