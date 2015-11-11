@@ -14,7 +14,6 @@ envelope::envelope()
           m_sender(),
           m_rcpt_list(),
           m_spam(false),
-          m_no_local_relay(false),
           m_timer(),
           smtp_delivery_coro_()
 {

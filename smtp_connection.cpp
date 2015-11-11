@@ -18,7 +18,6 @@
 #include "options.h"
 #include "uti.h"
 #include "rfc_date.h"
-#include "aliases.h"
 #include "param_parser.h"
 #include "header_parser.h"
 #include "rfc822date.h"
@@ -746,7 +745,7 @@ void smtp_connection::smtp_delivery_start()
                 m_smtp_client->stop();
             m_smtp_client.reset(new smtp_client(io_service_));
 
-            if (g_config.m_use_local_relay && !(m_envelope->m_no_local_relay))
+            if (g_config.m_use_local_relay)
             {
                 m_smtp_client->start(m_check_data, strand_.wrap(bind(&smtp_connection::end_lmtp_proto, shared_from_this())), m_envelope, g_config.m_local_relay_host, "LOCAL");
             }
@@ -1247,11 +1246,7 @@ void smtp_connection::handle_bb_result_helper()
     switch (m_check_rcpt.m_result)
     {
     case check::CHK_ACCEPT:
-    {
         m_proto_state = STATE_RCPT_OK;
-        m_envelope->m_no_local_relay |= g_aliases.process(m_check_rcpt.m_rcpt,
-                m_check_rcpt.m_suid,  boost::bind(&envelope::add_recipient, m_envelope, _1, _2, m_check_rcpt.m_uid));
-    }
         break;
 
     case check::CHK_DISCARD:

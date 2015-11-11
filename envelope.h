@@ -71,7 +71,6 @@ struct envelope :
     std::string m_sender;
     rcpt_list_t m_rcpt_list;
     bool m_spam;                        // envelope is spam
-    bool m_no_local_relay;              // no local relay if we have one or more aliases
     timer m_timer;
     resmtp::coroutine smtp_delivery_coro_;
 };

@@ -42,6 +42,9 @@ struct server_parameters {
         std::string m_url;
     };
 
+    bool m_foreground;
+    uint32_t m_log_level;
+
     std::vector<std::string> m_listen_points;
 
     std::vector<std::string> m_ssl_listen_points;
@@ -70,11 +73,6 @@ struct server_parameters {
     // whitelist DNS server
     std::string m_dnswl_host;
 
-    uint32_t m_log_level;
-
-
-    std::string m_aliases_file;
-
     unsigned int m_max_rcpt_count;
 
     // SPF
@@ -96,8 +94,6 @@ struct server_parameters {
     remote_point m_local_relay_host;
     bool m_use_local_relay;
 
-    bool m_foreground;
-
     std::string m_pid_file;
 
     unsigned int m_client_connection_count_limit;
@@ -118,7 +114,6 @@ struct server_parameters {
     std::string m_profiler_log;
 
     bool m_use_tls;
-
     std::string m_tls_key_file;
     std::string m_tls_cert_file;
     std::string m_tls_ca_file;

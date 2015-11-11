@@ -9,12 +9,12 @@
 #include <boost/format.hpp>
 #include <boost/thread.hpp>
 
-#include "server.h"
-#include "options.h"
-#include "log.h"
-#include "aliases.h"
-#include "pidfile.h"
 #include "ip_options.h"
+#include "log.h"
+#include "options.h"
+#include "pidfile.h"
+#include "server.h"
+
 
 namespace {
 void log_err(int prio, const std::string& what, bool copy_to_stderr) {
@@ -23,6 +23,7 @@ void log_err(int prio, const std::string& what, bool copy_to_stderr) {
         std::cerr << what << std::endl;
 }
 }
+
 
 int main(int argc, char* argv[]) {
     bool daemonized = false;
@@ -50,14 +51,6 @@ int main(int argc, char* argv[]) {
     boost::thread log;
     int rval = 0;
     try {
-        if (!g_config.m_aliases_file.empty()) {
-            if (g_aliases.load(g_config.m_aliases_file)) {
-    	        g_log.msg(MSG_NORMAL,str(boost::format("Load aliases file: name='%1%'") % g_config.m_aliases_file));
-            } else {
-                throw std::logic_error(str(boost::format("Can't load aliases file: name='%1%'") % g_config.m_aliases_file));
-    	    }
-        }
-
         if (!g_config.m_ip_config_file.empty()) {
             if (g_ip_config.load(g_config.m_ip_config_file)) {
                 g_log.msg(MSG_NORMAL,str(boost::format("Load IP restriction file: name='%1%'") % g_config.m_ip_config_file));
@@ -111,12 +104,6 @@ int main(int argc, char* argv[]) {
             sigwait(&wait_mask, &sig);
 
             if (sig == SIGHUP) {
-                if (g_aliases.load(g_config.m_aliases_file)) {
-                    g_log.msg(MSG_NORMAL,str(boost::format("Reload aliases file: name='%1%'") % g_config.m_aliases_file));
-                } else {
-                    log_err(MSG_VERY_CRITICAL,str(boost::format("Can't reload aliases file: name='%1%'") % g_config.m_aliases_file),
-                            !daemonized);
-                }
                 continue;
             }
 

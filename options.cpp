@@ -318,6 +318,8 @@ bool server_parameters::parse_config(int _argc, char* _argv[], std::ostream& _ou
         bpo::options_description config_options("Configuration");
 
         config_options.add_options()
+                ("log_level", bpo::value<uint32_t>(&m_log_level)->default_value(0), "log output level 0|1|2")
+
                 ("listen", bpo::value< std::vector< std::string > >(&m_listen_points), "listen on host:port")
                 ("ssl_listen", bpo::value< std::vector<std::string> >(&m_ssl_listen_points), "SSL listen on host:port")
 
@@ -336,12 +338,9 @@ bool server_parameters::parse_config(int _argc, char* _argv[], std::ostream& _ou
                 ("rbl_check", bpo::value<bool>(&m_rbl_active)->default_value(false), "RBL active ?")
                 ("rbl_hosts", bpo::value<std::string>(&m_rbl_hosts), "RBL hosts list")
                 ("dnswl_host", bpo::value<std::string>(&m_dnswl_host), "DNSWL host")
-                ("log_level", bpo::value<uint32_t>(&m_log_level)->default_value(0), "log output level 0|1|2")
 
                 ("spf_timeout", bpo::value<time_t>(&m_spf_timeout)->default_value(15), "spf calculation timeout")
                 ("dkim_timeout", bpo::value<time_t>(&m_dkim_timeout)->default_value(15), "dkim calculation timeout")
-
-                ("aliases", bpo::value<std::string>(&m_aliases_file), "aliases file")
 
                 ("smtpd_recipient_limit", bpo::value<unsigned int>(&m_max_rcpt_count)->default_value(100), "maximum recipient per mail")
                 ("smtpd_client_connection_count_limit", bpo::value<unsigned int>(&m_client_connection_count_limit)->default_value(5), "maximum connection per ip")
