@@ -13,11 +13,11 @@
 #include "check.h"
 #include "options.h"
 
-class smtp_client:
+
+class smtp_client :
         public boost::enable_shared_from_this<smtp_client>,
-        private boost::noncopyable
-{
-  public:
+        private boost::noncopyable {
+public:
 
     explicit smtp_client(boost::asio::io_service& _io_service);
 
@@ -33,10 +33,11 @@ class smtp_client:
 
     check_data_t check_data() const { return m_data; }
 
-  protected:
+protected:
 
     bool m_lmtp;
 
+    //bool m_use_xclient;
     bool m_use_pipelining;
 
     std::string m_read_buffer;
