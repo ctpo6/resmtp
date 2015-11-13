@@ -21,18 +21,18 @@ struct check
     std::string m_remote_ip;
 };
 
-struct check_rcpt_t:
-        public check
-{
+struct check_rcpt_t : public check {
     std::string m_rcpt;
     long long unsigned m_suid;
     std::string m_uid;
 };
 
-struct check_data_t:
-        public check
-{
+struct check_data_t : public check {
+    // client IP
+    std::string m_remote_ip;
+    // resolved from client IP
     std::string m_remote_host;
+    // extracted from HELO/EHLO
     std::string m_helo_host;
 };
 

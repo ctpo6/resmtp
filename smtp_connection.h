@@ -128,6 +128,7 @@ class smtp_connection :
     bool hello( const std::string &_host);
 
     bool m_ehlo;
+    boost::asio::ip::address m_connected_ip;
     std::string m_remote_host_name;
     std::string m_helo_host;
 
@@ -136,8 +137,6 @@ class smtp_connection :
 
     //---
     smtp_connection_manager& m_manager;
-
-    boost::asio::ip::address m_connected_ip;
 
     //---
     y::net::dns::resolver m_resolver;

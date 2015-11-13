@@ -69,20 +69,19 @@ void smtp_client::start_read_line()
 }
 
 
-void smtp_client::handle_read_smtp_line(const bs::error_code &_err) {
-    if (!_err) {
-        std::istream response_stream(&m_request);
+void smtp_client::handle_read_smtp_line(const bs::error_code &err) {
+    if(err) return;
 
-        if (process_answer(response_stream)) {
-            ba::async_write(
-                m_socket,
-                m_response,
-                strand_.wrap(boost::bind(&smtp_client::handle_write_request,
-                                         shared_from_this(),
-                                         _1,
-                                         _2,
-                                         log_request_helper(m_response))));
-        }
+    std::istream response_stream(&m_request);
+    if (process_answer(response_stream)) {
+        ba::async_write(
+            m_socket,
+            m_response,
+            strand_.wrap(boost::bind(&smtp_client::handle_write_request,
+                                     shared_from_this(),
+                                     _1,
+                                     _2,
+                                     log_request_helper(m_response))));
     }
 }
 
@@ -111,48 +110,47 @@ bool smtp_client::process_answer(std::istream &_stream) {
             }
         } catch (const boost::bad_lexical_cast &) {}
         if (code == 0xffffffff) {
-            fault( "Invalid proto state code", line_buffer);
+            fault("Invalid proto state code", line_buffer);
             return false;
         }
 
         // check state code
+        const char *p_err_str = nullptr;
         switch (m_proto_state) {
         case STATE_START:
-            if (code != 220) {
-                fault( "Invalid greeting", line_buffer);
-                return false;
-            }
+            if (code != 220) p_err_str = "Invalid greeting";
+            break;
+        case STATE_START_XCLIENT:
+            if (code != 220) p_err_str = "Invalid XCLIENT greeting";
             break;
         case STATE_HELLO:
-            if (code != 250) {
-                fault( "Invalid answer on EHLO command", line_buffer);
-                return false;
-            }
+            if (code != 250) p_err_str = "Invalid answer on EHLO command";
+            break;
+        case STATE_HELLO_XCLIENT:
+            if (code != 250) p_err_str = "Invalid answer on XCLIENT EHLO command";
             break;
         case STATE_AFTER_MAIL:
-            if (code != 250) {
-                fault( "Invalid answer on MAIL command", line_buffer);
-                return false;
-            }
+            if (code != 250) p_err_str = "Invalid answer on MAIL command";
             break;
         case STATE_AFTER_RCPT:
-            if (code != 250) {
-                fault( "Invalid answer on RCPT command", line_buffer);
-                return false;
-            }
+            if (code != 250) p_err_str = "Invalid answer on RCPT command";
             break;
         case STATE_AFTER_DATA:
-            if (code != 354) {
-                fault("Invalid answer on DATA command", line_buffer);
-                return false;
-            }
+            if (code != 354) p_err_str = "Invalid answer on DATA command";
             break;
         default:
             break;
         }
+        if (p_err_str) {
+            fault(p_err_str, line_buffer);
+            return false;
+        }
 
 
         if (m_proto_state == STATE_HELLO) {
+            if (line_buffer.find("XCLIENT") != string::npos) {
+                m_use_xclient = true;
+            }
             if (line_buffer.find("PIPELINING") != string::npos) {
                 m_use_pipelining = true;
             }
@@ -168,36 +166,64 @@ bool smtp_client::process_answer(std::istream &_stream) {
 
         switch (m_proto_state) {
         case STATE_START:
+            // send:
+            // EHLO client.example.com
+
             m_timer_value = g_config.m_relay_cmd_timeout;
 
-            if (m_lmtp) {
-                answer_stream << "LHLO " << ba::ip::host_name() << "\r\n";
-            } else {
-                answer_stream << "EHLO " << ba::ip::host_name() << "\r\n";
-            }
+            answer_stream << (m_lmtp ? "LHLO " : "EHLO ")
+                          << ba::ip::host_name()
+                          << "\r\n";
 
             m_proto_state = STATE_HELLO;
             break;
 
+        case STATE_START_XCLIENT:
+            // send:
+            // EHLO spike.porcupine.org
+
+            m_timer_value = g_config.m_relay_cmd_timeout;
+
+            answer_stream << (m_lmtp ? "LHLO " : "EHLO ")
+                          << m_data.m_helo_host
+                          << "\r\n";
+
+            m_proto_state = STATE_HELLO_XCLIENT;
+            break;
+
         case STATE_HELLO:
-            answer_stream << "MAIL FROM: <" << m_envelope->m_sender << ">\r\n";
-            if (m_use_pipelining) {
-                for(m_current_rcpt = m_envelope->m_rcpt_list.begin();
-                    m_current_rcpt != m_envelope->m_rcpt_list.end();
-                    ++m_current_rcpt) {
-                    answer_stream << "RCPT TO: <" << m_current_rcpt->m_name << ">\r\n";
+        case STATE_HELLO_XCLIENT:
+            if (m_proto_state == STATE_HELLO && m_use_xclient) {
+                // send:
+                // XCLIENT HELO=spike.porcupine.org ADDR=168.100.189.2 NAME=spike.porcupine.org
+                // or
+                // XCLIENT HELO=spike.porcupine.org ADDR=168.100.189.2 NAME=[UNAVAILABLE]
+                answer_stream << "XCLIENT PROTO=ESMTP HELO=" << m_data.m_helo_host.empty()
+                              << " ADDR=" << m_data.m_remote_ip
+                              << " NAME=" << (m_data.m_remote_host.empty() ? "[UNAVAILABLE]" : m_data.m_helo_host.c_str())
+                              << "\r\n";
+                m_proto_state = STATE_START_XCLIENT;
+            } else {
+                answer_stream << "MAIL FROM: <" << m_envelope->m_sender << ">\r\n";
+                if (m_use_pipelining) {
+                    for(m_current_rcpt = m_envelope->m_rcpt_list.begin();
+                        m_current_rcpt != m_envelope->m_rcpt_list.end();
+                        ++m_current_rcpt) {
+                        answer_stream << "RCPT TO: <" << m_current_rcpt->m_name << ">\r\n";
+                    }
+                    answer_stream << "DATA\r\n";
                 }
-                answer_stream << "DATA\r\n";
+
+                g_log.msg(MSG_NORMAL,
+                          str(boost::format("%1%-%2%-SEND-%3%: from=<%4%>")
+                              % m_data.m_session_id
+                              % m_envelope->m_id
+                              % m_proto_name
+                              % m_envelope->m_sender));
+
+                m_proto_state = STATE_AFTER_MAIL;
             }
 
-            g_log.msg(MSG_NORMAL,
-                      str(boost::format("%1%-%2%-SEND-%3%: from=<%4%>")
-                          % m_data.m_session_id
-                          % m_envelope->m_id
-                          % m_proto_name
-                          % m_envelope->m_sender));
-
-            m_proto_state = STATE_AFTER_MAIL;
             break;
 
         case STATE_AFTER_MAIL:
@@ -554,41 +580,44 @@ void smtp_client::stop()
         );
 }
 
-void smtp_client::handle_timer(const bs::error_code& _e)
-{
-    if (!_e)
-    {
-        const char* state = "";
-        switch (m_proto_state)
-        {
-            case STATE_START:
-                state = "STATE_START";
-                break;
-            case STATE_HELLO:
-                state = "STATE_HELLO";
-                break;
-            case STATE_AFTER_MAIL:
-                state = "STATE_AFTER_MAIL";
-                break;
-            case STATE_AFTER_RCPT:
-                state = "STATE_AFTER_RCPT";
-                break;
-            case STATE_AFTER_DATA:
-                state = "STATE_AFTER_DATA";
-                break;
-            case STATE_AFTER_DOT:
-                state = "STATE_AFTER_DOT";
-                break;
-            case STATE_AFTER_QUIT:
-                state = "STATE_AFTER_QUIT";
-                break;
-            case STATE_ERROR:
-                state = "STATE_ERROR";
-                break;
-        }
+void smtp_client::handle_timer(const bs::error_code& _e) {
+    if(_e) return;
 
-        fault( string("SMTP/LMTP client connection timeout: ") + state, "");
+    const char *state = "";
+    switch (m_proto_state) {
+    case STATE_START:
+        state = "STATE_START";
+        break;
+    case STATE_START_XCLIENT:
+        state = "STATE_START_XCLIENT";
+        break;
+    case STATE_HELLO:
+        state = "STATE_HELLO";
+        break;
+    case STATE_HELLO_XCLIENT:
+        state = "STATE_HELLO_XCLIENT";
+        break;
+    case STATE_AFTER_MAIL:
+        state = "STATE_AFTER_MAIL";
+        break;
+    case STATE_AFTER_RCPT:
+        state = "STATE_AFTER_RCPT";
+        break;
+    case STATE_AFTER_DATA:
+        state = "STATE_AFTER_DATA";
+        break;
+    case STATE_AFTER_DOT:
+        state = "STATE_AFTER_DOT";
+        break;
+    case STATE_AFTER_QUIT:
+        state = "STATE_AFTER_QUIT";
+        break;
+    case STATE_ERROR:
+        state = "STATE_ERROR";
+        break;
     }
+
+    fault(string("SMTP/LMTP client connection timeout: ") + state, "");
 }
 
 void smtp_client::restart_timeout()

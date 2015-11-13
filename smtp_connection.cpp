@@ -42,8 +42,8 @@ smtp_connection::smtp_connection(
     m_timer(_io_service),
     m_timer_spfdkim(_io_service),
     m_tarpit_timer(_io_service),
-    m_manager(_manager),
     m_connected_ip(boost::asio::ip::address_v4::any()),
+    m_manager(_manager),
     m_resolver(_io_service),
     m_dkim_status(dkim_check::DKIM_NONE),
     m_envelope(new envelope()) {
@@ -56,7 +56,7 @@ boost::asio::ip::tcp::socket& smtp_connection::socket()
 }
 
 
-void smtp_connection::start( bool _force_ssl ) {
+void smtp_connection::start(bool _force_ssl) {
     force_ssl_ = _force_ssl;
 
     m_connected_ip = socket().remote_endpoint().address();
@@ -100,12 +100,15 @@ void smtp_connection::handle_back_resolve(
         return;
     }
 
-    if (m_remote_host_name.empty()) {
-        m_remote_host_name = "UNKNOWN";
-    }
+//    if (m_remote_host_name.empty()) {
+//        m_remote_host_name = "UNKNOWN";
+//    }
 
-    g_log.msg(MSG_NORMAL, str(boost::format("%1%-RECV: connect from %2%[%3%] here") %
-                              m_session_id % m_remote_host_name % m_connected_ip.to_string()));
+    g_log.msg(MSG_NORMAL,
+              str(boost::format("%1%-RECV: connect from %2%[%3%] here")
+                  % m_session_id
+                  % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
+                  % m_connected_ip.to_string()));
     
     // blacklist check is OFF
     if(!g_config.m_rbl_active) {
@@ -150,7 +153,9 @@ void smtp_connection::handle_dnsbl_check() {
     if (m_dnsbl_status) {
         g_log.msg(MSG_NORMAL,
             str(boost::format("%1%-RECV: reject: CONNECT from %2%[%3%]: %4%; proto=SMTP, flags=%5%")
-                % m_session_id % m_remote_host_name % m_connected_ip.to_v4().to_string()
+                % m_session_id
+                % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
+                % m_connected_ip.to_v4().to_string()
                 % m_dnsbl_status_str
                 % ((g_config.m_use_tls && !force_ssl_) ? "TLS" : "NOTLS")));
 
@@ -469,10 +474,12 @@ void smtp_connection::start_check_data()
 {
     m_check_data.m_session_id = m_session_id;
     m_check_data.m_remote_ip = m_connected_ip.to_string();
-    m_check_data.m_helo_host = m_helo_host;
-    m_check_data.m_remote_host = m_remote_host_name;
     m_check_data.m_result = check::CHK_ACCEPT;
     m_check_data.m_answer = "";
+    // we will need client IP in the upstream SMTP client for XCLIENT command
+    m_check_data.m_remote_ip = m_connected_ip.to_string();
+    m_check_data.m_remote_host = m_remote_host_name;
+    m_check_data.m_helo_host = m_helo_host;
 
     m_timer.cancel();
 
@@ -1383,11 +1390,14 @@ bool smtp_connection::smtp_data( const std::string& _cmd, std::ostream &_respons
     time_t now;
     time(&now);
 
-    append(str( boost::format("Received: from %1% (%1% [%2%])\r\n\tby %3% (resmtp/Rambler) with %4% id %5%;\r\n\t%6%\r\n")
-                    % m_remote_host_name % m_connected_ip.to_string() % boost::asio::ip::host_name()
-                    % (m_ehlo ? "ESMTP": "SMTP") % m_envelope->m_id % mail_date(now)
-                ),
-            m_envelope->added_headers_);
+    append(str(boost::format("Received: from %1% (%1% [%2%])\r\n\tby %3% (resmtp/Rambler) with %4% id %5%;\r\n\t%6%\r\n")
+               % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
+               % m_connected_ip.to_string()
+               % boost::asio::ip::host_name()
+               % (m_ehlo ? "ESMTP": "SMTP")
+               % m_envelope->m_id
+               % mail_date(now)),
+           m_envelope->added_headers_);
 
 //    append(str( boost::format("X-Yandex-Front: %1%\r\n")
 //                % boost::asio::ip::host_name()
@@ -1403,8 +1413,11 @@ bool smtp_connection::smtp_data( const std::string& _cmd, std::ostream &_respons
 }
 
 void smtp_connection::stop() {
-    g_log.msg(MSG_NORMAL, str(boost::format("%1%-RECV: disconnect from %2%[%3%]") %
-                              m_session_id % m_remote_host_name % m_connected_ip.to_string()));
+    g_log.msg(MSG_NORMAL,
+              str(boost::format("%1%-RECV: disconnect from %2%[%3%]")
+                  % m_session_id
+                  % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
+                  % m_connected_ip.to_string()));
 
 	m_timer.cancel();
 	m_resolver.cancel();
@@ -1447,33 +1460,37 @@ void smtp_connection::handle_timer(const boost::system::error_code& _e)
     response_stream << "421 4.4.2 " << boost::asio::ip::host_name()
                     << " Error: timeout exceeded\r\n";
 
-    if ( m_proto_state == STATE_BLAST_FILE )
-    {
-        g_log.msg(MSG_NORMAL,str(boost::format("%1%-RECV: timeout after DATA (%2% bytes) from %3%[%4%]")
-                        % m_session_id % buffers_.size() % m_remote_host_name % m_connected_ip.to_string()
-                                 ));
-    }
-    else
-    {
+    if ( m_proto_state == STATE_BLAST_FILE ) {
+        g_log.msg(MSG_NORMAL,
+                  str(boost::format("%1%-RECV: timeout after DATA (%2% bytes) from %3%[%4%]")
+                      % m_session_id
+                      % buffers_.size()
+                      % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
+                      % m_connected_ip.to_string()));
+    } else {
         const char* state_desc = "";
         switch (m_proto_state)
         {
-            case STATE_START:
-                state_desc = "CONNECT";
-                break;
-            case STATE_AFTER_MAIL:
-                state_desc = "MAIL FROM";
-                break;
-            case STATE_RCPT_OK:
-                state_desc = "RCPT TO";
-                break;
-            case STATE_HELLO:
-            default:
-                state_desc = "HELO";
-                break;
+        case STATE_START:
+            state_desc = "CONNECT";
+            break;
+        case STATE_AFTER_MAIL:
+            state_desc = "MAIL FROM";
+            break;
+        case STATE_RCPT_OK:
+            state_desc = "RCPT TO";
+            break;
+        case STATE_HELLO:
+        default:
+            state_desc = "HELO";
+            break;
         }
-        g_log.msg(MSG_NORMAL, str(boost::format("%1%-RECV: timeout after %2% from %3%[%4%]")
-                                  % m_session_id % state_desc % m_remote_host_name % m_connected_ip.to_string()));
+        g_log.msg(MSG_NORMAL,
+                  str(boost::format("%1%-RECV: timeout after %2% from %3%[%4%]")
+                      % m_session_id
+                      % state_desc
+                      % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
+                      % m_connected_ip.to_string()));
     }
 
     send_response(boost::bind(

@@ -37,7 +37,7 @@ protected:
 
     bool m_lmtp;
 
-    //bool m_use_xclient;
+    bool m_use_xclient;
     bool m_use_pipelining;
 
     std::string m_read_buffer;
@@ -49,6 +49,8 @@ protected:
     typedef enum {
         STATE_START = 0,
         STATE_HELLO,
+        STATE_START_XCLIENT,
+        STATE_HELLO_XCLIENT,
         STATE_AFTER_MAIL,
         STATE_AFTER_RCPT,
         STATE_AFTER_DATA,
@@ -84,6 +86,7 @@ protected:
 
     void handle_write_data_request(const boost::system::error_code& _err, size_t sz);
 
+    // used to resolve upstream server
     y::net::dns::resolver m_resolver;
 
     void fault(const std::string &_log, const std::string &_remote);
