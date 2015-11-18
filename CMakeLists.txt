@@ -36,4 +36,4 @@ file(GLOB SOURCES
 add_executable(${PROJECT_NAME} ${HEADERS} ${SOURCES})
 
 target_link_libraries(${PROJECT_NAME} ${Boost_LIBRARIES}
-  ssl crypto expat spf2 opendkim)
+  ssl crypto spf2 opendkim)
