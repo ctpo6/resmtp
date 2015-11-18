@@ -3,6 +3,7 @@
 
 #include <syslog.h>
 
+#include <cstdio>
 #include <queue>
 #include <string>
 
@@ -19,8 +20,10 @@ const uint32_t MSG_DEBUG         = 100;
 
 #if 1
 #define PDBG(fmt, args...) g_log.msg(MSG_DEBUG, util::strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
+#define PDBG0(fmt, args...) fprintf(stderr, "%s:%d %s: " fmt"\n", __FILE__, __LINE__, __func__, ##args)
 #else
 #define PDBG(fmt, args...)
+#define PDBG0(fmt, args...)
 #endif
 
 class logger {

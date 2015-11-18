@@ -22,6 +22,7 @@
 
 #include <resolv.h>
 
+#include "log.h"
 
 namespace ba = boost::asio;
 
@@ -73,7 +74,7 @@ std::string get_part(const std::string &_str, const std::string &_delim, std::st
     return part;
 }
 
-void validate (boost::any& v, std::vector<std::string> const& values, uid_value* target_type, int)
+void validate(boost::any& v, std::vector<std::string> const& values, uid_value* target_type, int)
 {
     using namespace boost::program_options;
     validators::check_first_occurrence (v);
@@ -127,12 +128,12 @@ void validate (boost::any& v, std::vector<std::string> const& values, gid_value*
     throw validation_error(validation_error::invalid_option_value, "invalid group name");
 }
 
-bool parse_strong_http_with_out_port(const std::string &_str, server_parameters::remote_point &_point)
-{
-
+bool parse_strong_http_with_out_port(const std::string &_str,
+                                     server_parameters::remote_point &_point) {
     std::string::size_type pos = 0;
-
     std::string buffer = get_part(_str, "://", pos);
+
+    PDBG0("_str = %s", _str.c_str());
 
     buffer = get_part(_str, "/", pos);
 
@@ -151,118 +152,78 @@ bool parse_strong_http_with_out_port(const std::string &_str, server_parameters:
     return true;
 }
 
-void validate (boost::any& v, std::vector<std::string> const& values, server_parameters::remote_point* target_type, int)
-{
-    boost::program_options::validators::check_first_occurrence (v);
-    std::string const& s =  boost::program_options::validators::get_single_string (values);
+void validate(boost::any& v,
+              std::vector<std::string> const& values,
+              server_parameters::remote_point* target_type, int) {
+    boost::program_options::validators::check_first_occurrence(v);
+    std::string const& s =  boost::program_options::validators::get_single_string(values);
+
+    PDBG0("s = %s", s.c_str());
 
     server_parameters::remote_point rp;
 
     rp.m_port = 0;
 
     std::string::size_type pos = 0;
-
     std::string buffer = get_part(s, "://", pos);
-
-    if (!buffer.empty())
-    {
+    if (!buffer.empty()) {
         rp.m_proto = buffer;
     }
 
     buffer = get_part(s, ":", pos);
-
-
-    if (!buffer.empty())
-    {
+    if (!buffer.empty()) {
         rp.m_host_name = buffer;
 
         buffer = get_part(s, "/", pos);
 
-        if (!buffer.empty())
-        {
+        if (!buffer.empty()) {
             rp.m_port = atoi(buffer.c_str());
-
             rp.m_url = s.substr(pos-1, s.length() - pos + 1);
-        }
-        else
-        {
+        } else {
             std::string tmp = s.substr(pos,s.length() - pos);
-
             rp.m_port = atoi(tmp.c_str());
         }
-
-    }
-    else
-    {
+    } else {
         buffer = get_part(s, "/", pos);
-
-        if (!buffer.empty())
-        {
+        if (!buffer.empty()) {
             rp.m_host_name = buffer;
         }
 
         rp.m_url = s.substr(pos-1, s.length() - pos + 1);
-
     }
 
-
-    if (rp.m_proto.empty() && rp.m_port > 0)
-    {
-
-        if (rp.m_port == 1234)
-        {
-            rp.m_proto = "lmtp";
-        }
-        else
-        {
-            struct servent result_buf;
-            struct servent *result;
-            char buffer[1024];
-
+    if (rp.m_proto.empty() && rp.m_port > 0) {
 #ifdef __linux__
-            int err = getservbyport_r(htons(rp.m_port),"tcp", &result_buf, buffer, sizeof(buffer), &result);
-
-            if ((err == 0) && (result != NULL))
-            {
-                rp.m_proto = result->s_name;
-            }
-#else
-	    rp.m_proto = "smtp";
-#endif
+        struct servent result_buf;
+        struct servent *result;
+        char buffer[1024];
+        int err = getservbyport_r(htons(rp.m_port),"tcp", &result_buf, buffer, sizeof(buffer), &result);
+        if (err == 0 && result != nullptr) {
+            rp.m_proto = result->s_name;
         }
+#else
+        rp.m_proto = "smtp";
+#endif
     }
 
-
-    if (!rp.m_proto.empty() && rp.m_port == 0)
-    {
-        if (rp.m_proto == "lmtp")
-        {
-            rp.m_port = 1234;
-
-        }
-        else
-        {
-            struct servent result_buf;
-            struct servent *result;
-            char buffer[1024];
-
+    if (!rp.m_proto.empty() && rp.m_port == 0) {
 #ifdef __linux__
-            int err = getservbyname_r(rp.m_proto.c_str(),"tcp", &result_buf, buffer, sizeof(buffer), &result);
-
-            if ((err == 0) && (result != NULL))
-            {
-                rp.m_port = ntohs(result->s_port);
-            }
-#else
-            rp.m_port = 25;
-#endif
+        struct servent result_buf;
+        struct servent *result;
+        char buffer[1024];
+        int err = getservbyname_r(rp.m_proto.c_str(),"tcp", &result_buf, buffer, sizeof(buffer), &result);
+        if ((err == 0) && (result != NULL)) {
+            rp.m_port = ntohs(result->s_port);
         }
+#else
+        rp.m_port = 25;
+#endif
     }
 
-
-    if (rp.m_port == 0)
-    {
-        throw boost::program_options::validation_error(boost::program_options::validation_error::invalid_option_value, "missing port number or service name");
+    if (rp.m_port == 0) {
+        throw boost::program_options::validation_error(
+                    boost::program_options::validation_error::invalid_option_value,
+                    "missing port number or service name");
     }
 
     v = boost::any(rp);
@@ -356,8 +317,8 @@ bool server_parameters::parse_config(int _argc, char* _argv[], std::ostream& _ou
                 ("smtpd_command_timeout", bpo::value<time_t>(&m_smtpd_cmd_timeout), "smtpd command timeout")
                 ("smtpd_data_timeout", bpo::value<time_t>(&m_smtpd_data_timeout), "smtpd data timeout")
 
-                ("use_local_relay", bpo::value<bool>(&m_use_local_relay), "use local relay ?")
-                ("local_relay_host", bpo::value<remote_point>(&m_local_relay_host), "local relay")
+                ("use_local_relay", bpo::value<bool>(&m_use_local_relay)->default_value(false), "use local (LMTP) relay ?")
+                ("local_relay_host", bpo::value<remote_point>(&m_local_relay_host), "local (LMTP) relay")
                 ("relay_host", bpo::value<remote_point>(&m_relay_host), "relay")
 
                 ("message_size_limit", bpo::value<uint32_t>(&m_message_size_limit)->default_value(10240000), "Message size limit")

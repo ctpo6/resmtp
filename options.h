@@ -29,13 +29,19 @@ struct gid_value {
 
 struct server_parameters {
 
+    // [proto://]host_name[:port][/url]
+    // [proto://]host_name[:port]
     struct remote_point {
-        // [proto://]host_name[:port][/url]
-        // [proto://]host_name[:port]
         std::string m_proto;
         std::string m_host_name;
         unsigned int m_port;
         std::string m_url;
+    };
+
+    // host_name[:weight]
+    struct backend_remote_point {
+        std::string host_name;
+        uint32_t weight;            // 0..100; 0 - off, 100 - max
     };
 
     bool m_foreground;
@@ -90,9 +96,13 @@ struct server_parameters {
     time_t m_smtpd_cmd_timeout;
     time_t m_smtpd_data_timeout;
 
-    remote_point m_relay_host;
-    remote_point m_local_relay_host;
     bool m_use_local_relay;
+    remote_point m_local_relay_host;
+    remote_point m_relay_host;
+
+    std::vector<backend_remote_point> backend_hosts;
+    // all backend hosts have the same TCP port
+    uint16_t backend_port;
 
     uint32_t m_client_connection_count_limit;
     uint32_t m_connection_count_limit;
