@@ -356,9 +356,9 @@ bool server_parameters::parse_config(int _argc, char* _argv[], std::ostream& _ou
                 ("smtpd_command_timeout", bpo::value<time_t>(&m_smtpd_cmd_timeout), "smtpd command timeout")
                 ("smtpd_data_timeout", bpo::value<time_t>(&m_smtpd_data_timeout), "smtpd data timeout")
 
-                ("fallback_relay_host", bpo::value<remote_point>(&m_relay_host), "relay")
-                ("local_relay_host", bpo::value<remote_point>(&m_local_relay_host), "local relay")
                 ("use_local_relay", bpo::value<bool>(&m_use_local_relay), "use local relay ?")
+                ("local_relay_host", bpo::value<remote_point>(&m_local_relay_host), "local relay")
+                ("relay_host", bpo::value<remote_point>(&m_relay_host), "relay")
 
                 ("message_size_limit", bpo::value<uint32_t>(&m_message_size_limit)->default_value(10240000), "Message size limit")
 

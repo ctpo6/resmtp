@@ -18,7 +18,7 @@ const uint32_t MSG_NORMAL        = 20;
 const uint32_t MSG_DEBUG         = 100;
 
 #if 1
-#define PDBG(fmt, args...) g_log.msg(MSG_DEBUG, strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
+#define PDBG(fmt, args...) g_log.msg(MSG_DEBUG, util::strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
 #else
 #define PDBG(fmt, args...)
 #endif

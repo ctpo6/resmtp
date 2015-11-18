@@ -12,6 +12,7 @@
 
 using namespace std;
 
+namespace util {
 
 string strf(const char* format, ...) {
     char buf[400];
@@ -31,56 +32,57 @@ string str_from_buf(boost::asio::streambuf const &buf) {
 }
 
 
-static std::string conv_cr_lf(char _ch)
-{
-    switch (_ch)
-    {
-        case '\r':
-            return "";
-        case '\n':
-            return "^M";
-        default:
-            return std::string(&_ch, 1);
+std::string trim(std::string s) {
+    if (s.empty()) {
+        return s;
     }
-}
-
-std::string cleanup_str(const std::string &_str)
-{
-    std::string buffer(_str);
-
-    std::string::size_type pos = buffer.find_last_not_of("\r\n");
-
-    if (pos != std::string::npos)
-    {
-        buffer.erase(pos+1);
+    std::string::size_type begin = s.find_first_not_of(" \t\n");
+    if (begin == std::string::npos) {
+        begin = 0;
     }
-
-    std::ostringstream remote_filt;
-
-    std::transform(buffer.begin(), buffer.end(), std::ostream_iterator<std::string>(remote_filt), conv_cr_lf);
-
-    return remote_filt.str();
+    std::string::size_type end = s.find_last_not_of(" \t\r\n") + 1;
+    return s.substr(begin, end - begin);
 }
 
 
-std::string rev_order_av4_str(const boost::asio::ip::address_v4& a, const std::string& d)
-{
+std::string str_cleanup_crlf(std::string s) {
+    auto rit = find_if_not(s.rbegin(), s.rend(),
+                           [](char c){ return c == '\r' || c == '\n';});
+    if (rit != s.rend()) {
+        s.erase(rit.base(), s.end());
+    }
+
+    for(auto it = s.begin(); it != s.end();) {
+        if(*it == '\r' && *(it+1) == '\n') {
+            *it++ = '^';
+            *it++ = 'M';
+        } else {
+            ++it;
+        }
+    }
+
+    return s;
+}
+
+
+std::string rev_order_av4_str(const boost::asio::ip::address_v4& a,
+                              const std::string& d) {
     return str(boost::format("%1%.%2%.%3%.%4%.%5%")
-            % static_cast<int>(a.to_bytes()[3])
+               % static_cast<int>(a.to_bytes()[3])
             % static_cast<int>(a.to_bytes()[2])
             % static_cast<int>(a.to_bytes()[1])
             % static_cast<int>(a.to_bytes()[0])
-            % d
-               );
+            % d);
 }
 
-std::string unfqdn(const std::string& fqdn)
-{
+
+std::string unfqdn(const std::string& fqdn) {
     std::size_t sz = fqdn.size();
     if (sz && fqdn[sz-1] == '.')
         return std::string(fqdn.begin(), fqdn.begin()+sz-1);
     return fqdn;
 }
+
 
 unsigned long djb2_hash(const unsigned char* str, size_t size)
 {
@@ -90,3 +92,5 @@ unsigned long djb2_hash(const unsigned char* str, size_t size)
         hash = ((hash << 5) + hash) ^ *p;
     return hash;
 }
+
+} // namespace util

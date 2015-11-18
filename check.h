@@ -1,17 +1,16 @@
 #ifndef _CHECK_H_
 #define _CHECK_H_
 
+#include <cstdint>
 #include <string>
 
 struct check
 {
-    typedef enum
-    {
-        CHK_ACCEPT      = 0,
+    typedef enum {
+        CHK_ACCEPT = 0,
         CHK_REJECT,
         CHK_TEMPFAIL,
         CHK_DISCARD
-
     } chk_status;
 
     chk_status m_result;
@@ -23,7 +22,7 @@ struct check
 
 struct check_rcpt_t : public check {
     std::string m_rcpt;
-    long long unsigned m_suid;
+    uint64_t m_suid;
     std::string m_uid;
 };
 

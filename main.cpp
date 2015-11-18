@@ -1,8 +1,14 @@
+/*
+ * resmtp
+ */
+
+#include <execinfo.h>
 #include <pthread.h>
 #include <signal.h>
 
 #include <exception>
 #include <iostream>
+#include <stdexcept>
 #include <string>
 
 #include <boost/asio.hpp>
@@ -24,8 +30,18 @@ void log_err(int prio, const std::string& what, bool copy_to_stderr) {
 }
 }
 
+void cxx_exception_handler() __attribute__((noreturn));
+void cxx_exception_handler() {
+    void * array[20];
+    int size = backtrace(array, 20);
+    backtrace_symbols_fd(array, size, STDERR_FILENO);
+    exit(1);
+}
+
 
 int main(int argc, char* argv[]) {
+    std::set_terminate(cxx_exception_handler);
+
     bool daemonized = false;
     if (!g_config.parse_config(argc, argv, std::cout)) {
         return 200;
@@ -99,12 +115,26 @@ int main(int argc, char* argv[]) {
             sigaddset(&wait_mask, SIGQUIT);
             sigaddset(&wait_mask, SIGTERM);
             sigaddset(&wait_mask, SIGHUP);
+            sigaddset(&wait_mask, SIGSEGV);
             pthread_sigmask(SIG_BLOCK, &wait_mask, 0);
             int sig = 0;
             sigwait(&wait_mask, &sig);
 
             if (sig == SIGHUP) {
                 continue;
+            }
+
+            if (sig == SIGSEGV) {
+                void * array[10];
+                size_t size;
+
+                // get void*'s for all entries on the stack
+                size = backtrace(array, 10);
+
+                // print out all the frames to stderr
+                std::cerr << "Error: SIGSEGV signal" << std::endl;
+                backtrace_symbols_fd(array, size, STDERR_FILENO);
+                exit(1);
             }
 
             g_log.msg(MSG_NORMAL,str(boost::format("Received signal: %1%, exiting...") % sig));

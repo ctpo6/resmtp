@@ -47,7 +47,7 @@ void rbl_check::start_resolve(const boost::asio::ip::address_v4& av4, const std:
 {
     PDBG("ENTER %s %s", av4.to_string().c_str(), d.c_str());
     m_resolver.async_resolve(
-        rev_order_av4_str(av4, d),
+        util::rev_order_av4_str(av4, d),
         dns::type_a,
         boost::bind(&rbl_check::handle_resolve, shared_from_this(), _1, _2));
 }

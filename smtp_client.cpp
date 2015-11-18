@@ -74,6 +74,12 @@ void smtp_client::handle_read_smtp_line(const bs::error_code &err) {
 
     std::istream response_stream(&m_request);
     if (process_answer(response_stream)) {
+        g_log.msg(MSG_DEBUG,
+                  str(boost::format("%1%-%2%-SEND-%3%: %4%")
+                      % m_data.m_session_id
+                      % m_envelope->m_id
+                      % m_proto_name
+                      % util::str_cleanup_crlf(util::str_from_buf(m_response))));
         ba::async_write(
             m_socket,
             m_response,
@@ -98,9 +104,16 @@ bool smtp_client::process_answer(std::istream &_stream) {
         }
         if (!m_line_buffer.empty()) {
             m_line_buffer += line_buffer;
-            line_buffer = m_line_buffer;
+            line_buffer.swap(m_line_buffer);
             m_line_buffer.clear();
         }
+
+        g_log.msg(MSG_DEBUG,
+                  str(boost::format("%1%-%2%-RECV-%3%: %4%")
+                      % m_data.m_session_id
+                      % m_envelope->m_id
+                      % m_proto_name
+                      % util::str_cleanup_crlf(line_buffer)));
 
         // extract state code
         uint32_t code = 0xffffffff;
@@ -198,7 +211,7 @@ bool smtp_client::process_answer(std::istream &_stream) {
                 // XCLIENT HELO=spike.porcupine.org ADDR=168.100.189.2 NAME=spike.porcupine.org
                 // or
                 // XCLIENT HELO=spike.porcupine.org ADDR=168.100.189.2 NAME=[UNAVAILABLE]
-                answer_stream << "XCLIENT PROTO=ESMTP HELO=" << m_data.m_helo_host.empty()
+                answer_stream << "XCLIENT PROTO=ESMTP HELO=" << m_data.m_helo_host
                               << " ADDR=" << m_data.m_remote_ip
                               << " NAME=" << (m_data.m_remote_host.empty() ? "[UNAVAILABLE]" : m_data.m_helo_host.c_str())
                               << "\r\n";
@@ -214,12 +227,12 @@ bool smtp_client::process_answer(std::istream &_stream) {
                     answer_stream << "DATA\r\n";
                 }
 
-                g_log.msg(MSG_NORMAL,
-                          str(boost::format("%1%-%2%-SEND-%3%: from=<%4%>")
-                              % m_data.m_session_id
-                              % m_envelope->m_id
-                              % m_proto_name
-                              % m_envelope->m_sender));
+//                g_log.msg(MSG_DEBUG,
+//                          str(boost::format("%1%-%2%-SEND-%3%: from=<%4%>")
+//                              % m_data.m_session_id
+//                              % m_envelope->m_id
+//                              % m_proto_name
+//                              % m_envelope->m_sender));
 
                 m_proto_state = STATE_AFTER_MAIL;
             }
@@ -383,7 +396,7 @@ void smtp_client::handle_resolve(const bs::error_code& ec, dns::resolver::iterat
 
         m_relay_ip = point.address().to_string();
 
-        g_log.msg(MSG_NORMAL, str( boost::format("%1%-%2%-SEND-%3% connect: ip=[%4%]") % m_data.m_session_id % m_envelope->m_id % m_proto_name % m_relay_ip));
+        g_log.msg(MSG_DEBUG, str( boost::format("%1%-%2%-SEND-%3% connect: ip=[%4%]") % m_data.m_session_id % m_envelope->m_id % m_proto_name % m_relay_ip));
 
         m_socket.async_connect(point,
                 strand_.wrap(boost::bind(&smtp_client::handle_connect,
@@ -433,7 +446,7 @@ void smtp_client::handle_connect(const bs::error_code& ec, dns::resolver::iterat
 
         m_relay_ip = point.address().to_string();
 
-        g_log.msg(MSG_NORMAL, str( boost::format("%1%-%2%-SEND-%3% connect ip =%4%") % m_data.m_session_id % m_envelope->m_id % m_proto_name % m_relay_ip));
+        g_log.msg(MSG_DEBUG, str( boost::format("%1%-%2%-SEND-%3% connect ip =%4%") % m_data.m_session_id % m_envelope->m_id % m_proto_name % m_relay_ip));
 
         m_socket.async_connect(point,
                 strand_.wrap(boost::bind(&smtp_client::handle_connect,
@@ -486,17 +499,19 @@ check::chk_status smtp_client::report_rcpt(bool _success, const string &_log, co
 {
     bool accept = true;
 
-    for(envelope::rcpt_list_t::iterator it = m_envelope->m_rcpt_list.begin(); it != m_envelope->m_rcpt_list.end(); it++)
+    for(envelope::rcpt_list_t::iterator it = m_envelope->m_rcpt_list.begin();
+        it != m_envelope->m_rcpt_list.end();
+        ++it)
     {
         string remote;
 
         if (!it->m_remote_answer.empty())
         {
-            remote = cleanup_str(it->m_remote_answer);
+            remote = util::str_cleanup_crlf(it->m_remote_answer);
         }
         else if (!_remote.empty())
         {
-            remote = cleanup_str(_remote);
+            remote = util::str_cleanup_crlf(_remote);
         }
         else
         {
@@ -505,16 +520,20 @@ check::chk_status smtp_client::report_rcpt(bool _success, const string &_log, co
 
         bool rcpt_success = (it->m_delivery_status == check::CHK_ACCEPT);
 
-        string rcpt_success_str = rcpt_success ? "sent" : "fault";
+        accept = accept && rcpt_success;
 
-        accept &= rcpt_success;
-
-        g_log.msg(MSG_NORMAL, str( boost::format("%1%-%2%-SEND-%3%: to=<%4%>, relay=%5%[%6%]:%7%, delay=%8%, status=%9% (%10%)")
-                        % m_data.m_session_id % m_envelope->m_id % m_proto_name
-                        % it->m_name
-                        % m_relay_name % m_relay_ip % m_relay_port
-                        % m_envelope->m_timer.mark()
-                        % rcpt_success_str % remote ));
+        g_log.msg(MSG_NORMAL,
+                  str(boost::format("%1%-%2%-SEND-%3%: to=<%4%>, relay=%5%[%6%]:%7%, delay=%8%, status=%9% (%10%)")
+                      % m_data.m_session_id
+                      % m_envelope->m_id
+                      % m_proto_name
+                      % it->m_name
+                      % m_relay_name
+                      % m_relay_ip
+                      % m_relay_port
+                      % m_envelope->m_timer.mark()
+                      % (rcpt_success ? "sent" : "fault")
+                      % remote ));
     }
 
     return accept ? check::CHK_ACCEPT : check::CHK_TEMPFAIL;
