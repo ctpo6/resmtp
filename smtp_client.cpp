@@ -338,12 +338,12 @@ bool smtp_client::process_answer(std::istream &_stream) {
 
 
 void smtp_client::start(const check_data_t& _data,
-                        complete_cb_t _complete,
+                        complete_cb_t complete,
                         envelope_ptr _envelope,
                         const server_parameters::remote_point &_remote,
                         const char *_proto_name ) {
     m_data = _data;
-    m_complete = _complete;
+    cb_complete = complete;
     m_envelope = _envelope;
 
     m_envelope->cleanup_answers();
@@ -540,64 +540,58 @@ check::chk_status smtp_client::report_rcpt(bool _success, const string &_log, co
 }
 
 
-void smtp_client::fault(const string &_log, const string &_remote)
-{
-    if (m_complete)
-    {
-        m_proto_state = STATE_ERROR;
+void smtp_client::fault(const string &_log, const string &_remote) {
+    if(cb_complete.empty()) return;
 
-        m_data.m_result = report_rcpt(false, _log, _remote);
+    m_proto_state = STATE_ERROR;
 
-        m_timer.cancel();
-        m_resolver.cancel();
+    m_data.m_result = report_rcpt(false, _log, _remote);
 
-        try {
-            m_socket.close();
-        } catch (...) {}
+    m_timer.cancel();
+    m_resolver.cancel();
 
-        m_socket.get_io_service().post(m_complete);
-        m_complete = NULL;
-    }
+    try {
+        m_socket.close();
+    } catch (...) {}
+
+    m_socket.get_io_service().post(cb_complete);
+    cb_complete = NULL; // nullptr can't be assigned to boost::function
 }
 
-void smtp_client::success()
-{
-    if (m_complete)
-    {
-        m_data.m_result = report_rcpt(true, "Success delivery", "");
 
-        m_timer.cancel();
-        m_resolver.cancel();
+void smtp_client::success() {
+    if(cb_complete.empty()) return;
 
-        try {
-            m_socket.close();
-        } catch (...) {}
+    m_data.m_result = report_rcpt(true, "Success delivery", "");
 
-        m_socket.get_io_service().post(m_complete);
-        m_complete = NULL;
-    }
+    m_timer.cancel();
+    m_resolver.cancel();
+
+    try {
+        m_socket.close();
+    } catch (...) {}
+
+    m_socket.get_io_service().post(cb_complete);
+    cb_complete = NULL; // nullptr can't be assigned to boost::function
 }
 
-void smtp_client::do_stop()
-{
-    try
-    {
+
+void smtp_client::do_stop() {
+    try {
         m_socket.close();
         m_resolver.cancel();
         m_timer.cancel();
-    }
-    catch(...)
-    {
-    }
+    } catch(...) {}
 }
+
 
 void smtp_client::stop()
 {
     m_socket.get_io_service().post(
         strand_.wrap(
-            boost::bind(&smtp_client::do_stop, shared_from_this()))
-        );
+            boost::bind(&smtp_client::do_stop, shared_from_this())));
 }
+
 
 void smtp_client::handle_timer(const bs::error_code& _e) {
     if(_e) return;

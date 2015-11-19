@@ -21,10 +21,10 @@ public:
 
     explicit smtp_client(boost::asio::io_service& _io_service);
 
-    typedef boost::function < void () > complete_cb_t;
+    typedef boost::function<void ()> complete_cb_t;
 
     void start(const check_data_t& _data,
-            complete_cb_t _complete,
+            complete_cb_t complete,
             envelope_ptr _envelope,
             const server_parameters::remote_point &_remote,
             const char *_proto_name );
@@ -42,7 +42,7 @@ protected:
 
     std::string m_read_buffer;
 
-    complete_cb_t m_complete;
+    complete_cb_t cb_complete;
 
     envelope_ptr m_envelope;
 

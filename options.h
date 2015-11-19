@@ -57,6 +57,14 @@ struct server_parameters {
     std::vector<std::string> m_listen_points;
     std::vector<std::string> m_ssl_listen_points;
 
+    bool m_use_local_relay;
+    remote_point m_local_relay_host;
+    remote_point m_relay_host;
+
+    std::vector<std::string> backend_hosts;
+    // all backend hosts have the same TCP port
+    uint16_t backend_port;
+
     std::string m_smtp_banner;
 
     //
@@ -95,14 +103,6 @@ struct server_parameters {
 
     time_t m_smtpd_cmd_timeout;
     time_t m_smtpd_data_timeout;
-
-    bool m_use_local_relay;
-    remote_point m_local_relay_host;
-    remote_point m_relay_host;
-
-    std::vector<backend_remote_point> backend_hosts;
-    // all backend hosts have the same TCP port
-    uint16_t backend_port;
 
     uint32_t m_client_connection_count_limit;
     uint32_t m_connection_count_limit;

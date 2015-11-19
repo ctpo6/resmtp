@@ -168,7 +168,7 @@ void validate(boost::any& v,
               std::vector<std::string> const& values,
               server_parameters::remote_point* target_type, int) {
     boost::program_options::validators::check_first_occurrence(v);
-    std::string const& s =  boost::program_options::validators::get_single_string(values);
+    std::string const& s = boost::program_options::validators::get_single_string(values);
 
     PDBG0("s = %s", s.c_str());
 
@@ -242,16 +242,6 @@ void validate(boost::any& v,
 }
 
 
-void validate(boost::any& v,
-              std::vector<std::string> const& values,
-              std::vector<server_parameters::remote_point> *target_type, int) {
-    bpo::validators::check_first_occurrence(v);
-    const string &s =  bpo::validators::get_single_string(values);
-
-    PDBG0("s = %s", s.c_str());
-}
-
-
 bool server_parameters::init_dns_settings() noexcept {
     if (m_use_system_dns_servers) {
         // get DNS servers from libresolv
@@ -281,18 +271,15 @@ bool server_parameters::init_dns_settings() noexcept {
 
 #define DEF_CONFIG      "/etc/resmtp/resmtp.conf"
 #define DEF_PID_FILE    "/var/run/resmtp.pid"
-bool server_parameters::parse_config(int _argc, char* _argv[], std::ostream& _out) noexcept
-{
-    try
-    {
+bool server_parameters::parse_config(int _argc,
+                                     char* _argv[],
+                                     std::ostream &os) noexcept {
+    try {
         std::string config_file;
-
-        namespace bpo = boost::program_options;
         bpo::options_description command_line_opt("Command line options");
-
         command_line_opt.add_options()
-                ("version,v", "print version string")
-                ("help,h", "produce help message")
+                ("version,v", "print version")
+                ("help,h", "print help")
                 ("fg,f", "run at foreground")
                 ("pid-file,p", bpo::value<std::string>(&m_pid_file)->default_value(DEF_PID_FILE), "name of pid file.")
                 ("config,c", bpo::value<std::string>(&config_file)->default_value(DEF_CONFIG), "name of configuration file.")
@@ -303,8 +290,8 @@ bool server_parameters::parse_config(int _argc, char* _argv[], std::ostream& _ou
         config_options.add_options()
                 ("log_level", bpo::value<uint32_t>(&m_log_level)->default_value(0), "log output level 0|1|2")
 
-                ("listen", bpo::value< std::vector< std::string > >(&m_listen_points), "listen on host:port")
-                ("ssl_listen", bpo::value< std::vector<std::string> >(&m_ssl_listen_points), "SSL listen on host:port")
+                ("listen", bpo::value<std::vector<std::string>>(&m_listen_points), "listen on host:port")
+                ("ssl_listen", bpo::value<std::vector<std::string>>(&m_ssl_listen_points), "SSL listen on host:port")
 
                 ("user", bpo::value<uid_value>(&m_uid), "set uid after port bindings")
                 ("group", bpo::value<gid_value>(&m_gid), "set gid after port bindings")
@@ -343,6 +330,9 @@ bool server_parameters::parse_config(int _argc, char* _argv[], std::ostream& _ou
                 ("local_relay_host", bpo::value<remote_point>(&m_local_relay_host), "local (LMTP) relay")
                 ("relay_host", bpo::value<remote_point>(&m_relay_host), "relay")
 
+                ("backend_host", bpo::value<std::vector<std::string>>(&backend_hosts), "backend hosts")
+                ("backend_port", bpo::value<uint16_t>(&backend_port), "backend hosts TCP port")
+
                 ("message_size_limit", bpo::value<uint32_t>(&m_message_size_limit)->default_value(10240000), "Message size limit")
 
                 ("remove_headers", bpo::value<bool>(&m_remove_headers)->default_value(false), "Remove headers on/off")
@@ -370,46 +360,52 @@ bool server_parameters::parse_config(int _argc, char* _argv[], std::ostream& _ou
         m_foreground = (vm.count("fg") != 0);
 
         if (vm.count("help")) {
-            _out << command_line_opt << std::endl;
+            os << command_line_opt << std::endl;
             return false;
         }
 
         if (vm.count("version")) {
-            _out << "0.0.1" << std::endl;
+            os << "0.0.1" << std::endl;
             return false;
         }
 
         std::ifstream ifs(config_file.c_str());
         if (!ifs) {
-            _out << "Can not open config file: " << config_file << std::endl;
+            os << "Can not open config file: " << config_file << std::endl;
             return false;
         }
         store(parse_config_file(ifs, config_options, true), vm);
         notify(vm);
 
-        if (m_remove_headers)
-        {
-            if (m_remove_headers_list.empty())
-            {
-                _out << "Config file error: remove_headers_list param not specified" << std::endl;
+        if (m_remove_headers) {
+            if (m_remove_headers_list.empty()) {
+                os << "Config file error: remove_headers_list param not specified" << std::endl;
                 return false;
             }
-            std::ifstream ifs ( m_remove_headers_list.c_str(), std::ios_base::in );
-            while ( ifs && !ifs.eof() )
-            {
+            std::ifstream ifs( m_remove_headers_list.c_str(), std::ios_base::in );
+            while (ifs && !ifs.eof()) {
                 std::string header;
                 ifs >> header;
-                if ( !header.empty() )
+                if (!header.empty()) {
                     m_remove_headers_set.insert( boost::trim_copy( boost::to_lower_copy(header) ) );
+                }
             }
-            if ( m_remove_headers_set.empty() )
-            {
-                _out << "Config file error: remove_headers_list: config file \"" << m_remove_headers_list << "\" invalid" << std::endl;
+            if (m_remove_headers_set.empty()) {
+                os << "Config file error: remove_headers_list: config file \"" << m_remove_headers_list << "\" invalid" << std::endl;
                 return false;
             }
         }
+
+        // debug
+#if 1
+        for(auto &host : backend_hosts) {
+            os << "backend_host = " << host << endl;
+        }
+        os << "backend_port = " << backend_port << endl;
+#endif
+
     } catch (const std::exception& e) {
-        _out << "Config file error:" << e.what() << std::endl;
+        os << "Config file error:" << e.what() << std::endl;
         return false;
     }
 
