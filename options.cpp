@@ -24,7 +24,10 @@
 
 #include "log.h"
 
+using namespace std;
+
 namespace ba = boost::asio;
+namespace bpo = boost::program_options;
 
 const char *temp_error = "451 4.7.1 Service unavailable - try again later";
 const char *temp_user_error = "451 4.7.1 Requested action aborted: error in processing";
@@ -60,21 +63,28 @@ struct get_second : public std::unary_function<T, typename T::second_type&>
     }
 };
 
-std::string get_part(const std::string &_str, const std::string &_delim, std::string::size_type &_pos)
-{
+/*
+ * Get the part of the string before delimiting substring.
+ *
+ * _pos in: starting position;
+ *      out: pos of the first char after delim
+ */
+std::string get_part(const std::string &_str,
+                     const std::string &_delim,
+                     std::string::size_type &_pos) {
     std::string part;
     std::string::size_type pos = _str.find(_delim, _pos);
-
-    if (pos != std::string::npos)
-    {
-        part = _str.substr( _pos, pos - _pos);
+    if (pos != std::string::npos) {
+        part = _str.substr(_pos, pos - _pos);
         _pos = pos + _delim.length();
     }
-
     return part;
 }
 
-void validate(boost::any& v, std::vector<std::string> const& values, uid_value* target_type, int)
+
+void validate(boost::any& v,
+              std::vector<std::string> const& values,
+              uid_value* target_type, int)
 {
     using namespace boost::program_options;
     validators::check_first_occurrence (v);
@@ -88,7 +98,6 @@ void validate(boost::any& v, std::vector<std::string> const& values, uid_value* 
     catch (std::bad_cast const&) {}
 
     // resolve by getpwnam
-    //
     struct passwd *pwd = ::getpwnam (s.c_str ());
     if (pwd)
     {
@@ -101,33 +110,35 @@ void validate(boost::any& v, std::vector<std::string> const& values, uid_value* 
     throw validation_error(validation_error::invalid_option_value, "invalid user name");
 }
 
-void validate (boost::any& v, std::vector<std::string> const& values, gid_value* target_type, int)
-{
+
+void validate(boost::any& v,
+              std::vector<std::string> const& values,
+              gid_value* target_type, int) {
     using namespace boost::program_options;
+
     validators::check_first_occurrence (v);
-    std::string const& s = validators::get_single_string (values);
+    std::string const& s = validators::get_single_string(values);
 
     // check for number
     try {
-        v = boost::any (gid_value(boost::lexical_cast<gid_t> (s)));
+        v = boost::any(gid_value(boost::lexical_cast<gid_t>(s)));
         return;
-    }
-    catch (std::bad_cast const&) {}
+    } catch (std::bad_cast const&) {}
 
     // resolve by getpwnam
-    //
-    struct group *g = ::getgrnam (s.c_str ());
-    if (g)
-    {
-        v = boost::any (gid_value(g->gr_gid));
-        ::endgrent ();
+    struct group *g = ::getgrnam(s.c_str());
+    if (g) {
+        v = boost::any(gid_value(g->gr_gid));
+        ::endgrent();
         return;
     }
 
-    ::endgrent ();
-    throw validation_error(validation_error::invalid_option_value, "invalid group name");
+    ::endgrent();
+    throw validation_error(validation_error::invalid_option_value,
+                           "invalid group name");
 }
 
+#if 0
 bool parse_strong_http_with_out_port(const std::string &_str,
                                      server_parameters::remote_point &_point) {
     std::string::size_type pos = 0;
@@ -151,6 +162,7 @@ bool parse_strong_http_with_out_port(const std::string &_str,
 
     return true;
 }
+#endif
 
 void validate(boost::any& v,
               std::vector<std::string> const& values,
@@ -227,6 +239,16 @@ void validate(boost::any& v,
     }
 
     v = boost::any(rp);
+}
+
+
+void validate(boost::any& v,
+              std::vector<std::string> const& values,
+              std::vector<server_parameters::remote_point> *target_type, int) {
+    bpo::validators::check_first_occurrence(v);
+    const string &s =  bpo::validators::get_single_string(values);
+
+    PDBG0("s = %s", s.c_str());
 }
 
 

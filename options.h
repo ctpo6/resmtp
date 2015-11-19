@@ -41,7 +41,7 @@ struct server_parameters {
     // host_name[:weight]
     struct backend_remote_point {
         std::string host_name;
-        uint32_t weight;            // 0..100; 0 - off, 100 - max
+        //uint32_t weight;            // 0..100; 0 - off, 100 - max
     };
 
     bool m_foreground;
