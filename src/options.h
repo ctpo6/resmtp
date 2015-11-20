@@ -28,6 +28,8 @@ struct gid_value {
 
 
 struct server_parameters {
+    static constexpr const char * def_config_file = "/etc/resmtp/resmtp.conf";
+    static constexpr const char * def_pid_file = "/etc/resmtp/resmtp.pid";
 
     // [proto://]host_name[:port][/url]
     // [proto://]host_name[:port]

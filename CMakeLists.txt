@@ -43,7 +43,7 @@ endif (NOT CXX11_SUPPORTED)
 ################################################################################
 # Version
 ################################################################################
-#PARSE_DEB_VERSION(MAILCORE)
+#PARSE_DEB_VERSION(DEB)
 #SET(MAILCORE_VERSION         "${MAILCORE_VERSION_MAJOR}.${MAILCORE_VERSION_MINOR}.${MAILCORE_VERSION_PATCH}")
 #MESSAGE(STATUS "#### Version is: ${MAILCORE_VERSION}")
 
@@ -73,12 +73,12 @@ message(STATUS "")
 add_definitions(-std=c++11 -Wall -Wno-parentheses -DBOOST_THREAD_USE_LIB)
 IF (ENABLE_OPTIMIZATION MATCHES "ON")
 	message(STATUS "Optimizaton is ON")
-  add_definitions(-O2)
+	add_definitions(-O2)
 ENDIF(ENABLE_OPTIMIZATION MATCHES "ON")
 
 IF (DEBUG_MODE MATCHES "ON")
 	message(STATUS "Debug is ON")
-  add_definitions(-g -D_DEBUG)
+	add_definitions(-g -D_DEBUG)
 ENDIF(DEBUG_MODE MATCHES "ON")
 
 #add_definitions(-g -O1 -std=c++11 -Wall -Wno-parentheses -DBOOST_THREAD_USE_LIB)
@@ -90,26 +90,45 @@ message(STATUS "")
 
 
 ################################################################################
-
+# Build
+################################################################################
 include_directories(
-	.
-#  include
-  ${Boost_INCLUDE_DIRS}
+    src
+    ${Boost_INCLUDE_DIRS}
 )
 
 file(GLOB HEADERS
-  *.h
-  *.hpp
-  net/*.hpp
-  net/impl/*.hpp
-  yplatform/*.h
+    src/*.h
+    src/coroutine/*.hpp
+    src/net/*.hpp
+    src/net/impl/*.hpp
 )
 file(GLOB SOURCES
-  *.c
-  *.cpp
+    src/*.c
+    src/*.cpp
+)
+file(GLOB CONFIGS
+    etc/*.conf
 )
 
-add_executable(${PROJECT_NAME} ${HEADERS} ${SOURCES})
+add_executable(resmtp ${HEADERS} ${SOURCES} ${CONFIGS})
+target_link_libraries(resmtp ${Boost_LIBRARIES} ${OPENSSL_LIBRARIES} ${HAVE_spf2} ${HAVE_opendkim})
 
-target_link_libraries(${PROJECT_NAME} ${Boost_LIBRARIES} ${OPENSSL_LIBRARIES} ${HAVE_spf2} ${HAVE_opendkim})
+################################################################################
+# Install
+################################################################################
 
+IF(NOT SBINDIR)
+    SET(SBINDIR "/usr/sbin")
+ENDIF(NOT SBINDIR)
+
+IF(NOT SYSCONFDIR)
+    SET(SYSCONFDIR "/etc")
+ENDIF(NOT SYSCONFDIR)
+
+install(TARGETS resmtp
+        RUNTIME DESTINATION ${SBINDIR})
+
+install(FILES etc/resmtp.conf
+        DESTINATION ${SYSCONFDIR}/resmtp/
+        PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)

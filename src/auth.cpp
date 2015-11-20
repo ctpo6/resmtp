@@ -1,8 +1,9 @@
+#include "auth.h"
+
 #include <cstring>
 #include <iostream>
 
-#include "auth.h"
-#include "yplatform/base64.h"
+#include "base64.h"
 
 auth::auth_status_t auth::initialize(const std::string &_ip)
 {

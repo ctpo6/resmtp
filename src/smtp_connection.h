@@ -13,17 +13,16 @@
 #include <boost/range/iterator_range.hpp>
 #include <boost/optional.hpp>
 
+#include "coroutine/coroutine.hpp"
 #include "net/dns_resolver.hpp"
 
-#include "envelope.h"
-#include "buffers.h"
-#include "rbl.h"
-
-#include "smtp_client.h"
-#include "eom_parser.h"
-#include "adkim.h"
-#include "coroutine.hpp"
 #include "auth.h"
+#include "adkim.h"
+#include "buffers.h"
+#include "envelope.h"
+#include "eom_parser.h"
+#include "rbl.h"
+#include "smtp_client.h"
 
 class smtp_connection_manager;
 

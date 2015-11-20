@@ -269,8 +269,6 @@ bool server_parameters::init_dns_settings() noexcept {
 }
 
 
-#define DEF_CONFIG      "/etc/resmtp/resmtp.conf"
-#define DEF_PID_FILE    "/var/run/resmtp.pid"
 bool server_parameters::parse_config(int _argc,
                                      char* _argv[],
                                      std::ostream &os) noexcept {
@@ -281,8 +279,8 @@ bool server_parameters::parse_config(int _argc,
                 ("version,v", "print version")
                 ("help,h", "print help")
                 ("fg,f", "run at foreground")
-                ("pid-file,p", bpo::value<std::string>(&m_pid_file)->default_value(DEF_PID_FILE), "name of pid file.")
-                ("config,c", bpo::value<std::string>(&config_file)->default_value(DEF_CONFIG), "name of configuration file.")
+                ("config,c", bpo::value<std::string>(&config_file)->default_value(def_config_file), "name of configuration file.")
+                ("pid-file,p", bpo::value<std::string>(&m_pid_file)->default_value(def_pid_file), "name of pid file.")
                 ;
 
         bpo::options_description config_options("Configuration");

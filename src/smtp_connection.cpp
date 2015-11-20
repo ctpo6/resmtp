@@ -14,23 +14,25 @@
 #include <boost/lexical_cast.hpp>
 #include <boost/type_traits.hpp>
 
-#include "smtp_connection_manager.h"
-#include "options.h"
-#include "uti.h"
-#include "rfc_date.h"
-#include "param_parser.h"
+#include "aspf.h"
 #include "header_parser.h"
-#include "rfc822date.h"
-#include "aspf.h"
 #include "ip_options.h"
-#include "aspf.h"
 #include "log.h"
-#include "yield.hpp"
+#include "options.h"
+#include "param_parser.h"
+#include "smtp_connection_manager.h"
+#include "util.h"
+#include "rfc_date.h"
+#include "rfc822date.h"
 
+// must be included the last
+#include "coroutine/yield.hpp"
+
+using namespace y::net;
 namespace ba = boost::asio;
+
 using std::list;
 using std::string;
-using namespace y::net;
 
 smtp_connection::smtp_connection(
         boost::asio::io_service &_io_service,

@@ -11,7 +11,7 @@
 #include <boost/thread/condition.hpp>
 #include <boost/thread/mutex.hpp>
 
-#include "uti.h"
+#include "util.h"
 
 const uint32_t MSG_VERY_CRITICAL = 1;
 const uint32_t MSG_CRITICAL      = 10;

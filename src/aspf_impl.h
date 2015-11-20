@@ -1,22 +1,20 @@
 #ifndef ASPF_IMPL_H
 #define ASPF_IMPL_H
 
-#include <net/dns_resolver.hpp>
-#include <boost/thread.hpp>
+
+#include <boost/bind/protect.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/format.hpp>
-#include <boost/unordered_map.hpp>
-#include <boost/bind/protect.hpp>
 #include <boost/optional.hpp>
-#include "uti.h"
+#include <boost/thread.hpp>
+#include <boost/unordered_map.hpp>
+
+#include <net/dns_resolver.hpp>
+
+#include "util.h"
 
 namespace impl
 {
-
-extern "C"
-{
-#include <spf2/spf.h>
-}
 
 extern "C"
 {

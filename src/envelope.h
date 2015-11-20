@@ -6,14 +6,15 @@
 #include <list>
 #include <string>
 
+#include <boost/enable_shared_from_this.hpp>
 #include <boost/noncopyable.hpp>
 #include <boost/shared_ptr.hpp>
-#include <boost/enable_shared_from_this.hpp>
+
+#include "coroutine/coroutine.hpp"
 
 #include "buffers.h"
 #include "check.h"
 #include "timer.h"
-#include "coroutine.hpp"
 
 
 struct envelope :
