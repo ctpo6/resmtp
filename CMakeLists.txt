@@ -10,7 +10,7 @@ cmake_minimum_required(VERSION 2.8.5 FATAL_ERROR)
 # Defaults
 ################################################################################
 OPTION(DEBUG_MODE          "Enable debug output [default: OFF]" OFF)
-OPTION(ENABLE_OPTIMIZATION "Enable optimization [default: OFF]" ON)
+OPTION(ENABLE_OPTIMIZATION "Enable optimization [default: ON]" ON)
 
 
 ################################################################################
@@ -68,25 +68,28 @@ message(STATUS "")
 
 
 ################################################################################
+# Print options
+################################################################################
+message(STATUS ----------------------------------------------------------------)
+message(STATUS "ENABLE_OPTIMIZATION is " ${ENABLE_OPTIMIZATION})
+message(STATUS "DEBUG_MODE is " ${DEBUG_MODE})
+message(STATUS ----------------------------------------------------------------)
+message(STATUS "")                  
+
+
+################################################################################
 # Compiler flags
 ################################################################################
 add_definitions(-std=c++11 -Wall -Wno-parentheses -DBOOST_THREAD_USE_LIB)
 IF (ENABLE_OPTIMIZATION MATCHES "ON")
-	message(STATUS "Optimizaton is ON")
 	add_definitions(-O2)
 ENDIF(ENABLE_OPTIMIZATION MATCHES "ON")
 
 IF (DEBUG_MODE MATCHES "ON")
-	message(STATUS "Debug is ON")
 	add_definitions(-g -D_DEBUG)
 ENDIF(DEBUG_MODE MATCHES "ON")
 
-#add_definitions(-g -O1 -std=c++11 -Wall -Wno-parentheses -DBOOST_THREAD_USE_LIB)
-#add_definitions(-g -O0 -std=c++11 -Wall -Wno-parentheses -DBOOST_THREAD_USE_LIB)
-
 #set(CMAKE_EXE_LINKER_FLAGS "-static -static-libstdc++ -static-libgcc")
-
-message(STATUS "")                  
 
 
 ################################################################################

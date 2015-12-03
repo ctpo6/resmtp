@@ -278,16 +278,15 @@ bool server_parameters::parse_config(int _argc,
         command_line_opt.add_options()
                 ("version,v", "print version")
                 ("help,h", "print help")
-                ("fg,f", "run at foreground")
-                ("config,c", bpo::value<std::string>(&config_file)->default_value(def_config_file), "name of configuration file.")
-                ("pid-file,p", bpo::value<std::string>(&m_pid_file)->default_value(def_pid_file), "name of pid file.")
+                ("foreground,f", "run at foreground (don't daemonize)")
+                ("config,c", bpo::value<std::string>(&config_file)->default_value(def_config_file), "path to configuration file")
+                ("pid-file,p", bpo::value<std::string>(&m_pid_file)->default_value(def_pid_file), "path to pid file")
+                ("log-level,l", bpo::value<uint32_t>(&m_log_level)->default_value(1), "log output level (0 - critical, 1 - informational, 2 - debug)")
                 ;
 
         bpo::options_description config_options("Configuration");
 
         config_options.add_options()
-                ("log_level", bpo::value<uint32_t>(&m_log_level)->default_value(0), "log output level 0|1|2")
-
                 ("listen", bpo::value<std::vector<std::string>>(&m_listen_points), "listen on host:port")
                 ("ssl_listen", bpo::value<std::vector<std::string>>(&m_ssl_listen_points), "SSL listen on host:port")
 
@@ -394,8 +393,7 @@ bool server_parameters::parse_config(int _argc,
             }
         }
 
-        // debug
-#if 1
+#ifdef _DEBUG
         for(auto &host : backend_hosts) {
             os << "backend_host = " << host << endl;
         }
@@ -403,7 +401,7 @@ bool server_parameters::parse_config(int _argc,
 #endif
 
     } catch (const std::exception& e) {
-        os << "Config file error:" << e.what() << std::endl;
+        os << "Config file error: " << e.what() << std::endl;
         return false;
     }
 

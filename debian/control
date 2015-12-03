@@ -2,11 +2,11 @@ Source: resmtp
 Section: mail
 Priority: extra
 Maintainer: Yuri Epstein <yuri.epstein@gmail.com>
-Build-Depends: cdbs, debhelper (>= 7.0.50~), cmake, libssl-dev, libboost-dev
+Build-Depends: cdbs, debhelper (>= 7.0.50~), cmake, libssl-dev, libboost-all-dev
 Standards-Version: 3.9.1
 
 Package: resmtp
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, libboost-program-options, libboost-system, libboost-thread, libc6 (>= 2.19~), libopendkim9, libspf2-2 (>= 1.2.10~), libssl1.0.0 (>= 1.0.0~), opendkim (>= 2.9.1~)
-Description: Asynchronous SMTP proxy server
+Depends: ${shlibs:Depends}, ${misc:Depends}, libboost-program-options1.54.0, libboost-system1.54.0, libboost-thread1.54.0, libc6 (>= 2.19~), libopendkim9, libspf2-2 (>= 1.2.10~), libssl1.0.0 (>= 1.0.0~)
+Description: SMTP frontend relay
 

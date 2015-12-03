@@ -12,8 +12,6 @@
 # Description: SMTP frontend relay
 ### END INIT INFO
 
-# Based on skeleton by Miquel van Smoorenburg and Ian Murdock
-
 PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin
 # process name (for display)
 NAME=resmtp
@@ -41,10 +39,10 @@ SSD="start-stop-daemon --pidfile $PIDFILE --name $NAME"
 
 do_start()
 {
-	mkdir -m750 -p $RUNDIR
+	mkdir -m755 -p $RUNDIR
 	chown $USER:$GROUP $RUNDIR
 	$SSD --start --oknodo --pidfile $PIDFILE --exec $DAEMON \
-		-- -c /etc/resmtp/resmtp.conf
+		-- -c /etc/resmtp/resmtp.conf -p $PIDFILE
 }
 
 do_stop()
