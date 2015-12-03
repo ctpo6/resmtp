@@ -10,10 +10,14 @@ void logger::init(const char *ident, int log_prio) {
 }
 
 
-void logger::msg(uint32_t prio, const std::string &msg_) noexcept {
+void logger::msg(uint32_t prio, const std::string &msg) noexcept {
     if (prio <= m_log_prio) {
         boost::mutex::scoped_lock lck(m_condition_mutex);
-        m_queue.push(msg_);
+        if (prio == MSG_DEBUG) {
+            m_queue.push(std::string("[DEBUG] ") + msg);
+        } else {
+            m_queue.push(msg);
+        }
         m_condition.notify_one();
     }
 }

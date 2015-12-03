@@ -1,0 +1,81 @@
+#! /bin/sh
+
+### BEGIN INIT INFO
+# Provides:          resmtp
+# Required-Start:    $remote_fs $syslog
+# Required-Stop:     $remote_fs $syslog
+# Should-Start:
+# Should-Stop:
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Script to start/stop resmtp
+# Description: SMTP frontend relay
+### END INIT INFO
+
+# Based on skeleton by Miquel van Smoorenburg and Ian Murdock
+
+PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin
+# process name (for display)
+NAME=resmtp
+# actual executable
+DAEMON=/usr/sbin/resmtp
+USER=postfix
+GROUP=postfix
+RUNDIR=/var/run/$NAME
+SCRIPTNAME=/etc/init.d/$NAME
+PIDFILE=$RUNDIR/$NAME.pid
+
+# file exists and is executable
+[ -x $DAEMON ] || exit 5
+
+. /lib/init/vars.sh
+. /lib/lsb/init-functions
+
+# Apparently people have trouble if this isn't explicitly set...
+export TMPDIR=/tmp
+
+# automatically abort on any error occured (so no need to put '|| exit 1' everywhere)
+set -e
+
+SSD="start-stop-daemon --pidfile $PIDFILE --name $NAME"
+
+do_start()
+{
+	mkdir -m750 -p $RUNDIR
+	chown $USER:$GROUP $RUNDIR
+	$SSD --start --oknodo --pidfile $PIDFILE --exec $DAEMON \
+		-- -c /etc/resmtp/resmtp.conf
+}
+
+do_stop()
+{
+	$SSD --stop --oknodo "$@"
+}
+
+case "$1" in
+  start)
+    log_daemon_msg "Starting $NAME"
+    do_start
+    ;;
+  stop)
+		log_daemon_msg "Stopping $NAME"
+    do_stop
+    ;;
+  restart|force-reload)
+		log_daemon_msg "Restarting $NAME"
+    do_stop --retry 5 && do_start
+    ;;
+  status)
+  	status_of_proc -p $PIDFILE "$DAEMON" "$NAME" && log_daemon_msg "pid: "`pidof $DAEMON`
+  	exit $?
+  	;;
+  *)
+    echo "Usage: $SCRIPTNAME {start|stop|restart|force-reload|status}" >&2
+    exit 1
+    ;;
+esac
+
+RET=$?
+log_end_msg $RET
+exit $RET
+

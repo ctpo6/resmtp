@@ -44,6 +44,7 @@ int main(int argc, char* argv[]) {
 
     bool daemonized = false;
     if (!g_config.parse_config(argc, argv, std::cout)) {
+        log_err(MSG_VERY_CRITICAL, "Exit (200)", true);
         return 200;
     }
 
@@ -53,15 +54,16 @@ int main(int argc, char* argv[]) {
     g_log.init("resmtp", log_level);
 
     if (!g_config.init_dns_settings()) {
-        log_err(MSG_NORMAL, str(boost::format(
+        log_err(MSG_CRITICAL, str(boost::format(
             "Can't obtain DNS settings (cfg: use_system_dns_servers=%1% custom_dns_servers=%2%")
                 % (g_config.m_use_system_dns_servers ? "yes" : "no")
                 % g_config.m_custom_dns_servers),
                 true);
-        return 200;
+        log_err(MSG_VERY_CRITICAL, "Exit (201)", true);
+        return 201;
     }
     for (const auto &s: g_config.m_dns_servers) {
-        g_log.msg(MSG_NORMAL, str(boost::format("Using DNS server: %1%") % s));
+        g_log.msg(MSG_DEBUG, str(boost::format("Using DNS server: %1%") % s));
     }
 
     boost::thread log;
@@ -69,13 +71,17 @@ int main(int argc, char* argv[]) {
     try {
         if (!g_config.m_ip_config_file.empty()) {
             if (g_ip_config.load(g_config.m_ip_config_file)) {
-                g_log.msg(MSG_NORMAL,str(boost::format("Load IP restriction file: name='%1%'") % g_config.m_ip_config_file));
+                g_log.msg(MSG_NORMAL,
+                          str(boost::format("Load IP restriction file: name='%1%'")
+                              % g_config.m_ip_config_file));
             } else {
-                throw std::logic_error(str(boost::format("Can't load IP restriction file: name='%1%'") % g_config.m_ip_config_file));
+                throw std::logic_error(
+                            str(boost::format("Can't load IP restriction file: name='%1%'")
+                                % g_config.m_ip_config_file));
             }
         }
 
-        g_log.msg(MSG_NORMAL, "Start process...");
+        g_log.msg(MSG_NORMAL, "Starting server...");
 
         sigset_t new_mask;
         sigfillset(&new_mask);
@@ -102,8 +108,9 @@ int main(int argc, char* argv[]) {
         s.run();
 
         if (!g_pid_file.create(g_config.m_pid_file)) {
-            log_err(MSG_NORMAL, str(boost::format("Can't write PID file: name='%1%', error='%2%'")
-                                    % g_config.m_pid_file % strerror(errno)),
+            log_err(MSG_CRITICAL,
+                    str(boost::format("Can't write PID file: name='%1%', error='%2%'")
+                        % g_config.m_pid_file % strerror(errno)),
                     !daemonized);
         }
 
@@ -137,16 +144,16 @@ int main(int argc, char* argv[]) {
                 exit(1);
             }
 
-            g_log.msg(MSG_NORMAL,str(boost::format("Received signal: %1%, exiting...") % sig));
+            g_log.msg(MSG_CRITICAL,
+                      str(boost::format("Received signal: %1%, exiting...") % sig));
             break;
         }
 
         s.stop();
-        g_log.msg(MSG_NORMAL, "Normal end process...");
-    }
-    catch (const std::exception &e) {
-        log_err(MSG_NORMAL, str(boost::format("Can't start server process: %1%") % e.what()), !daemonized);
-        rval = 200;
+    } catch (const std::exception &e) {
+        log_err(MSG_CRITICAL,
+                str(boost::format("Can't start server: %1%") % e.what()), !daemonized);
+        rval = 202;
     }
 
     g_pid_file.unlink();
@@ -155,6 +162,10 @@ int main(int argc, char* argv[]) {
     if (log.get_id() == boost::thread::id()) {
         log = boost::thread( [](){ g_log.run(); } );
     }
+
+    log_err(rval ? MSG_VERY_CRITICAL : MSG_NORMAL,
+            str(boost::format("Exit (%1%)") % rval),
+            !daemonized);
 
     g_log.stop();
     log.join();
