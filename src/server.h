@@ -1,29 +1,27 @@
 #if !defined(_SERVER_H_)
 #define _SERVER_H_
 
-#include <boost/asio.hpp>
-#include <string>
 #include <list>
+#include <string>
+
+#include <boost/asio.hpp>
+#include <boost/asio/ssl.hpp>
 #include <boost/noncopyable.hpp>
 #include <boost/shared_ptr.hpp>
-#include <boost/asio/ssl.hpp>
 
+#include "options.h"
 #include "smtp_connection.h"
 #include "smtp_connection_manager.h"
-#include "options.h"
 
-class server
-        : private boost::noncopyable
-{
-  public:
-
+class server : private boost::noncopyable {
+public:
     server(std::size_t _io_service_pool_size, uid_t _user = 0, gid_t _group = 0);
 
     void run();
 
     void stop();
 
-  private:
+private:
     typedef boost::shared_ptr<boost::asio::ip::tcp::acceptor> acceptor_ptr;
     typedef std::list<acceptor_ptr> acceptor_list;
 
@@ -32,9 +30,9 @@ class server
 
     boost::asio::io_service m_io_service;
 
-    acceptor_list acceptors_;
+    acceptor_list m_acceptors;
 
-    boost::asio::ssl::context ssl_context_;
+    boost::asio::ssl::context m_ssl_context;
 
     smtp_connection_manager m_connection_manager;
 

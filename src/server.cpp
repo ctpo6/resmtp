@@ -2,16 +2,21 @@
 
 #include <iostream>
 
-#include <boost/bind.hpp>
-#include <boost/thread/thread.hpp>
-#include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string/compare.hpp>
+#include <boost/bind.hpp>
 #include <boost/format.hpp>
+#include <boost/lexical_cast.hpp>
+#include <boost/make_shared.hpp>
+#include <boost/thread/thread.hpp>
 
 #include "log.h"
 
-server::server(std::size_t _io_service_pool_size,  uid_t _user, gid_t _group)
-        : ssl_context_(m_io_service, boost::asio::ssl::context::sslv23),
+namespace ba = boost::asio;
+
+using std::string;
+
+server::server(std::size_t _io_service_pool_size, uid_t _user, gid_t _group) :
+    m_ssl_context(m_io_service, ba::ssl::context::sslv23),
           m_io_service_pool_size(_io_service_pool_size)
 {
 
@@ -19,21 +24,21 @@ server::server(std::size_t _io_service_pool_size,  uid_t _user, gid_t _group)
     {
         try
         {
-            //            ssl_context_.set_verify_mode (boost::asio::ssl::context::verify_peer | boost::asio::ssl::context::verify_client_once);
-            ssl_context_.set_verify_mode (boost::asio::ssl::context::verify_none);
+            //            m_ssl_context.set_verify_mode (ba::ssl::context::verify_peer | ba::ssl::context::verify_client_once);
+            m_ssl_context.set_verify_mode (ba::ssl::context::verify_none);
 
-            ssl_context_.set_options (
-                boost::asio::ssl::context::default_workarounds
-                | boost::asio::ssl::context::no_sslv2 );
+            m_ssl_context.set_options (
+                ba::ssl::context::default_workarounds
+                | ba::ssl::context::no_sslv2 );
 
 
             if (!g_config.m_tls_cert_file.empty())
             {
-                ssl_context_.use_certificate_chain_file(g_config.m_tls_cert_file);
+                m_ssl_context.use_certificate_chain_file(g_config.m_tls_cert_file);
             }
             if (!g_config.m_tls_key_file.empty())
             {
-                ssl_context_.use_private_key_file(g_config.m_tls_key_file, boost::asio::ssl::context::pem);
+                m_ssl_context.use_private_key_file(g_config.m_tls_key_file, ba::ssl::context::pem);
             }
         }
         catch (std::exception const& e)
@@ -50,7 +55,7 @@ server::server(std::size_t _io_service_pool_size,  uid_t _user, gid_t _group)
             setup_acceptor(s, true);
         }
     }
-    if (acceptors_.empty()) {
+    if (m_acceptors.empty()) {
         throw std::logic_error("No address to bind to!");
     }
 
@@ -70,29 +75,34 @@ server::server(std::size_t _io_service_pool_size,  uid_t _user, gid_t _group)
 
 bool server::setup_acceptor(const std::string& address, bool ssl)
 {
-    std::string::size_type pos = address.find(":");
-
-    if (pos == std::string::npos)
+    string::size_type pos = address.find(":");
+    if (pos == string::npos) {
         return false;
+    }
 
-    boost::asio::ip::tcp::resolver resolver(m_io_service);
-    boost::asio::ip::tcp::resolver::query query(address.substr(0,pos), address.substr(pos+1));
-    boost::asio::ip::tcp::endpoint endpoint = *resolver.resolve(query);
+    ba::ip::tcp::resolver resolver(m_io_service);
+    ba::ip::tcp::resolver::query query(address.substr(0, pos), address.substr(pos+1));
+    ba::ip::tcp::endpoint endpoint = *resolver.resolve(query);
 
-    smtp_connection_ptr connection;
-    connection.reset(new smtp_connection(m_io_service, m_connection_manager, ssl_context_));
+    smtp_connection_ptr connection = boost::make_shared<smtp_connection>(
+                m_io_service, m_connection_manager, m_ssl_context);
 
-    boost::shared_ptr<boost::asio::ip::tcp::acceptor> acceptor( new boost::asio::ip::tcp::acceptor(m_io_service) );
-    acceptors_.push_front(acceptor);
+    boost::shared_ptr<ba::ip::tcp::acceptor> acceptor =
+            boost::make_shared<ba::ip::tcp::acceptor>(m_io_service);
+    m_acceptors.push_front(acceptor);
 
     acceptor->open(endpoint.protocol());
-    acceptor->set_option(boost::asio::ip::tcp::acceptor::reuse_address(true));
+    acceptor->set_option(ba::ip::tcp::acceptor::reuse_address(true));
     acceptor->bind(endpoint);
     acceptor->listen();
 
     acceptor->async_accept(connection->socket(),
-            boost::bind(&server::handle_accept, this, acceptors_.begin(), connection, ssl,  boost::asio::placeholders::error)
-                           );
+                           boost::bind(&server::handle_accept,
+                                       this,
+                                       m_acceptors.begin(),
+                                       connection,
+                                       ssl,
+                                       ba::placeholders::error));
     return true;
 }
 
@@ -106,44 +116,38 @@ void server::run() {
 
 void server::stop() {
     boost::mutex::scoped_lock lock(m_mutex);
-    for (auto a: acceptors_) {
+    for (auto a: m_acceptors) {
         a->close();
     }
     lock.unlock();
 
     m_threads_pool.join_all();
-    acceptors_.clear();
+    m_acceptors.clear();
 }
 
 void server::handle_accept(acceptor_list::iterator acceptor, smtp_connection_ptr _connection, bool _force_ssl, const boost::system::error_code& e)
 {
     boost::mutex::scoped_lock lock(m_mutex);
 
-    if (e == boost::asio::error::operation_aborted)
+    if (e == ba::error::operation_aborted)
         return;
 
-    if (!e)
-    {
-        try
-        {
+    if (!e) {
+        try {
             _connection->start( _force_ssl );
-        }
-        catch(boost::system::system_error &e)
-        {
-            if (e.code() != boost::asio::error::not_connected)
-            {
+        } catch (const boost::system::system_error &e) {
+            if (e.code() != ba::error::not_connected) {
                 g_log.msg(MSG_NORMAL, str(boost::format("Accept exception: %1%") % e.what()));
             }
         }
-        _connection.reset(new smtp_connection(m_io_service, m_connection_manager, ssl_context_));
-    }
-    else
-    {
-        if (e != boost::asio::error::not_connected)
+        _connection.reset(new smtp_connection(m_io_service, m_connection_manager, m_ssl_context));
+    } else {
+        if (e != ba::error::not_connected) {
             g_log.msg(MSG_NORMAL, str(boost::format("Accept error: %1%") % e.message()));
+        }
     }
 
     (*acceptor)->async_accept(_connection->socket(),
-            boost::bind(&server::handle_accept, this, acceptor, _connection, _force_ssl, boost::asio::placeholders::error)
+            boost::bind(&server::handle_accept, this, acceptor, _connection, _force_ssl, ba::placeholders::error)
                            );
 }
