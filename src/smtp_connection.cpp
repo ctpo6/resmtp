@@ -296,10 +296,9 @@ void smtp_connection::handle_start_hello_write(
 
 
 void smtp_connection::start_read() {
-    if ((m_proto_state == STATE_CHECK_RCPT) ||
-            (m_proto_state == STATE_CHECK_DATA) ||
-            (m_proto_state == STATE_CHECK_AUTH) ||
-            (m_proto_state == STATE_CHECK_MAILFROM)) {
+    if (m_proto_state == STATE_CHECK_RCPT ||
+            m_proto_state == STATE_CHECK_DATA ||
+            m_proto_state == STATE_CHECK_MAILFROM) {
         m_timer.cancel();               // wait for check to complete
         return;
     }
@@ -1012,35 +1011,28 @@ void smtp_connection::add_new_command(const char *_command, proto_func_t _func)
 bool smtp_connection::smtp_quit( const std::string& _cmd, std::ostream &_response )
 {
     _response << "221 2.0.0 Closing connection.\r\n";
-
     return false;
 }
 
 bool smtp_connection::smtp_noop ( const std::string& _cmd, std::ostream &_response )
 {
     _response << "250 2.0.0 Ok\r\n";
-
     return true;
 }
 
 bool smtp_connection::smtp_starttls ( const std::string& _cmd, std::ostream &_response )
 {
     ssl_state_ = ssl_hand_shake;
-
     _response << "220 Go ahead\r\n";
-
     return true;
 }
 
-bool smtp_connection::smtp_rset ( const std::string& _cmd, std::ostream &_response )
+bool smtp_connection::smtp_rset( const std::string& _cmd, std::ostream &_response )
 {
     if ( m_proto_state > STATE_START )
         m_proto_state = STATE_HELLO;
-
     m_envelope.reset(new envelope());
-
     _response << "250 2.0.0 Ok\r\n";
-
     return true;
 }
 
@@ -1287,30 +1279,19 @@ void smtp_connection::handle_dkim_check(dkim_check::DKIM_STATUS status, const st
         smtp_delivery_start();
 }
 
-bool smtp_connection::smtp_mail( const std::string& _cmd, std::ostream &_response )
+bool smtp_connection::smtp_mail(const std::string& _cmd,
+                                std::ostream &_response)
 {
-    if ( strncasecmp( _cmd.c_str(), "from:", 5 ) != 0 )
-    {
-        m_error_count++;
-
+    if (strncasecmp(_cmd.c_str(), "from:", 5) != 0) {
+        ++m_error_count;
         _response << "501 5.5.4 Syntax: MAIL FROM:<address>\r\n";
         return true;
     }
 
-    if ( m_proto_state == STATE_START )
-    {
-        m_error_count++;
-
+    if (m_proto_state == STATE_START) {
+        ++m_error_count;
         _response << "503 5.5.4 Good girl is greeting first.\r\n";
         return true;
-    }
-
-    if  (g_config.m_use_auth && !authenticated_)
-    {
-	m_error_count++;
-
-	_response << "503 5.5.4 Error: send AUTH command first.\r\n";
-	return true;
     }
 
     param_parser::params_map pmap;
@@ -1320,19 +1301,15 @@ bool smtp_connection::smtp_mail( const std::string& _cmd, std::ostream &_respons
 
     if (std::count_if(addr.begin(), addr.end(), is_invalid) > 0)
     {
-        m_error_count++;
-
+        ++m_error_count;
         _response << "501 5.1.7 Bad address mailbox syntax.\r\n";
         return true;
     }
 
-    if (g_config.m_message_size_limit > 0)
-    {
+    if (g_config.m_message_size_limit > 0) {
         unsigned int msize = atoi(pmap["size"].c_str());
-        if (msize > g_config.m_message_size_limit)
-        {
-            m_error_count++;
-
+        if (msize > g_config.m_message_size_limit) {
+            ++m_error_count;
             _response << "552 5.3.4 Message size exceeds fixed limit.\r\n";
             return true;
         }

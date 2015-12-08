@@ -3,20 +3,19 @@
 
 #include <cstdint>
 
-#include <boost/unordered_map.hpp>
-#include <boost/function.hpp>
-#include <boost/asio.hpp>
 #include <boost/array.hpp>
-#include <boost/noncopyable.hpp>
-#include <boost/shared_ptr.hpp>
+#include <boost/asio.hpp>
 #include <boost/enable_shared_from_this.hpp>
-#include <boost/range/iterator_range.hpp>
+#include <boost/function.hpp>
+#include <boost/noncopyable.hpp>
 #include <boost/optional.hpp>
+#include <boost/range/iterator_range.hpp>
+#include <boost/shared_ptr.hpp>
+#include <boost/unordered_map.hpp>
 
 #include "coroutine/coroutine.hpp"
 #include "net/dns_resolver.hpp"
 
-#include "auth.h"
 #include "adkim.h"
 #include "buffers.h"
 #include "envelope.h"
@@ -96,9 +95,6 @@ class smtp_connection :
 
     bool smtp_starttls ( const std::string& _cmd, std::ostream &_response);
 
-    bool smtp_auth ( const std::string& _cmd, std::ostream &_response);
-    bool continue_smtp_auth ( const std::string& _cmd, std::ostream &_response );
-
     //---
     typedef enum {
         STATE_START = 0,
@@ -108,8 +104,6 @@ class smtp_connection :
         STATE_BLAST_FILE,
         STATE_CHECK_RCPT,
         STATE_CHECK_DATA,
-        STATE_CHECK_AUTH,
-        STATE_AUTH_MORE,
         STATE_CHECK_MAILFROM
     } proto_state_t;
 
@@ -146,7 +140,7 @@ class smtp_connection :
 
     void handle_start_hello_write(const boost::system::error_code& _error, bool _close);
 
-
+    // should connection be opened via SSL/TLS
     bool m_force_ssl;
 
     // SPF
@@ -235,9 +229,6 @@ class smtp_connection :
     bool m_read_pending_ = false;
 
     uint32_t m_error_count = 0;
-
-    auth auth_;
-    bool authenticated_ = false;
 };
 
 typedef boost::shared_ptr<smtp_connection> smtp_connection_ptr;

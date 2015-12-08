@@ -125,9 +125,6 @@ struct server_parameters {
     std::string m_tls_cert_file;
     std::string m_tls_key_file;
 
-    bool m_use_auth;
-    bool m_auth_after_tls;
-
     // max number of errors an SMTP client allowed to make
     uint32_t m_hard_error_limit;
 
