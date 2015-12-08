@@ -339,13 +339,12 @@ bool server_parameters::parse_config(int _argc,
 
                 ("ip_config_file", bpo::value<std::string>(&m_ip_config_file), "IP address depended config params")
 
-                ("use_tls", bpo::value<bool>(&m_use_tls)->default_value(false), "Use TLS ?")
-                ("tls_key_file", bpo::value<std::string>(&m_tls_key_file), "use a private key from file")
+                ("use_tls", bpo::value<bool>(&m_use_tls)->default_value(false), "support TLS ?")
                 ("tls_cert_file", bpo::value<std::string>(&m_tls_cert_file), "use a certificate from file")
-                ("tls_ca_file", bpo::value<std::string>(&m_tls_ca_file), "use a certificate chain from a file")
+                ("tls_key_file", bpo::value<std::string>(&m_tls_key_file), "use a private key from file")
 
                 ("use_auth",bpo::value<bool>(&m_use_auth)->default_value(false), "use auth ?")
-                ("use_auth_after_tls", bpo::value<bool>(&m_use_tls)->default_value(false), "use auth only after TLS ?")
+                ("use_auth_after_tls", bpo::value<bool>(&m_auth_after_tls)->default_value(false), "use auth only after TLS ?")
                 ;
 
         bpo::variables_map vm;

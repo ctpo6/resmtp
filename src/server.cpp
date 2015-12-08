@@ -17,60 +17,55 @@ using std::string;
 
 server::server(std::size_t _io_service_pool_size, uid_t _user, gid_t _group) :
     m_ssl_context(m_io_service, ba::ssl::context::sslv23),
-          m_io_service_pool_size(_io_service_pool_size)
-{
+    m_io_service_pool_size(_io_service_pool_size) {
 
-    if (g_config.m_use_tls)
-    {
-        try
-        {
-            //            m_ssl_context.set_verify_mode (ba::ssl::context::verify_peer | ba::ssl::context::verify_client_once);
-            m_ssl_context.set_verify_mode (ba::ssl::context::verify_none);
+    if (g_config.m_use_tls) {
+        try {
+//            m_ssl_context.set_verify_mode(ba::ssl::context::verify_peer | ba::ssl::context::verify_client_once);
+            m_ssl_context.set_verify_mode(ba::ssl::context::verify_none);
 
-            m_ssl_context.set_options (
-                ba::ssl::context::default_workarounds
-                | ba::ssl::context::no_sslv2 );
+            m_ssl_context.set_options(
+                        ba::ssl::context::default_workarounds
+                        | ba::ssl::context::no_sslv2 );
 
-
-            if (!g_config.m_tls_cert_file.empty())
-            {
+            if (!g_config.m_tls_cert_file.empty()) {
                 m_ssl_context.use_certificate_chain_file(g_config.m_tls_cert_file);
             }
-            if (!g_config.m_tls_key_file.empty())
-            {
+            if (!g_config.m_tls_key_file.empty()) {
                 m_ssl_context.use_private_key_file(g_config.m_tls_key_file, ba::ssl::context::pem);
             }
-        }
-        catch (std::exception const& e)
-        {
-            throw std::runtime_error(str(boost::format("Can't load TLS key / certificate file: file='%1%', error='%2%'") % g_config.m_tls_key_file % e.what()));
+        } catch (std::exception const& e) {
+            throw std::runtime_error(str(boost::format(
+                "Can't load TLS key / certificate file: file='%1%', error='%2%'")
+                % g_config.m_tls_key_file
+                % e.what()));
         }
     }
 
     for(auto &s: g_config.m_listen_points) {
         setup_acceptor(s, false);
     }
+
+    // do not setup encrypted sockets if TLS support is not enabled in config
     if (g_config.m_use_tls) {
         for(auto &s: g_config.m_ssl_listen_points) {
             setup_acceptor(s, true);
         }
     }
+
     if (m_acceptors.empty()) {
         throw std::logic_error("No address to bind to!");
     }
 
-    if (_group && (setgid(_group) == -1))
-    {
+    if (_group && (setgid(_group) == -1)) {
         g_log.msg(MSG_CRITICAL, "Cannot change process group id !");
         throw std::exception();
     }
 
-    if (_user && (setuid(_user) == -1))
-    {
+    if (_user && (setuid(_user) == -1)) {
         g_log.msg(MSG_CRITICAL, "Cannot change process user id !");
         throw std::exception();
     }
-
 }
 
 bool server::setup_acceptor(const std::string& address, bool ssl)
@@ -125,8 +120,10 @@ void server::stop() {
     m_acceptors.clear();
 }
 
-void server::handle_accept(acceptor_list::iterator acceptor, smtp_connection_ptr _connection, bool _force_ssl, const boost::system::error_code& e)
-{
+void server::handle_accept(acceptor_list::iterator acceptor,
+                           smtp_connection_ptr _connection,
+                           bool _force_ssl,
+                           const boost::system::error_code& e) {
     boost::mutex::scoped_lock lock(m_mutex);
 
     if (e == ba::error::operation_aborted)
@@ -134,7 +131,7 @@ void server::handle_accept(acceptor_list::iterator acceptor, smtp_connection_ptr
 
     if (!e) {
         try {
-            _connection->start( _force_ssl );
+            _connection->start(_force_ssl);
         } catch (const boost::system::system_error &e) {
             if (e.code() != ba::error::not_connected) {
                 g_log.msg(MSG_NORMAL, str(boost::format("Accept exception: %1%") % e.what()));
@@ -148,6 +145,10 @@ void server::handle_accept(acceptor_list::iterator acceptor, smtp_connection_ptr
     }
 
     (*acceptor)->async_accept(_connection->socket(),
-            boost::bind(&server::handle_accept, this, acceptor, _connection, _force_ssl, ba::placeholders::error)
-                           );
+            boost::bind(&server::handle_accept,
+                        this,
+                        acceptor,
+                        _connection,
+                        _force_ssl,
+                        ba::placeholders::error));
 }

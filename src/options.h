@@ -122,9 +122,8 @@ struct server_parameters {
     std::string m_ip_config_file;
 
     bool m_use_tls;
-    std::string m_tls_key_file;
     std::string m_tls_cert_file;
-    std::string m_tls_ca_file;
+    std::string m_tls_key_file;
 
     bool m_use_auth;
     bool m_auth_after_tls;

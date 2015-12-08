@@ -58,8 +58,8 @@ boost::asio::ip::tcp::socket& smtp_connection::socket()
 }
 
 
-void smtp_connection::start(bool _force_ssl) {
-    force_ssl_ = _force_ssl;
+void smtp_connection::start(bool force_ssl) {
+    m_force_ssl = force_ssl;
 
     m_connected_ip = socket().remote_endpoint().address();
 
@@ -163,11 +163,16 @@ void smtp_connection::handle_dnsbl_check() {
         std::ostream response_stream(&m_response);
         response_stream << m_dnsbl_status_str;
 
-        if (force_ssl_) {
+        if (m_force_ssl) {
             ssl_state_ = ssl_active;
-            m_ssl_socket.async_handshake(boost::asio::ssl::stream_base::server,
-                    strand_.wrap(boost::bind(&smtp_connection::handle_start_hello_write, shared_from_this(),
-                                boost::asio::placeholders::error, true)));
+            m_ssl_socket.async_handshake(
+                        boost::asio::ssl::stream_base::server,
+                        strand_.wrap(
+                            boost::bind(
+                                &smtp_connection::handle_start_hello_write,
+                                shared_from_this(),
+                                boost::asio::placeholders::error,
+                                true)));
         } else {
             send_response(boost::bind(
                 &smtp_connection::handle_last_write_request,
@@ -206,7 +211,8 @@ void smtp_connection::start_proto() {
     add_new_command("quit", &smtp_connection::smtp_quit);
     add_new_command("rset", &smtp_connection::smtp_rset);
     add_new_command("noop", &smtp_connection::smtp_noop);
-    if (g_config.m_use_tls && !force_ssl_) {
+    // "starttls" is available only for initially unencrypted connections if TLS support is enabled in config
+    if (g_config.m_use_tls && !m_force_ssl) {
         add_new_command("starttls", &smtp_connection::smtp_starttls);
     }
 
@@ -229,7 +235,7 @@ void smtp_connection::start_proto() {
         response_stream << "220 " << boost::asio::ip::host_name() << " "
                         << (g_config.m_smtp_banner.empty() ? "Ok" : g_config.m_smtp_banner) << "\r\n";
 
-        if (force_ssl_) {
+        if (m_force_ssl) {
             ssl_state_ = ssl_active;
     	    m_ssl_socket.async_handshake(boost::asio::ssl::stream_base::server,
             	    strand_.wrap(boost::bind(&smtp_connection::handle_start_hello_write, shared_from_this(),
@@ -246,7 +252,7 @@ void smtp_connection::start_proto() {
                                   % m_connected_ip.to_v4().to_string() % error));
         response_stream << error;
 
-        if (force_ssl_) {
+        if (m_force_ssl) {
             ssl_state_ = ssl_active;
     	    m_ssl_socket.async_handshake(boost::asio::ssl::stream_base::server,
             	    strand_.wrap(boost::bind(&smtp_connection::handle_start_hello_write, shared_from_this(),
@@ -1076,27 +1082,22 @@ bool smtp_connection::smtp_ehlo( const std::string& _cmd, std::ostream &_respons
 {
     std::string esmtp_flags("250-8BITMIME\r\n250-PIPELINING\r\n" );
 
-    if (g_config.m_message_size_limit > 0)
-    {
-        esmtp_flags += str(boost::format("250-SIZE %1%\r\n") % g_config.m_message_size_limit);
+    if (g_config.m_message_size_limit > 0) {
+        esmtp_flags += str(boost::format("250-SIZE %1%\r\n")
+                           % g_config.m_message_size_limit);
     }
 
-    if (g_config.m_use_tls && !force_ssl_)
-    {
+    if (g_config.m_use_tls && !m_force_ssl) {
         esmtp_flags += "250-STARTTLS\r\n";
     }
 
     esmtp_flags += "250 ENHANCEDSTATUSCODES\r\n";
 
-    if ( hello( _cmd ) )
-    {
+    if (hello(_cmd)) {
         _response << "250-" << boost::asio::ip::host_name() << "\r\n" << esmtp_flags;
         m_ehlo = true;
-    }
-    else
-    {
-        m_error_count++;
-
+    } else {
+        ++m_error_count;
         _response << "501 5.5.4 EHLO requires domain address.\r\n";
     }
 

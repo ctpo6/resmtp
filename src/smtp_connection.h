@@ -41,7 +41,7 @@ class smtp_connection :
 
     boost::asio::ip::tcp::socket& socket();
 
-    void start( bool _force_ssl );
+    void start(bool force_ssl);
     void stop();
 
     boost::asio::ip::address remote_address();
@@ -146,7 +146,8 @@ class smtp_connection :
 
     void handle_start_hello_write(const boost::system::error_code& _error, bool _close);
 
-    bool force_ssl_;
+
+    bool m_force_ssl;
 
     // SPF
 
