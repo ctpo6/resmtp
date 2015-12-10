@@ -1,6 +1,7 @@
 #include "header_parser.h"
 
-header_iterator_range_t::iterator parse_header(header_iterator_range_t header)
+header_iterator_range_t::iterator parse_header(header_iterator_range_t header,
+                                               header_callback_t callback)
 {
     typedef header_iterator_range_t::iterator iterator;
     iterator beg = header.begin();
@@ -121,6 +122,8 @@ header_iterator_range_t::iterator parse_header(header_iterator_range_t header)
 
                 header_iterator_range_t val(ctsStart, ctsEnd);
                 header_iterator_range_t h(nameStart, ctsEnd);
+
+                callback(name, h, val);
             }
         }
         else

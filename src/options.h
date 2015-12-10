@@ -111,9 +111,9 @@ struct server_parameters {
 
     uint32_t m_message_size_limit;
 
-    bool m_remove_headers;
-    std::string m_remove_headers_list;
-    boost::unordered_set<std::string> m_remove_headers_set;
+//    bool m_remove_headers;
+//    std::string m_remove_headers_list;
+//    boost::unordered_set<std::string> m_remove_headers_set;
 
     // remove extra CRLF at the beginning of message DATA?
     bool m_remove_extra_cr;

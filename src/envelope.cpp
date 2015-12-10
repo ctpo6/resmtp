@@ -3,7 +3,7 @@
 #include <stdio.h>
 
 envelope::envelope()
-        : added_headers_(),
+    : added_headers_(),
           orig_headers_(),
           altered_message_(),
           orig_message_(),
@@ -14,8 +14,8 @@ envelope::envelope()
           m_sender(),
           m_rcpt_list(),
           m_spam(false),
-          m_timer(),
-          smtp_delivery_coro_()
+          m_timer()
+//        , smtp_delivery_coro_()
 {
 }
 

@@ -19,15 +19,16 @@ class smtp_client :
         private boost::noncopyable {
 public:
 
-    explicit smtp_client(boost::asio::io_service& _io_service);
+    smtp_client(boost::asio::io_service &io_service);
 
     typedef boost::function<void ()> complete_cb_t;
 
     void start(const check_data_t& _data,
-            complete_cb_t complete,
-            envelope_ptr _envelope,
-            const server_parameters::remote_point &_remote,
-            const char *_proto_name );
+               complete_cb_t complete,
+               envelope_ptr _envelope,
+               const server_parameters::remote_point &_remote,
+               const char *_proto_name,
+               const std::vector<std::string> &dns_servers);
 
     void stop();
 

@@ -332,9 +332,6 @@ bool server_parameters::parse_config(int _argc,
 
                 ("message_size_limit", bpo::value<uint32_t>(&m_message_size_limit)->default_value(10240000), "Message size limit")
 
-                ("remove_headers", bpo::value<bool>(&m_remove_headers)->default_value(false), "Remove headers on/off")
-                ("remove_headers_list", bpo::value<std::string>(&m_remove_headers_list), "List of headers to remove")
-
                 ("remove_extra_cr", bpo::value<bool>(&m_remove_extra_cr)->default_value(true), "Remove extra carriage returns on/off")
 
                 ("ip_config_file", bpo::value<std::string>(&m_ip_config_file), "IP address depended config params")
@@ -350,8 +347,6 @@ bool server_parameters::parse_config(int _argc,
         bpo::store(bpo::command_line_parser(_argc, _argv).options(command_line_opt).run(), vm);
         notify(vm);
 
-        m_foreground = (vm.count("fg") != 0);
-
         if (vm.count("help")) {
             os << command_line_opt << std::endl;
             return false;
@@ -362,6 +357,8 @@ bool server_parameters::parse_config(int _argc,
             return false;
         }
 
+        m_foreground = (vm.count("foreground") != 0);
+
         std::ifstream ifs(config_file.c_str());
         if (!ifs) {
             os << "Can not open config file: " << config_file << std::endl;
@@ -370,6 +367,7 @@ bool server_parameters::parse_config(int _argc,
         store(parse_config_file(ifs, config_options, true), vm);
         notify(vm);
 
+#if 0
         if (m_remove_headers) {
             if (m_remove_headers_list.empty()) {
                 os << "Config file error: remove_headers_list param not specified" << std::endl;
@@ -388,6 +386,7 @@ bool server_parameters::parse_config(int _argc,
                 return false;
             }
         }
+#endif
 
 #ifdef _DEBUG
         for(auto &host : backend_hosts) {

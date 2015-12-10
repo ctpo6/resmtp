@@ -10,7 +10,7 @@
 #include <boost/noncopyable.hpp>
 #include <boost/shared_ptr.hpp>
 
-#include "coroutine/coroutine.hpp"
+//#include "coroutine/coroutine.hpp"
 
 #include "buffers.h"
 #include "check.h"
@@ -73,7 +73,7 @@ struct envelope :
     rcpt_list_t m_rcpt_list;
     bool m_spam;                        // envelope is spam
     timer m_timer;
-    resmtp::coroutine smtp_delivery_coro_;
+//    resmtp::coroutine smtp_delivery_coro_;
 };
 
 typedef boost::shared_ptr<envelope> envelope_ptr;

@@ -13,7 +13,6 @@
 #include <boost/shared_ptr.hpp>
 #include <boost/unordered_map.hpp>
 
-#include "coroutine/coroutine.hpp"
 #include "net/dns_resolver.hpp"
 
 #include "adkim.h"
@@ -84,16 +83,16 @@ class smtp_connection :
     bool execute_command(const std::string &_cmd, std::ostream &_response);
 
     //---
-    bool smtp_quit( const std::string& _cmd, std::ostream &_response);
-    bool smtp_noop ( const std::string& _cmd, std::ostream &_response);
-    bool smtp_rset ( const std::string& _cmd, std::ostream &_response);
-    bool smtp_ehlo ( const std::string& _cmd, std::ostream &_response);
-    bool smtp_helo ( const std::string& _cmd, std::ostream &_response);
-    bool smtp_mail ( const std::string& _cmd, std::ostream &_response);
-    bool smtp_rcpt ( const std::string& _cmd, std::ostream &_response);
-    bool smtp_data ( const std::string& _cmd, std::ostream &_response);
+    bool smtp_quit(const std::string& _cmd, std::ostream &_response);
+    bool smtp_noop(const std::string& _cmd, std::ostream &_response);
+    bool smtp_rset(const std::string& _cmd, std::ostream &_response);
+    bool smtp_ehlo(const std::string& _cmd, std::ostream &_response);
+    bool smtp_helo(const std::string& _cmd, std::ostream &_response);
+    bool smtp_mail(const std::string& _cmd, std::ostream &_response);
+    bool smtp_rcpt(const std::string& _cmd, std::ostream &_response);
+    bool smtp_data(const std::string& _cmd, std::ostream &_response);
 
-    bool smtp_starttls ( const std::string& _cmd, std::ostream &_response);
+    bool smtp_starttls(const std::string& _cmd, std::ostream &_response);
 
     //---
     typedef enum {
@@ -147,7 +146,6 @@ class smtp_connection :
 
     std::string m_smtp_from;
     bool m_smtp_delivery_pending = false;
-    bool m_so_check_pending = false;
     boost::optional<std::string> m_spf_result;
     boost::optional<std::string> m_spf_expl;
     void handle_spf_check(boost::optional<std::string> result, boost::optional<std::string> expl);
@@ -191,9 +189,6 @@ class smtp_connection :
     check_data_t m_check_data;
 
     void start_check_data();
-    void start_so_avir_checks();
-    void handle_so_check();
-    void avir_check_data();
     void smtp_delivery_start();
     void end_check_data();
     void end_lmtp_proto();
