@@ -1,5 +1,7 @@
 #include "smtp_connection_manager.h"
 
+#include <cassert>
+
 #include <boost/bind.hpp>
 #include <boost/format.hpp>
 
@@ -12,83 +14,100 @@ smtp_connection_manager::smtp_connection_manager(
     : max_sessions(max_sess)
     , max_sessions_per_ip(max_sess_per_ip)
 {
+    m_sessions.reserve(max_sessions);
+    m_ip_count.reserve(max_sessions);
 }
 
 
 bool smtp_connection_manager::start(
-        smtp_connection_ptr _session,
-        std::string &_msg)
+        smtp_connection_ptr session,
+        std::string &msg)
 {
-    boost::mutex::scoped_lock lck(m_mutex);
+    boost::mutex::scoped_lock lock(m_mutex);
 
     if (m_sessions.size() >= max_sessions) {
-        _msg = str(boost::format("421 4.7.0 %1% Error: too many connections.\r\n")
-                   % boost::asio::ip::host_name());
+        msg = str(boost::format("421 4.7.0 %1% Error: too many connections.\r\n")
+                  % boost::asio::ip::host_name());
         return false;
     }
 
-    if (get_ip_session(_session->remote_address()) >= max_sessions_per_ip) {
-        _msg = str(boost::format("421 4.7.0 %1% Error: too many connections from %2%\r\n")
-                   % boost::asio::ip::host_name()
-                   % _session->remote_address().to_string());
+    if (get_ip_count(session->remote_address()) >= max_sessions_per_ip) {
+        msg = str(boost::format("421 4.7.0 %1% Error: too many connections from %2%\r\n")
+                  % boost::asio::ip::host_name()
+                  % session->remote_address().to_string());
         return false;
     }
 
-    m_sessions.insert(_session);
-    ip_inc(_session->remote_address());
+    m_sessions.insert(session);
+    ip_count_inc(session->remote_address());
 
     return true;
 }
 
 
-void smtp_connection_manager::stop(smtp_connection_ptr _session)
+void smtp_connection_manager::stop(smtp_connection_ptr session)
 {
-    boost::mutex::scoped_lock lck(m_mutex);
-
-    auto sessit = m_sessions.find(_session);
-    if (sessit != m_sessions.end()) {
-        m_sessions.erase(sessit);
-        ip_dec(_session->remote_address());
-        lck.unlock();
+    {
+        boost::mutex::scoped_lock lock(m_mutex);
+        auto it = m_sessions.find(session);
+        if (it != m_sessions.end()) {
+            m_sessions.erase(it);
+            ip_count_dec(session->remote_address());
+        }
     }
-
-    _session->stop();
+    // now we can slowly stop the session
+    session->stop();
 }
 
 
-void smtp_connection_manager::stop_all() {
-    for(auto &s: m_sessions) {
+void smtp_connection_manager::stop_all()
+{
+    boost::mutex::scoped_lock lock(m_mutex);
+
+    // clear sessions and IP counters
+    decltype(m_sessions) tmp;
+    tmp.swap(m_sessions);
+    m_sessions.reserve(max_sessions);   // for possible further usage
+    m_ip_count.clear();
+
+    lock.unlock();
+
+    // now we can slowly stop sessions
+    for(auto &s: tmp) {
         s->stop();
     }
-    m_sessions.clear();
 }
 
 
-unsigned int smtp_connection_manager::ip_inc(const boost::asio::ip::address _address) {
-    auto it = m_ip_count.find(_address.to_v4().to_ulong());
+uint32_t smtp_connection_manager::ip_count_inc(
+        const boost::asio::ip::address &addr) {
+    auto it = m_ip_count.find(addr.to_v4().to_ulong());
     if (it == m_ip_count.end()) {
-        m_ip_count.insert(per_ip_session_t::value_type(_address.to_v4().to_ulong(), 1));
+        m_ip_count.insert(per_ip_session_t::value_type(addr.to_v4().to_ulong(), 1));
         return 1;
     }
     return ++(it->second);
 }
 
 
-unsigned int smtp_connection_manager::ip_dec(const boost::asio::ip::address _address) {
-    auto it = m_ip_count.find(_address.to_v4().to_ulong());
-    if (it != m_ip_count.end()) {
-        if (it->second) {
-            --(it->second);
-        } else {
-            m_ip_count.erase(it);
-        }
-        return it->second;
+uint32_t smtp_connection_manager::ip_count_dec(
+        const boost::asio::ip::address &addr)
+{
+    auto it = m_ip_count.find(addr.to_v4().to_ulong());
+    assert(it != m_ip_count.end()
+            && it->second != 0
+            && "error in IP count decrement logic");
+    uint32_t r = --(it->second);
+    if (!r) {
+        m_ip_count.erase(it);
     }
-    return 0;
+    return r;
 }
 
 
-unsigned int smtp_connection_manager::get_ip_session(const boost::asio::ip::address _address) {
-    auto it = m_ip_count.find(_address.to_v4().to_ulong());
+uint32_t smtp_connection_manager::get_ip_count(
+        const boost::asio::ip::address &addr) const
+{
+    auto it = m_ip_count.find(addr.to_v4().to_ulong());
     return it != m_ip_count.end() ? it->second : 0;
 }

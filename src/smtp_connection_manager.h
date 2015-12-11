@@ -1,12 +1,27 @@
-#if !defined(_SMTP_CONNECTION_MANAGER_H_)
+#ifndef _SMTP_CONNECTION_MANAGER_H_
 #define _SMTP_CONNECTION_MANAGER_H_
 
-#include <set>
-#include <boost/thread.hpp>
-#include <boost/noncopyable.hpp>
+#include <unordered_map>
+#include <unordered_set>
+
 #include <boost/asio.hpp>
+#include <boost/functional/hash.hpp>
+#include <boost/noncopyable.hpp>
+#include <boost/thread.hpp>
 
 #include "smtp_connection.h"
+
+// needed for use of smtp_connection_ptr in std::unordered_set
+namespace std {
+template <>
+struct hash<smtp_connection_ptr>
+{
+    std::size_t operator()(const smtp_connection_ptr &key) const {
+        return boost::hash<smtp_connection_ptr>()(key);
+    }
+};
+}
+
 
 class smtp_connection_manager : private boost::noncopyable {
 public:
@@ -15,26 +30,24 @@ public:
 
     bool start(smtp_connection_ptr _session,
                std::string &_msg);
-
     void stop(smtp_connection_ptr _session);
-
     void stop_all();
 
 protected:
     const uint32_t max_sessions;
     const uint32_t max_sessions_per_ip;
 
-    std::set<smtp_connection_ptr> m_sessions;
+    std::unordered_set<smtp_connection_ptr> m_sessions;
 
-    typedef boost::unordered_map < unsigned long, unsigned int> per_ip_session_t;
-
+    // pairs: IPv4 (as uint32_t) -> count of sessions
+    typedef std::unordered_map<uint32_t, uint32_t> per_ip_session_t;
     per_ip_session_t m_ip_count;
 
-    unsigned int ip_inc(const boost::asio::ip::address _address);
-    unsigned int ip_dec(const boost::asio::ip::address _address);
-    unsigned int get_ip_session(const boost::asio::ip::address _address);
+    uint32_t ip_count_inc(const boost::asio::ip::address &addr);
+    uint32_t ip_count_dec(const boost::asio::ip::address &addr);
+    uint32_t get_ip_count(const boost::asio::ip::address &addr) const;
 
     boost::mutex m_mutex;
 };
 
-#endif // _SMTP_CONNECTION_MANAGER_H_
+#endif
