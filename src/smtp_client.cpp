@@ -48,13 +48,264 @@ void log_request(const list< ba::const_buffer >& d, size_t sz,
 }
 
 
-smtp_client::smtp_client(ba::io_service &io_service) :
-    m_socket(io_service),
-    strand_(io_service),
-    m_resolver(io_service),
-    m_timer(io_service) {
+smtp_client::smtp_client(ba::io_service &io_service,
+                         smtp_backend_manager &bm)
+    : backend_mgr(bm)
+    , m_socket(io_service)
+    , strand_(io_service)
+    , m_resolver(io_service)
+    , m_timer(io_service)
+{
     m_line_buffer.reserve(1000);
 }
+
+
+void smtp_client::start(const check_data_t& _data,
+                        complete_cb_t complete,
+                        envelope_ptr _envelope,
+                        const server_parameters::remote_point &_remote,
+                        const char *_proto_name,
+                        const std::vector<std::string> &dns_servers) {
+    m_data = _data;
+    cb_complete = complete;
+    m_envelope = _envelope;
+
+    m_envelope->cleanup_answers();
+
+    m_lmtp = _remote.m_proto == "lmtp";
+    m_proto_name = _proto_name;
+
+    m_timer_value = g_config.m_relay_connect_timeout;
+
+    m_proto_state = STATE_START;
+
+    m_relay_name = _remote.m_host_name;
+    m_relay_port = _remote.m_port;
+
+    m_use_xclient = false;
+    m_use_pipelining = false;
+
+    for (auto &s: dns_servers) {
+        m_resolver.add_nameserver(ba::ip::address::from_string(s));
+    }
+
+    restart_timeout();
+
+    PDBG("");
+
+    try {
+        m_endpoint.address(ba::ip::address::from_string(m_relay_name));
+        m_endpoint.port(m_relay_port);
+
+        PDBG("m_endpoint.address=%s", m_endpoint.address().to_string().c_str());
+        PDBG("m_endpoint.address.is_unspecified=%d", m_endpoint.address().is_unspecified());
+
+        m_relay_ip = m_relay_name;
+
+        m_socket.async_connect(m_endpoint,
+                strand_.wrap(boost::bind(&smtp_client::handle_simple_connect,
+                                         shared_from_this(),
+                                         ba::placeholders::error)));
+    } catch(...) {
+        g_log.msg(MSG_DEBUG,
+                  str(boost::format("%1%-%2%-SEND-%3%S trying to resolve: %4%:%5%")
+                      % m_data.m_session_id
+                      % m_envelope->m_id
+                      % m_proto_name
+                      % m_relay_name
+                      % m_relay_port));
+        m_resolver.async_resolve(
+            m_relay_name,
+            dns::type_a,
+            strand_.wrap(boost::bind(&smtp_client::handle_resolve,
+                            shared_from_this(),
+                            ba::placeholders::error,
+                            ba::placeholders::iterator)));
+    }
+}
+
+
+void smtp_client::start(const check_data_t &_data,
+                        complete_cb_t complete,
+                        envelope_ptr _envelope,
+                        const std::vector<std::string> &dns_servers) {
+    m_data = _data;
+    cb_complete = complete;
+    m_envelope = _envelope;
+
+    m_envelope->cleanup_answers();
+
+    m_lmtp = false;
+    m_proto_name = "SMTP";
+
+    m_timer_value = g_config.m_relay_connect_timeout;
+
+    m_proto_state = STATE_START;
+
+    smtp_backend_manager::remote_point rp;
+    backend_mgr.get_backend_host(rp);
+    m_relay_name = rp.host_name;
+    m_relay_port = rp.port;
+
+    m_use_xclient = false;
+    m_use_pipelining = false;
+
+    for (auto &s: dns_servers) {
+        m_resolver.add_nameserver(ba::ip::address::from_string(s));
+    }
+
+    restart_timeout();
+
+    PDBG("");
+
+    try {
+        m_endpoint.address(ba::ip::address::from_string(m_relay_name));
+        m_endpoint.port(m_relay_port);
+
+        PDBG("m_endpoint.address=%s", m_endpoint.address().to_string().c_str());
+        PDBG("m_endpoint.address.is_unspecified=%d", m_endpoint.address().is_unspecified());
+
+        m_relay_ip = m_relay_name;
+
+        m_socket.async_connect(m_endpoint,
+                strand_.wrap(boost::bind(&smtp_client::handle_simple_connect,
+                                         shared_from_this(),
+                                         ba::placeholders::error)));
+    } catch(...) {
+        g_log.msg(MSG_DEBUG,
+                  str(boost::format("%1%-%2%-SEND-%3%S trying to resolve: %4%:%5%")
+                      % m_data.m_session_id
+                      % m_envelope->m_id
+                      % m_proto_name
+                      % m_relay_name
+                      % m_relay_port));
+        m_resolver.async_resolve(
+            m_relay_name,
+            dns::type_a,
+            strand_.wrap(boost::bind(&smtp_client::handle_resolve,
+                            shared_from_this(),
+                            ba::placeholders::error,
+                            ba::placeholders::iterator)));
+    }
+}
+
+
+void smtp_client::handle_resolve(const bs::error_code& ec,
+                                 dns::resolver::iterator it) {
+    if (!ec) {
+        restart_timeout();
+        ba::ip::tcp::endpoint point(boost::dynamic_pointer_cast<dns::a_resource>(*it)->address(), m_relay_port);
+        m_relay_ip = point.address().to_string();
+        g_log.msg(MSG_DEBUG,
+                  str(boost::format("%1%-%2%-SEND-%3% connect: ip=[%4%]")
+                      % m_data.m_session_id
+                      % m_envelope->m_id
+                      % m_proto_name
+                      % m_relay_ip));
+        m_socket.async_connect(
+                    point,
+                    strand_.wrap(boost::bind(&smtp_client::handle_connect,
+                                             shared_from_this(),
+                                             ba::placeholders::error,
+                                             ++it)));
+    } else {
+        // cancel after timeout
+        if (ec != ba::error::operation_aborted) {
+            fault( string("Resolve error: ") + ec.message(), "");
+        }
+    }
+}
+
+
+void smtp_client::handle_simple_connect(const bs::error_code& error) {
+    if (!error) {
+        PDBG("connected");
+        m_proto_state = STATE_START;
+        m_timer_value = g_config.m_relay_connect_timeout;
+        start_read_line();
+    } else {
+        PDBG("failed to connect");
+        if (error != ba::error::operation_aborted) {
+            fault("Can't connect to host: " + error.message(), "");
+        }
+    }
+}
+
+
+void smtp_client::handle_connect(const bs::error_code& ec,
+                                 dns::resolver::iterator it)
+{
+    if (!ec)
+    {
+        m_proto_state = STATE_START;
+
+        m_timer_value = g_config.m_relay_connect_timeout;
+
+        start_read_line();
+        return;
+    }
+    else if (ec == ba::error::operation_aborted)
+    {
+        return;
+    }
+    else if (it != dns::resolver::iterator()) // if not last address
+    {
+        m_socket.close();
+
+        ba::ip::tcp::endpoint point(boost::dynamic_pointer_cast<dns::a_resource>(*it)->address(), m_relay_port);
+
+        m_relay_ip = point.address().to_string();
+
+        g_log.msg(MSG_DEBUG, str( boost::format("%1%-%2%-SEND-%3% connect ip =%4%") % m_data.m_session_id % m_envelope->m_id % m_proto_name % m_relay_ip));
+
+        m_socket.async_connect(point,
+                strand_.wrap(boost::bind(&smtp_client::handle_connect,
+                                shared_from_this(),
+                                ba::placeholders::error, ++it)));
+        return;
+    }
+
+    fault("Can't connect to host: " + ec.message(), "");
+}
+
+
+void smtp_client::handle_write_data_request(const bs::error_code& _err, size_t sz)
+{
+    if (_err)
+    {
+        if (_err != ba::error::operation_aborted)
+        {
+            fault("Write error: " + _err.message(), "");
+        }
+    }
+    else
+    {
+        std::ostream answer_stream(&m_response);
+
+        answer_stream << ".\r\n";
+
+        ba::async_write(m_socket, m_response,
+                strand_.wrap(boost::bind(&smtp_client::handle_write_request, shared_from_this(),
+                                _1, _2, log_request_helper(m_response))));
+    }
+}
+
+
+void smtp_client::handle_write_request(const bs::error_code& _err, size_t sz, const string& s)
+{
+    if (_err)
+    {
+        if (_err != ba::error::operation_aborted)
+        {
+            fault("Write error: " + _err.message(), "");
+        }
+    }
+    else
+    {
+        start_read_line();
+    }
+}
+
 
 
 void smtp_client::start_read_line()
@@ -336,187 +587,6 @@ bool smtp_client::process_answer(std::istream &_stream) {
     return true;
 }
 
-
-void smtp_client::start(const check_data_t& _data,
-                        complete_cb_t complete,
-                        envelope_ptr _envelope,
-                        const server_parameters::remote_point &_remote,
-                        const char *_proto_name,
-                        const std::vector<std::string> &dns_servers) {
-    PDBG("ENTER");
-
-    m_data = _data;
-    cb_complete = complete;
-    m_envelope = _envelope;
-
-    m_envelope->cleanup_answers();
-
-    m_lmtp = _remote.m_proto == "lmtp";
-    m_proto_name = _proto_name;
-
-    m_timer_value = g_config.m_relay_connect_timeout;
-
-    m_proto_state = STATE_START;
-
-    m_relay_name = _remote.m_host_name;
-    m_relay_port = _remote.m_port;
-
-    m_use_xclient = false;
-    m_use_pipelining = false;
-
-    for (auto &s: dns_servers) {
-        m_resolver.add_nameserver(ba::ip::address::from_string(s));
-    }
-
-    restart_timeout();
-
-    PDBG("");
-
-    try {
-        m_endpoint.address(ba::ip::address::from_string(m_relay_name));
-        m_endpoint.port(_remote.m_port);
-
-        PDBG("m_endpoint.address=%s", m_endpoint.address().to_string().c_str());
-        PDBG("m_endpoint.address.is_unspecified=%d", m_endpoint.address().is_unspecified());
-
-        m_relay_ip = m_relay_name;
-
-        m_socket.async_connect(m_endpoint,
-                strand_.wrap(boost::bind(&smtp_client::handle_simple_connect,
-                                         shared_from_this(),
-                                         ba::placeholders::error)));
-    } catch(...) {
-        g_log.msg(MSG_DEBUG,
-                  str(boost::format("%1%-%2%-SEND-%3%S trying to resolve: %4%:%5%")
-                      % m_data.m_session_id
-                      % m_envelope->m_id
-                      % m_proto_name
-                      % m_relay_name
-                      % m_relay_port));
-        m_resolver.async_resolve(
-            m_relay_name,
-            dns::type_a,
-            strand_.wrap(boost::bind(&smtp_client::handle_resolve,
-                            shared_from_this(),
-                            ba::placeholders::error,
-                            ba::placeholders::iterator)));
-    }
-}
-
-void smtp_client::handle_resolve(const bs::error_code& ec,
-                                 dns::resolver::iterator it) {
-    if (!ec) {
-        restart_timeout();
-        ba::ip::tcp::endpoint point(boost::dynamic_pointer_cast<dns::a_resource>(*it)->address(), m_relay_port);
-        m_relay_ip = point.address().to_string();
-        g_log.msg(MSG_DEBUG,
-                  str(boost::format("%1%-%2%-SEND-%3% connect: ip=[%4%]")
-                      % m_data.m_session_id
-                      % m_envelope->m_id
-                      % m_proto_name
-                      % m_relay_ip));
-        m_socket.async_connect(
-                    point,
-                    strand_.wrap(boost::bind(&smtp_client::handle_connect,
-                                             shared_from_this(),
-                                             ba::placeholders::error,
-                                             ++it)));
-    } else {
-        // cancel after timeout
-        if (ec != ba::error::operation_aborted) {
-            fault( string("Resolve error: ") + ec.message(), "");
-        }
-    }
-}
-
-
-void smtp_client::handle_simple_connect(const bs::error_code& error) {
-    if (!error) {
-        PDBG("connected");
-        m_proto_state = STATE_START;
-        m_timer_value = g_config.m_relay_connect_timeout;
-        start_read_line();
-    } else {
-        PDBG("failed to connect");
-        if (error != ba::error::operation_aborted) {
-            fault("Can't connect to host: " + error.message(), "");
-        }
-    }
-}
-
-
-void smtp_client::handle_connect(const bs::error_code& ec,
-                                 dns::resolver::iterator it)
-{
-    if (!ec)
-    {
-        m_proto_state = STATE_START;
-
-        m_timer_value = g_config.m_relay_connect_timeout;
-
-        start_read_line();
-        return;
-    }
-    else if (ec == ba::error::operation_aborted)
-    {
-        return;
-    }
-    else if (it != dns::resolver::iterator()) // if not last address
-    {
-        m_socket.close();
-
-        ba::ip::tcp::endpoint point(boost::dynamic_pointer_cast<dns::a_resource>(*it)->address(), m_relay_port);
-
-        m_relay_ip = point.address().to_string();
-
-        g_log.msg(MSG_DEBUG, str( boost::format("%1%-%2%-SEND-%3% connect ip =%4%") % m_data.m_session_id % m_envelope->m_id % m_proto_name % m_relay_ip));
-
-        m_socket.async_connect(point,
-                strand_.wrap(boost::bind(&smtp_client::handle_connect,
-                                shared_from_this(),
-                                ba::placeholders::error, ++it)));
-        return;
-    }
-
-    fault("Can't connect to host: " + ec.message(), "");
-}
-
-void smtp_client::handle_write_data_request(const bs::error_code& _err, size_t sz)
-{
-    if (_err)
-    {
-        if (_err != ba::error::operation_aborted)
-        {
-            fault("Write error: " + _err.message(), "");
-        }
-    }
-    else
-    {
-        std::ostream answer_stream(&m_response);
-
-        answer_stream << ".\r\n";
-
-        ba::async_write(m_socket, m_response,
-                strand_.wrap(boost::bind(&smtp_client::handle_write_request, shared_from_this(),
-                                _1, _2, log_request_helper(m_response))));
-    }
-}
-
-
-void smtp_client::handle_write_request(const bs::error_code& _err, size_t sz, const string& s)
-{
-    if (_err)
-    {
-        if (_err != ba::error::operation_aborted)
-        {
-            fault("Write error: " + _err.message(), "");
-        }
-    }
-    else
-    {
-        start_read_line();
-    }
-}
 
 check::chk_status smtp_client::report_rcpt(bool _success, const string &_log, const string &_remote)
 {

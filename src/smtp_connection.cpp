@@ -34,9 +34,9 @@ namespace ba = boost::asio;
 using std::list;
 using std::string;
 
-smtp_connection::smtp_connection(
-        boost::asio::io_service &_io_service,
+smtp_connection::smtp_connection(boost::asio::io_service &_io_service,
         smtp_connection_manager &_manager,
+        smtp_backend_manager &bmgr,
         boost::asio::ssl::context& _context) :
     io_service_(_io_service),
     strand_(_io_service),
@@ -46,9 +46,11 @@ smtp_connection::smtp_connection(
     m_tarpit_timer(_io_service),
     m_connected_ip(boost::asio::ip::address_v4::any()),
     m_manager(_manager),
+    backend_mgr(bmgr),
     m_resolver(_io_service),
     m_dkim_status(dkim_check::DKIM_NONE),
-    m_envelope(new envelope()) {
+    m_envelope(new envelope())
+{
 }
 
 
@@ -724,7 +726,7 @@ void smtp_connection::smtp_delivery_start()
         if (g_config.m_use_local_relay) {
             if (m_smtp_client)
                 m_smtp_client->stop();
-            m_smtp_client.reset(new smtp_client(io_service_));
+            m_smtp_client.reset(new smtp_client(io_service_, backend_mgr));
 
             m_smtp_client->start(
                 m_check_data,
@@ -758,7 +760,7 @@ void smtp_connection::smtp_delivery() {
     if (m_smtp_client) {
         m_smtp_client->stop();
     }
-    m_smtp_client.reset(new smtp_client(io_service_));
+    m_smtp_client.reset(new smtp_client(io_service_, backend_mgr));
     m_smtp_client->start(
         m_check_data,
         strand_.wrap(bind(&smtp_connection::end_check_data, shared_from_this())),

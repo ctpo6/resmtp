@@ -9,9 +9,10 @@
 
 #include "net/dns_resolver.hpp"
 
-#include "envelope.h"
 #include "check.h"
+#include "envelope.h"
 #include "options.h"
+#include "smtp_backend_manager.h"
 
 
 class smtp_client :
@@ -19,15 +20,21 @@ class smtp_client :
         private boost::noncopyable {
 public:
 
-    smtp_client(boost::asio::io_service &io_service);
+    smtp_client(boost::asio::io_service &io_service,
+                smtp_backend_manager &bm);
 
     typedef boost::function<void ()> complete_cb_t;
 
-    void start(const check_data_t& _data,
+    void start(const check_data_t &_data,
                complete_cb_t complete,
                envelope_ptr _envelope,
                const server_parameters::remote_point &_remote,
                const char *_proto_name,
+               const std::vector<std::string> &dns_servers);
+
+    void start(const check_data_t &_data,
+               complete_cb_t complete,
+               envelope_ptr _envelope,
                const std::vector<std::string> &dns_servers);
 
     void stop();
@@ -35,6 +42,14 @@ public:
     check_data_t check_data() const { return m_data; }
 
 protected:
+
+    smtp_backend_manager &backend_mgr;
+
+    boost::asio::ip::tcp::socket m_socket;
+    boost::asio::io_service::strand strand_;
+
+    // used to resolve upstream server
+    y::net::dns::resolver m_resolver;
 
     bool m_lmtp;
 
@@ -65,8 +80,9 @@ protected:
 
     std::string m_proto_name;
 
-    boost::asio::ip::tcp::socket m_socket;
-    boost::asio::io_service::strand strand_;
+    boost::asio::deadline_timer m_timer;
+
+    std::string m_line_buffer;
 
     boost::asio::streambuf m_request;
     boost::asio::streambuf m_response;
@@ -87,8 +103,6 @@ protected:
 
     void handle_write_data_request(const boost::system::error_code& _err, size_t sz);
 
-    // used to resolve upstream server
-    y::net::dns::resolver m_resolver;
 
     void fault(const std::string &_log, const std::string &_remote);
 
@@ -96,7 +110,6 @@ protected:
 
     envelope::rcpt_list_t::iterator m_current_rcpt;
 
-    boost::asio::deadline_timer m_timer;
 
     unsigned int m_timer_value;
 
@@ -106,13 +119,12 @@ protected:
 
     check::chk_status report_rcpt(bool _success, const std::string &_log, const std::string &_remote);
 
-    std::string m_line_buffer;
 
     std::string m_relay_name;
     std::string m_relay_ip;
     int m_relay_port;
-
     boost::asio::ip::tcp::endpoint m_endpoint;
+
     void handle_simple_connect(const boost::system::error_code& error);
 };
 

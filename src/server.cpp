@@ -22,6 +22,7 @@ server::server(const server_parameters &cfg)
     , m_ssl_context(m_io_service, ba::ssl::context::sslv23)
     , m_connection_manager(cfg.m_connection_count_limit,
                            cfg.m_client_connection_count_limit)
+    , backend_mgr(cfg.backend_hosts, cfg.backend_port)
 {
     if (cfg.m_use_tls) {
         try {
@@ -79,7 +80,7 @@ bool server::setup_acceptor(const std::string& address, bool ssl)
     ba::ip::tcp::endpoint endpoint = *resolver.resolve(query);
 
     smtp_connection_ptr connection = boost::make_shared<smtp_connection>(
-                m_io_service, m_connection_manager, m_ssl_context);
+                m_io_service, m_connection_manager, backend_mgr, m_ssl_context);
 
     boost::shared_ptr<ba::ip::tcp::acceptor> acceptor =
             boost::make_shared<ba::ip::tcp::acceptor>(m_io_service);
@@ -136,7 +137,10 @@ void server::handle_accept(acceptor_list::iterator acceptor,
                 g_log.msg(MSG_NORMAL, str(boost::format("Accept exception: %1%") % e.what()));
             }
         }
-        _connection.reset(new smtp_connection(m_io_service, m_connection_manager, m_ssl_context));
+        _connection.reset(new smtp_connection(m_io_service,
+                                              m_connection_manager,
+                                              backend_mgr,
+                                              m_ssl_context));
     } else {
         if (e != ba::error::not_connected) {
             g_log.msg(MSG_NORMAL, str(boost::format("Accept error: %1%") % e.message()));

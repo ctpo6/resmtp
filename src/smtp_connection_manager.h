@@ -1,6 +1,7 @@
 #ifndef _SMTP_CONNECTION_MANAGER_H_
 #define _SMTP_CONNECTION_MANAGER_H_
 
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -28,9 +29,9 @@ public:
     smtp_connection_manager(uint32_t max_sess,
                             uint32_t max_sess_per_ip);
 
-    bool start(smtp_connection_ptr _session,
-               std::string &_msg);
-    void stop(smtp_connection_ptr _session);
+    bool start(smtp_connection_ptr session,
+               std::string &msg);
+    void stop(smtp_connection_ptr session);
     void stop_all();
 
 protected:

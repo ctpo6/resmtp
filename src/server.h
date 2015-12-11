@@ -11,6 +11,7 @@
 #include <boost/thread.hpp>
 
 #include "options.h"
+#include "smtp_backend_manager.h"
 #include "smtp_connection.h"
 #include "smtp_connection_manager.h"
 
@@ -18,7 +19,6 @@ namespace resmtp {
 class server : private boost::noncopyable {
 public:
     server(const server_parameters &cfg);
-    server(std::size_t _io_service_pool_size, uid_t _user = 0, gid_t _group = 0);
 
     void run();
 
@@ -37,6 +37,7 @@ private:
     boost::asio::ssl::context m_ssl_context;
 
     smtp_connection_manager m_connection_manager;
+    smtp_backend_manager backend_mgr;
 
     acceptor_list m_acceptors;
 

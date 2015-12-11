@@ -20,6 +20,7 @@
 #include "envelope.h"
 #include "eom_parser.h"
 #include "rbl.h"
+#include "smtp_backend_manager.h"
 #include "smtp_client.h"
 
 class smtp_connection_manager;
@@ -33,6 +34,7 @@ class smtp_connection :
     smtp_connection(
             boost::asio::io_service &_io_service,
             smtp_connection_manager &_manager,
+            smtp_backend_manager &bmgr,
             boost::asio::ssl::context& _context);
 
     ~smtp_connection() = default;
@@ -128,7 +130,8 @@ class smtp_connection :
     unsigned int m_message_count;
 
     //---
-    smtp_connection_manager& m_manager;
+    smtp_connection_manager &m_manager;
+    smtp_backend_manager &backend_mgr;
 
     //---
     y::net::dns::resolver m_resolver;
