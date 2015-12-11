@@ -49,6 +49,7 @@ struct server_parameters {
     bool m_foreground;
 
     uint32_t m_log_level;
+
     uint32_t m_worker_count;
 
     std::string m_pid_file;
@@ -58,6 +59,11 @@ struct server_parameters {
 
     std::vector<std::string> m_listen_points;
     std::vector<std::string> m_ssl_listen_points;
+
+    // max number of incoming connections
+    uint32_t m_connection_count_limit;
+    // max number of incoming connections per IP
+    uint32_t m_client_connection_count_limit;
 
     bool m_use_local_relay;
     remote_point m_local_relay_host;
@@ -105,9 +111,6 @@ struct server_parameters {
 
     time_t m_smtpd_cmd_timeout;
     time_t m_smtpd_data_timeout;
-
-    uint32_t m_client_connection_count_limit;
-    uint32_t m_connection_count_limit;
 
     uint32_t m_message_size_limit;
 

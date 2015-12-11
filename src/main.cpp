@@ -62,8 +62,9 @@ int main(int argc, char* argv[]) {
         log_err(MSG_VERY_CRITICAL, "Exit (201)", true);
         return 201;
     }
-    for (const auto &s: g_config.m_dns_servers) {
-        g_log.msg(MSG_DEBUG, str(boost::format("Using DNS server: %1%") % s));
+    for (auto &s: g_config.m_dns_servers) {
+        g_log.msg(MSG_DEBUG,
+                  str(boost::format("Using DNS server: %1%") % s));
     }
 
     boost::thread log;
@@ -81,17 +82,13 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        g_log.msg(MSG_NORMAL, "Starting server...");
-
         sigset_t new_mask;
         sigfillset(&new_mask);
         sigset_t old_mask;
         pthread_sigmask(SIG_BLOCK, &new_mask, &old_mask);
 
-        g_log.msg(MSG_DEBUG, str(boost::format("UID:%1% GID:%2%")
-            % g_config.m_uid
-            % g_config.m_gid));
-        server s(g_config.m_worker_count, g_config.m_uid, g_config.m_gid );
+        g_log.msg(MSG_NORMAL, "Starting server...");
+        resmtp::server server(g_config);
 
         // Daemonize as late as possible, so as to be able to copy fatal error to stderr in case the server can't start
         if (!g_config.m_foreground) {
@@ -105,12 +102,13 @@ int main(int argc, char* argv[]) {
         log = boost::thread( [](){ g_log.run(); } );
 
         // start server
-        s.run();
+        server.run();
 
         if (!g_pid_file.create(g_config.m_pid_file)) {
             log_err(MSG_CRITICAL,
-                    str(boost::format("Can't write PID file: name='%1%', error='%2%'")
-                        % g_config.m_pid_file % strerror(errno)),
+                    str(boost::format("Can't create PID file: %1% (%2%)")
+                        % g_config.m_pid_file
+                        % strerror(errno)),
                     !daemonized);
         }
 
@@ -149,10 +147,11 @@ int main(int argc, char* argv[]) {
             break;
         }
 
-        s.stop();
+        server.stop();
     } catch (const std::exception &e) {
         log_err(MSG_CRITICAL,
-                str(boost::format("Can't start server: %1%") % e.what()), !daemonized);
+                str(boost::format("Can't start server: %1%") % e.what()),
+                !daemonized);
         rval = 202;
     }
 

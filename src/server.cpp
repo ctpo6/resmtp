@@ -15,55 +15,54 @@ namespace ba = boost::asio;
 
 using std::string;
 
-server::server(std::size_t _io_service_pool_size, uid_t _user, gid_t _group) :
-    m_ssl_context(m_io_service, ba::ssl::context::sslv23),
-    m_io_service_pool_size(_io_service_pool_size) {
+namespace resmtp {
 
-    if (g_config.m_use_tls) {
+server::server(const server_parameters &cfg)
+    : m_io_service_pool_size(cfg.m_worker_count)
+    , m_ssl_context(m_io_service, ba::ssl::context::sslv23)
+    , m_connection_manager(cfg.m_connection_count_limit,
+                           cfg.m_client_connection_count_limit)
+{
+    if (cfg.m_use_tls) {
         try {
 //            m_ssl_context.set_verify_mode(ba::ssl::context::verify_peer | ba::ssl::context::verify_client_once);
             m_ssl_context.set_verify_mode(ba::ssl::context::verify_none);
-
             m_ssl_context.set_options(
-                        ba::ssl::context::default_workarounds
-                        | ba::ssl::context::no_sslv2 );
-
-            if (!g_config.m_tls_cert_file.empty()) {
-                m_ssl_context.use_certificate_chain_file(g_config.m_tls_cert_file);
+                        ba::ssl::context::default_workarounds |
+                        ba::ssl::context::no_sslv2 );
+            if (!cfg.m_tls_cert_file.empty()) {
+                m_ssl_context.use_certificate_chain_file(cfg.m_tls_cert_file);
             }
-            if (!g_config.m_tls_key_file.empty()) {
-                m_ssl_context.use_private_key_file(g_config.m_tls_key_file, ba::ssl::context::pem);
+            if (!cfg.m_tls_key_file.empty()) {
+                m_ssl_context.use_private_key_file(cfg.m_tls_key_file, ba::ssl::context::pem);
             }
-        } catch (std::exception const& e) {
+        } catch (std::exception const &e) {
             throw std::runtime_error(str(boost::format(
                 "Can't load TLS key / certificate file: file='%1%', error='%2%'")
-                % g_config.m_tls_key_file
+                % cfg.m_tls_key_file
                 % e.what()));
         }
-    }
 
-    for(auto &s: g_config.m_listen_points) {
-        setup_acceptor(s, false);
-    }
-
-    // do not setup encrypted sockets if TLS support is not enabled in config
-    if (g_config.m_use_tls) {
-        for(auto &s: g_config.m_ssl_listen_points) {
+        for(auto &s: cfg.m_ssl_listen_points) {
             setup_acceptor(s, true);
         }
+    }
+
+    for(auto &s: cfg.m_listen_points) {
+        setup_acceptor(s, false);
     }
 
     if (m_acceptors.empty()) {
         throw std::logic_error("No address to bind to!");
     }
 
-    if (_group && (setgid(_group) == -1)) {
-        g_log.msg(MSG_CRITICAL, "Cannot change process group id !");
+    if (cfg.m_gid && setgid(cfg.m_gid) == -1) {
+        g_log.msg(MSG_CRITICAL, "Can't change process group id !");
         throw std::exception();
     }
 
-    if (_user && (setuid(_user) == -1)) {
-        g_log.msg(MSG_CRITICAL, "Cannot change process user id !");
+    if (cfg.m_uid && setuid(cfg.m_uid) == -1) {
+        g_log.msg(MSG_CRITICAL, "Can't change process user id !");
         throw std::exception();
     }
 }
@@ -151,4 +150,5 @@ void server::handle_accept(acceptor_list::iterator acceptor,
                         _connection,
                         _force_ssl,
                         ba::placeholders::error));
+}
 }

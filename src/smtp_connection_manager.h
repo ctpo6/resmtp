@@ -8,22 +8,21 @@
 
 #include "smtp_connection.h"
 
-class smtp_connection_manager
-        : private boost::noncopyable
-{
-  public:
+class smtp_connection_manager : private boost::noncopyable {
+public:
+    smtp_connection_manager(uint32_t max_sess,
+                            uint32_t max_sess_per_ip);
 
-    bool start(
-            smtp_connection_ptr _session,
-            unsigned int _max_sessions_per_ip,
-            unsigned int _max_sessions,
-            std::string &_msg);
+    bool start(smtp_connection_ptr _session,
+               std::string &_msg);
 
     void stop(smtp_connection_ptr _session);
 
     void stop_all();
 
-  protected:
+protected:
+    const uint32_t max_sessions;
+    const uint32_t max_sessions_per_ip;
 
     std::set<smtp_connection_ptr> m_sessions;
 

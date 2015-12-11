@@ -234,10 +234,7 @@ void smtp_connection::start_proto() {
     //--------------------------------------------------------------------------
     std::ostream response_stream(&m_response);
     string error;
-    if (m_manager.start(shared_from_this(),
-                        g_config.m_client_connection_count_limit,
-                        g_config.m_connection_count_limit,
-                        error)) {
+    if (m_manager.start(shared_from_this(), error)) {
 
         response_stream << "220 " << boost::asio::ip::host_name() << " "
                         << (g_config.m_smtp_banner.empty() ? "Ok" : g_config.m_smtp_banner) << "\r\n";
