@@ -28,6 +28,7 @@ class smtp_backend_manager :
 public:
 
     struct backend_host {
+        backend_host() = default;
         backend_host(uint32_t i, string h, uint16_t p) :
             index(i), host_name(h), port(p) {}
         uint32_t index;     // internal index

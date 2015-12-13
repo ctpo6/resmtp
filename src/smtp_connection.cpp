@@ -723,6 +723,7 @@ void smtp_connection::smtp_delivery_start()
         append(crlf, alt_m);
         append(m_envelope->orig_message_body_beg_, ybuffers_end(orig_m), alt_m);
 
+#if 0   // LMTP support is turned off for now
         if (g_config.m_use_local_relay) {
             if (m_smtp_client)
                 m_smtp_client->stop();
@@ -738,6 +739,9 @@ void smtp_connection::smtp_delivery_start()
         } else {
             smtp_delivery();
         }
+#endif
+        smtp_delivery();
+
 #if 0
     } // reenter
 #endif

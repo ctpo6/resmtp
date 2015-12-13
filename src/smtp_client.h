@@ -15,6 +15,9 @@
 #include "smtp_backend_manager.h"
 
 
+using std::string;
+using std::vector;
+
 class smtp_client :
         public boost::enable_shared_from_this<smtp_client>,
         private boost::noncopyable {
@@ -25,12 +28,14 @@ public:
 
     typedef boost::function<void ()> complete_cb_t;
 
+#if 0
     void start(const check_data_t &_data,
                complete_cb_t complete,
                envelope_ptr _envelope,
                const server_parameters::remote_point &_remote,
                const char *_proto_name,
                const std::vector<std::string> &dns_servers);
+#endif
 
     void start(const check_data_t &_data,
                complete_cb_t complete,
@@ -42,6 +47,8 @@ public:
     check_data_t check_data() const { return m_data; }
 
 protected:
+
+    void start_with_next_backend();
 
     smtp_backend_manager &backend_mgr;
 
@@ -78,14 +85,21 @@ protected:
     proto_state_t m_proto_state;
     check_data_t m_data;
 
-    std::string m_proto_name;
+    string m_proto_name;
 
-    boost::asio::deadline_timer m_timer;
+    smtp_backend_manager::backend_host backend_host;
+    string backend_host_ip;
 
-    std::string m_line_buffer;
+    string m_line_buffer;
 
     boost::asio::streambuf m_request;
     boost::asio::streambuf m_response;
+
+    envelope::rcpt_list_t::iterator m_current_rcpt;
+
+    uint32_t m_timer_value;
+    boost::asio::deadline_timer m_timer;
+
 
     void do_stop();
 
@@ -108,22 +122,13 @@ protected:
 
     void success();
 
-    envelope::rcpt_list_t::iterator m_current_rcpt;
-
-
-    unsigned int m_timer_value;
-
-    void handle_timer( const boost::system::error_code &_error);
+    void handle_timer(const boost::system::error_code &_error);
 
     void restart_timeout();
 
-    check::chk_status report_rcpt(bool _success, const std::string &_log, const std::string &_remote);
-
-
-    std::string m_relay_name;
-    std::string m_relay_ip;
-    int m_relay_port;
-    boost::asio::ip::tcp::endpoint m_endpoint;
+    check::chk_status report_rcpt(bool _success,
+                                  const string &_log,
+                                  const string &_remote);
 
     void handle_simple_connect(const boost::system::error_code& error);
 };
