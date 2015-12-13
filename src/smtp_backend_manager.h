@@ -1,5 +1,7 @@
 #pragma once
 
+#include <chrono>
+#include <ctime>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -47,24 +49,27 @@ public:
     backend_host get_backend_host();
 
     // called by smtp_client to report host operation result
-    void report_host_status(const backend_host &h, host_status s) noexcept;
+    void report_host_fail(const backend_host &h, host_status st) noexcept;
 
 private:
 
     inline void inc_cur_host_idx() noexcept
     {
-        if (++cur_host_idx == weights.size()) {
+        if (++cur_host_idx == hosts.size()) {
             cur_host_idx = 0;
         }
     }
 
-    vector<server_parameters::backend_host> hosts;
-    uint16_t port;
+    const vector<server_parameters::backend_host> hosts;
+    const uint16_t port;
 
     uint32_t cur_host_idx;
 
     int32_t min_weight;
-    vector<int32_t> weights;
+    vector<int32_t> weight;
+
+    vector<host_status> status;
+    vector<std::time_t> status_tp;  // time point of the fail status update
 
     std::mutex mtx;
 };
