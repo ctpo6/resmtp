@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
@@ -10,6 +11,8 @@
 #include <boost/thread.hpp>
 
 #include "net/dns_resolver.hpp"
+
+#include <options.h>
 
 namespace ba = boost::asio;
 namespace bs = boost::system;
@@ -22,7 +25,9 @@ class smtp_backend_manager :
         private boost::noncopyable {
 public:
 
-    struct remote_point {
+    struct backend_host {
+        backend_host(uint32_t i, string h, uint16_t p) :
+            index(i), host_name(h), port(p) {}
         uint32_t index;     // internal index
         string host_name;   // IP or symbolic
         uint16_t port;      // TCP port
@@ -35,17 +40,31 @@ public:
         fail_connect
     };
 
-    smtp_backend_manager(const vector<string> &hosts,
-                         uint16_t port);
+    smtp_backend_manager(const vector<server_parameters::backend_host> &h,
+                         uint16_t p);
 
     // throws if failed
-    void get_backend_host(remote_point &h);
+    backend_host get_backend_host();
 
     // called by smtp_client to report host operation result
-    void report_host_status(const remote_point &r, host_status s) noexcept;
+    void report_host_status(const backend_host &h, host_status s) noexcept;
 
 private:
 
-    vector<string> hosts;
+    inline void inc_cur_host_idx() noexcept
+    {
+        if (++cur_host_idx == weights.size()) {
+            cur_host_idx = 0;
+        }
+    }
+
+    vector<server_parameters::backend_host> hosts;
     uint16_t port;
+
+    uint32_t cur_host_idx;
+
+    int32_t min_weight;
+    vector<int32_t> weights;
+
+    std::mutex mtx;
 };

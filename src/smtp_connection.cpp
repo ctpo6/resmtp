@@ -736,7 +736,6 @@ void smtp_connection::smtp_delivery_start()
                 "LOCAL",
                 g_config.m_dns_servers);
         } else {
-            PDBG("call smtp_delivery()");
             smtp_delivery();
         }
 #if 0
@@ -765,8 +764,6 @@ void smtp_connection::smtp_delivery() {
         m_check_data,
         strand_.wrap(bind(&smtp_connection::end_check_data, shared_from_this())),
         m_envelope,
-        g_config.m_relay_host,
-        "SMTP",
         g_config.m_dns_servers);
 }
 

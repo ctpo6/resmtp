@@ -19,6 +19,7 @@
 #include <boost/function_output_iterator.hpp>
 #include <boost/iterator/transform_iterator.hpp>
 #include <boost/program_options.hpp>
+#include <boost/tokenizer.hpp>
 
 #include <resolv.h>
 
@@ -164,9 +165,11 @@ bool parse_strong_http_with_out_port(const std::string &_str,
 }
 #endif
 
-void validate(boost::any& v,
-              std::vector<std::string> const& values,
-              server_parameters::remote_point* target_type, int) {
+void validate(boost::any &v,
+              const std::vector<std::string> &values,
+              server_parameters::remote_point* target_type,
+              int)
+{
     boost::program_options::validators::check_first_occurrence(v);
     std::string const& s = boost::program_options::validators::get_single_string(values);
 
@@ -242,7 +245,8 @@ void validate(boost::any& v,
 }
 
 
-bool server_parameters::init_dns_settings() noexcept {
+bool server_parameters::init_dns_settings() noexcept
+{
     if (m_use_system_dns_servers) {
         // get DNS servers from libresolv
         typedef struct __res_state TResState;
@@ -266,6 +270,42 @@ bool server_parameters::init_dns_settings() noexcept {
                   std::back_inserter(m_dns_servers));
     }
     return true;
+}
+
+
+bool server_parameters::init_backend_hosts_settings() noexcept
+{
+    using namespace boost;
+    backend_hosts.reserve(backend_hosts_str.size());
+
+    for(auto &s: backend_hosts_str) {
+        tokenizer<char_separator<char>> t(s, char_separator<char>(" \t"));
+
+        // get host name
+        auto it = t.begin();
+        string host_name(*it++);
+
+        // get host weight
+        uint32_t weight = 100;
+        if (it != t.end()) {
+            try {
+                weight = boost::lexical_cast<uint32_t>(*it);
+            } catch (const boost::bad_lexical_cast &e) {
+                return false;
+            }
+            if (weight > 100) {
+                return false;
+            }
+        }
+        if (!weight) {  // by assigning weight == 0 host is disabled
+            continue;
+        }
+
+        backend_hosts.emplace_back(std::move(host_name), weight);
+    }
+
+    // return error if no active (i.e. weight > 0) hosts were specified
+    return !backend_hosts.empty();
 }
 
 
@@ -325,9 +365,8 @@ bool server_parameters::parse_config(int _argc,
 
                 ("use_local_relay", bpo::value<bool>(&m_use_local_relay)->default_value(false), "use local (LMTP) relay ?")
                 ("local_relay_host", bpo::value<remote_point>(&m_local_relay_host), "local (LMTP) relay")
-                ("relay_host", bpo::value<remote_point>(&m_relay_host), "relay")
 
-                ("backend_host", bpo::value<std::vector<std::string>>(&backend_hosts), "backend hosts")
+                ("backend_host", bpo::value<std::vector<std::string>>(&backend_hosts_str), "backend host")
                 ("backend_port", bpo::value<uint16_t>(&backend_port), "backend hosts TCP port")
 
                 ("message_size_limit", bpo::value<uint32_t>(&m_message_size_limit)->default_value(10240000), "Message size limit")
@@ -386,13 +425,6 @@ bool server_parameters::parse_config(int _argc,
                 return false;
             }
         }
-#endif
-
-#ifdef _DEBUG
-        for(auto &host : backend_hosts) {
-            os << "backend_host = " << host << endl;
-        }
-        os << "backend_port = " << backend_port << endl;
 #endif
 
     } catch (const std::exception& e) {

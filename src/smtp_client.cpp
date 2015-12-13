@@ -91,8 +91,6 @@ void smtp_client::start(const check_data_t& _data,
 
     restart_timeout();
 
-    PDBG("");
-
     try {
         m_endpoint.address(ba::ip::address::from_string(m_relay_name));
         m_endpoint.port(m_relay_port);
@@ -142,10 +140,9 @@ void smtp_client::start(const check_data_t &_data,
 
     m_proto_state = STATE_START;
 
-    smtp_backend_manager::remote_point rp;
-    backend_mgr.get_backend_host(rp);
-    m_relay_name = rp.host_name;
-    m_relay_port = rp.port;
+    smtp_backend_manager::backend_host h(backend_mgr.get_backend_host());
+    m_relay_name = h.host_name;
+    m_relay_port = h.port;
 
     m_use_xclient = false;
     m_use_pipelining = false;
@@ -155,8 +152,6 @@ void smtp_client::start(const check_data_t &_data,
     }
 
     restart_timeout();
-
-    PDBG("");
 
     try {
         m_endpoint.address(ba::ip::address::from_string(m_relay_name));

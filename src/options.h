@@ -41,9 +41,10 @@ struct server_parameters {
     };
 
     // host_name[:weight]
-    struct backend_remote_point {
+    struct backend_host {
+        backend_host(std::string s, uint32_t w) : host_name(s), weight(w) {}
         std::string host_name;
-        //uint32_t weight;            // 0..100; 0 - off, 100 - max
+        uint32_t weight;            // 0..100; 0 - off, 100 - max
     };
 
     bool m_foreground;
@@ -67,9 +68,10 @@ struct server_parameters {
 
     bool m_use_local_relay;
     remote_point m_local_relay_host;
-    remote_point m_relay_host;
 
-    std::vector<std::string> backend_hosts;
+    std::vector<std::string> backend_hosts_str;
+    // initialized from backend_hosts_str
+    std::vector<backend_host> backend_hosts;
     // all backend hosts have the same TCP port
     uint16_t backend_port;
 
@@ -133,6 +135,7 @@ struct server_parameters {
 
     bool parse_config(int _argc, char* _argv[], std::ostream& _out) noexcept;
     bool init_dns_settings() noexcept;
+    bool init_backend_hosts_settings() noexcept;
 };
 
 extern server_parameters g_config;

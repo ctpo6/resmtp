@@ -53,6 +53,7 @@ int main(int argc, char* argv[]) {
             g_config.m_log_level == 1 ? MSG_NORMAL : MSG_DEBUG;
     g_log.init("resmtp", log_level);
 
+    // initialize DNS servers settings
     if (!g_config.init_dns_settings()) {
         log_err(MSG_CRITICAL, str(boost::format(
             "Can't obtain DNS settings (cfg: use_system_dns_servers=%1% custom_dns_servers=%2%")
@@ -64,7 +65,22 @@ int main(int argc, char* argv[]) {
     }
     for (auto &s: g_config.m_dns_servers) {
         g_log.msg(MSG_DEBUG,
-                  str(boost::format("Using DNS server: %1%") % s));
+                  str(boost::format("DNS server: %1%") % s));
+    }
+
+    // initialize backend hosts settings
+    if (!g_config.init_backend_hosts_settings()) {
+        log_err(MSG_CRITICAL,
+                string("Can't obtain backend hosts settings"),
+                true);
+        log_err(MSG_VERY_CRITICAL, "Exit (201)", true);
+        return 201;
+    }
+    for (auto &b: g_config.backend_hosts) {
+        g_log.msg(MSG_DEBUG,
+                  str(boost::format("backend host: %1% %2%")
+                      % b.host_name
+                      % b.weight));
     }
 
     boost::thread log;
