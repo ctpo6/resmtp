@@ -1,5 +1,6 @@
 #include "smtp_connection_manager.h"
 
+#include <algorithm>
 #include <cassert>
 
 #include <boost/bind.hpp>
@@ -8,14 +9,17 @@
 #include "log.h"
 
 
+using namespace std;
+
+
 smtp_connection_manager::smtp_connection_manager(
         uint32_t max_sess,
         uint32_t max_sess_per_ip)
     : max_sessions(max_sess)
     , max_sessions_per_ip(max_sess_per_ip)
 {
-    m_sessions.reserve(max_sessions);
-    m_ip_count.reserve(max_sessions);
+    m_sessions.reserve(max(max_sessions, RESERVE_SIZE));
+    m_ip_count.reserve(max(max_sessions, RESERVE_SIZE));
 }
 
 
@@ -25,13 +29,13 @@ bool smtp_connection_manager::start(
 {
     boost::mutex::scoped_lock lock(m_mutex);
 
-    if (m_sessions.size() >= max_sessions) {
+    if (max_sessions && m_sessions.size() >= max_sessions) {
         msg = str(boost::format("421 4.7.0 %1% Error: too many connections.\r\n")
                   % boost::asio::ip::host_name());
         return false;
     }
 
-    if (get_ip_count(session->remote_address()) >= max_sessions_per_ip) {
+    if (max_sessions_per_ip && get_ip_count(session->remote_address()) >= max_sessions_per_ip) {
         msg = str(boost::format("421 4.7.0 %1% Error: too many connections from %2%\r\n")
                   % boost::asio::ip::host_name()
                   % session->remote_address().to_string());
@@ -67,7 +71,7 @@ void smtp_connection_manager::stop_all()
     // clear sessions and IP counters
     decltype(m_sessions) tmp;
     tmp.swap(m_sessions);
-    m_sessions.reserve(max_sessions);   // for possible further usage
+    m_sessions.reserve(max(max_sessions, RESERVE_SIZE));   // for possible further usage
     m_ip_count.clear();
 
     lock.unlock();

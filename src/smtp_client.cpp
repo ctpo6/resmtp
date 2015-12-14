@@ -77,7 +77,7 @@ void smtp_client::start(const check_data_t& _data,
     m_lmtp = _remote.m_proto == "lmtp";
     m_proto_name = _proto_name;
 
-    m_timer_value = g_config.m_relay_connect_timeout;
+    m_timer_value = g_config.backend_connect_timeout;
 
     m_proto_state = STATE_START;
 
@@ -158,7 +158,7 @@ void smtp_client::start_with_next_backend()
         return;
     }
 
-    m_timer_value = g_config.m_relay_connect_timeout;
+    m_timer_value = g_config.backend_connect_timeout;
     restart_timeout();
 
     bs::error_code ec;
@@ -225,6 +225,7 @@ void smtp_client::handle_resolve(const bs::error_code &ec,
                           % m_proto_name
                           % backend_host.host_name));
 
+            PDBG("call report_host_fail()");
             backend_mgr.report_host_fail(backend_host,
                                          smtp_backend_manager::host_status::fail_resolve);
             fault_backend();
@@ -237,7 +238,7 @@ void smtp_client::handle_resolve(const bs::error_code &ec,
 void smtp_client::handle_simple_connect(const bs::error_code &ec) {
     if (!ec) {
         m_proto_state = STATE_START;
-        m_timer_value = g_config.m_relay_connect_timeout;
+        m_timer_value = g_config.backend_connect_timeout;
         start_read_line();
     } else {
         if (ec != ba::error::operation_aborted) {
@@ -250,6 +251,7 @@ void smtp_client::handle_simple_connect(const bs::error_code &ec) {
                           % backend_host_ip
                           % backend_host.port));
 
+            PDBG("call report_host_fail()");
             backend_mgr.report_host_fail(backend_host,
                                          smtp_backend_manager::host_status::fail_connect);
             fault_backend();
@@ -264,7 +266,7 @@ void smtp_client::handle_connect(const bs::error_code &ec,
 {
     if (!ec) {
         m_proto_state = STATE_START;
-        m_timer_value = g_config.m_relay_connect_timeout;
+        m_timer_value = g_config.backend_connect_timeout;
         start_read_line();
         return;
     } else if (ec == ba::error::operation_aborted) {
@@ -313,6 +315,7 @@ void smtp_client::handle_connect(const bs::error_code &ec,
                   % m_proto_name
                   % backend_host.host_name));
 
+    PDBG("call report_host_fail()");
     backend_mgr.report_host_fail(backend_host,
                                  smtp_backend_manager::host_status::fail_connect);
     fault_backend();
@@ -325,6 +328,7 @@ void smtp_client::handle_write_data_request(const bs::error_code &ec,
 {
     if (ec) {
         if (ec != ba::error::operation_aborted) {
+            PDBG("call report_host_fail()");
             backend_mgr.report_host_fail(backend_host,
                                          smtp_backend_manager::host_status::fail_connect);
 //            start_with_next_backend();
@@ -352,6 +356,7 @@ void smtp_client::handle_write_request(const bs::error_code &ec,
 {
     if (ec) {
         if (ec != ba::error::operation_aborted) {
+            PDBG("call report_host_fail()");
             backend_mgr.report_host_fail(backend_host,
                                          smtp_backend_manager::host_status::fail_connect);
 //            start_with_next_backend();
@@ -466,6 +471,14 @@ bool smtp_client::process_answer(std::istream &_stream) {
         case STATE_AFTER_DATA:
             if (code != 354) p_err_str = "invalid answer on DATA command";
             break;
+        case STATE_AFTER_DOT:
+            if (code != 250) p_err_str = "invalid answer on DOT";
+            break;
+#if 0
+        case STATE_AFTER_QUIT:
+            if (code != 221) p_err_str = "invalid answer on QUIT command";
+            break;
+#endif
         default:
             break;
         }
@@ -500,7 +513,7 @@ bool smtp_client::process_answer(std::istream &_stream) {
             // send:
             // EHLO client.example.com
 
-            m_timer_value = g_config.m_relay_cmd_timeout;
+            m_timer_value = g_config.backend_cmd_timeout;
 
             answer_stream << (m_lmtp ? "LHLO " : "EHLO ")
                           << ba::ip::host_name()
@@ -513,7 +526,7 @@ bool smtp_client::process_answer(std::istream &_stream) {
             // send:
             // EHLO spike.porcupine.org
 
-            m_timer_value = g_config.m_relay_cmd_timeout;
+            m_timer_value = g_config.backend_cmd_timeout;
 
             answer_stream << (m_lmtp ? "LHLO " : "EHLO ")
                           << m_data.m_helo_host
@@ -590,7 +603,7 @@ bool smtp_client::process_answer(std::istream &_stream) {
                 m_current_rcpt = m_envelope->m_rcpt_list.begin();
             }
 
-            m_timer_value = g_config.m_relay_data_timeout;
+            m_timer_value = g_config.backend_data_timeout;
             restart_timeout();
 
             m_proto_state = STATE_AFTER_DOT;
@@ -601,18 +614,14 @@ bool smtp_client::process_answer(std::istream &_stream) {
             break;
 
         case STATE_AFTER_DOT:
-            m_timer_value = g_config.m_relay_cmd_timeout;
+            m_timer_value = g_config.backend_cmd_timeout;
+            restart_timeout();
 
             if (m_lmtp) {
                 m_current_rcpt->m_delivery_status = envelope::smtp_code_decode(code);
                 m_current_rcpt->m_remote_answer = line_buffer;
 
                 if (++m_current_rcpt == m_envelope->m_rcpt_list.end()) {
-                    success();
-// TODO: investigate why it was put here, commented out for now
-#if 0
-                    return false;
-#endif
                     answer_stream << "QUIT\r\n";
                     m_proto_state = STATE_AFTER_QUIT;
                 }
@@ -623,12 +632,6 @@ bool smtp_client::process_answer(std::istream &_stream) {
                     m_current_rcpt->m_delivery_status = envelope::smtp_code_decode(code);
                     m_current_rcpt->m_remote_answer = line_buffer;
                 }
-
-                success();
-// TODO: investigate why it was put here, commented out for now
-#if 0
-                return false;
-#endif
                 answer_stream << "QUIT\r\n";
                 m_proto_state = STATE_AFTER_QUIT;
             }
@@ -636,11 +639,7 @@ bool smtp_client::process_answer(std::istream &_stream) {
             break;
 
         case STATE_AFTER_QUIT:
-            try {
-                m_socket.close();
-            } catch(...) {
-                //skip
-            }
+            success();
             return false;
             break;
 
@@ -752,7 +751,7 @@ void smtp_client::success()
 {
     if(cb_complete.empty()) return;
 
-    m_data.m_result = report_rcpt(true, "Success delivery", "");
+    m_data.m_result = report_rcpt(true, "success delivery", "");
 
     m_timer.cancel();
     m_resolver.cancel();
@@ -822,6 +821,7 @@ void smtp_client::handle_timer(const bs::error_code &ec) {
         break;
     }
 
+    PDBG("call report_host_fail()");
     backend_mgr.report_host_fail(backend_host,
                                  smtp_backend_manager::host_status::fail_connect);
     if (m_proto_state == STATE_START) {

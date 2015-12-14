@@ -75,7 +75,7 @@ void smtp_connection::start(bool force_ssl) {
 
     m_session_id = envelope::generate_new_id();
 
-    m_timer_value = g_config.m_smtpd_cmd_timeout;
+    m_timer_value = g_config.frontend_cmd_timeout;
 
     for (auto &s: g_config.m_dns_servers) {
         m_resolver.add_nameserver(ba::ip::address::from_string(s));
@@ -1333,7 +1333,7 @@ bool smtp_connection::smtp_data( const std::string& _cmd, std::ostream &_respons
     _response << "354 Enter mail, end with \".\" on a line by itself\r\n";
 
     m_proto_state = STATE_BLAST_FILE;
-    m_timer_value = g_config.m_smtpd_data_timeout;
+    m_timer_value = g_config.frontend_data_timeout;
     m_envelope->orig_message_size_ = 0;
 
     time_t now;

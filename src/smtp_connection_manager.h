@@ -35,6 +35,8 @@ public:
     void stop_all();
 
 protected:
+    static constexpr uint32_t RESERVE_SIZE = 100000;
+
     const uint32_t max_sessions;
     const uint32_t max_sessions_per_ip;
 

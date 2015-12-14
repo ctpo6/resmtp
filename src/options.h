@@ -107,12 +107,12 @@ struct server_parameters {
     // DKIM check timeout
     time_t m_dkim_timeout;
 
-    time_t m_relay_connect_timeout;
-    time_t m_relay_cmd_timeout;
-    time_t m_relay_data_timeout;
+    time_t frontend_cmd_timeout;
+    time_t frontend_data_timeout;
 
-    time_t m_smtpd_cmd_timeout;
-    time_t m_smtpd_data_timeout;
+    time_t backend_connect_timeout;
+    time_t backend_cmd_timeout;
+    time_t backend_data_timeout;
 
     uint32_t m_message_size_limit;
 

@@ -341,6 +341,7 @@ bool server_parameters::parse_config(int _argc,
                 ("tarpit_delay_seconds", bpo::value<uint32_t>(&m_tarpit_delay_seconds)->default_value(0), "tarpit delay")
 
                 ("smtp_banner", bpo::value<std::string>(&m_smtp_banner), "smtp banner")
+
                 ("workers", bpo::value<uint32_t>(&m_worker_count), "workers count")
                 ("rbl_check", bpo::value<bool>(&m_rbl_active)->default_value(false), "RBL active ?")
                 ("rbl_hosts", bpo::value<std::string>(&m_rbl_hosts), "RBL hosts list")
@@ -351,17 +352,17 @@ bool server_parameters::parse_config(int _argc,
 
                 ("smtpd_recipient_limit", bpo::value<uint32_t>(&m_max_rcpt_count)->default_value(100), "maximum recipient per mail")
 
-                ("smtpd_client_connection_count_limit", bpo::value<uint32_t>(&m_client_connection_count_limit)->default_value(50), "maximum connection per ip")
-                ("smtpd_connection_count_limit", bpo::value<uint32_t>(&m_connection_count_limit)->default_value(10000), "maximum connection")
+                ("smtpd_client_connection_count_limit", bpo::value<uint32_t>(&m_client_connection_count_limit)->default_value(0), "max number of connections per IP (0 - unlimited)")
+                ("smtpd_connection_count_limit", bpo::value<uint32_t>(&m_connection_count_limit)->default_value(0), "total max number of connections (0 - unlimited)")
 
                 ("smtpd_hard_error_limit", bpo::value<uint32_t>(&m_hard_error_limit)->default_value(100), "maximum number of errors that a remote SMTP client is allowed to make")
 
-                ("relay_connect_timeout", bpo::value<time_t>(&m_relay_connect_timeout), "smtp relay connect timeout")
-                ("relay_cmd_timeout", bpo::value<time_t>(&m_relay_cmd_timeout), "smtp relay command timeout")
-                ("relay_data_timeout", bpo::value<time_t>(&m_relay_data_timeout), "smtp relay data send timeout")
+                ("frontend_cmd_timeout", bpo::value<time_t>(&frontend_cmd_timeout)->default_value(600), "smtpd command timeout")
+                ("frontend_data_timeout", bpo::value<time_t>(&frontend_data_timeout)->default_value(600), "smtpd data timeout")
 
-                ("smtpd_command_timeout", bpo::value<time_t>(&m_smtpd_cmd_timeout), "smtpd command timeout")
-                ("smtpd_data_timeout", bpo::value<time_t>(&m_smtpd_data_timeout), "smtpd data timeout")
+                ("backend_connect_timeout", bpo::value<time_t>(&backend_connect_timeout)->default_value(60), "smtp relay connect timeout")
+                ("backend_cmd_timeout", bpo::value<time_t>(&backend_cmd_timeout)->default_value(120), "smtp relay command timeout")
+                ("backend_data_timeout", bpo::value<time_t>(&backend_data_timeout)->default_value(300), "smtp relay data send timeout")
 
                 ("use_local_relay", bpo::value<bool>(&m_use_local_relay)->default_value(false), "use local (LMTP) relay ?")
                 ("local_relay_host", bpo::value<remote_point>(&m_local_relay_host), "local (LMTP) relay")
