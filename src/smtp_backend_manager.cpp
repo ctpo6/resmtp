@@ -2,8 +2,10 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstdlib>
 
 #include "log.h"
+#include "options.h"
 
 using namespace std;
 using namespace std::chrono;
@@ -16,18 +18,26 @@ smtp_backend_manager::smtp_backend_manager(
 {
     assert(!hosts.empty());
 
+    // init weight[], find min_weight
     weight.resize(hosts.size());
-    min_weight = 1000000;
+    int32_t max_weight = max_element(
+        hosts.begin(),
+        hosts.end(),
+        [](const server_parameters::backend_host &a,
+            const server_parameters::backend_host &b) { return a.weight < b.weight; })->weight;
+    min_weight = max_weight;
     for (uint32_t i = 0; i < hosts.size(); ++i) {
-        weight[i] = hosts[i].weight;
+        weight[i] = hosts[i].weight - max_weight / 2;
         min_weight = std::min(min_weight,
                               static_cast<int32_t>(hosts[i].weight));
     }
+
     // we should start from the host with the max priority
     cur_host_idx = distance(weight.begin(),
                             max_element(weight.begin(), weight.end()));
 
     status.resize(hosts.size(), host_status::ok);
+    fail_expiration_tp.resize(hosts.size(), 0);
 }
 
 
@@ -40,24 +50,7 @@ smtp_backend_manager::backend_host smtp_backend_manager::get_backend_host()
         while(1) {
             if (weight[cur_host_idx] > 0) {
                 if (status[cur_host_idx] != host_status::ok) {
-                    time_t dt = system_clock::to_time_t(system_clock::now()) -
-                            status_tp[cur_host_idx];
-                    bool expired;
-                    switch (status[cur_host_idx]) {
-                    case host_status::fail_connect:
-                        // too many connections to backend?
-                        expired = (dt > static_cast<time_t>(30));
-                        break;
-                    case host_status::fail:
-                    case host_status::fail_resolve:
-                        // backend has gone offline?
-                        expired = (dt > static_cast<time_t>(5*60));
-                        break;
-                    default:
-                        assert(false && "unreachable");
-                    }
-
-                    if (expired) {
+                    if (system_clock::to_time_t(system_clock::now()) >= fail_expiration_tp[cur_host_idx]) {
                         status[cur_host_idx] = host_status::ok;
                     }
                 }
@@ -86,8 +79,6 @@ smtp_backend_manager::backend_host smtp_backend_manager::get_backend_host()
                 if (all_offline) {
                     throw std::runtime_error("all backend hosts are offline");
                 }
-
-                inc_cur_host_idx();
             }
         }
         // unlock mtx
@@ -110,5 +101,25 @@ void smtp_backend_manager::report_host_fail(
 
     lock_guard<mutex> lock(mtx);
     status[h.index] = st;
-    status_tp[h.index] = system_clock::to_time_t(system_clock::now());
+    fail_expiration_tp[h.index] = system_clock::to_time_t(system_clock::now());
+
+    switch (st) {
+    case host_status::fail_resolve:
+        fail_expiration_tp[h.index] +=
+                static_cast<time_t>(10 * g_config.m_relay_connect_timeout);
+        break;
+    case host_status::fail_connect:
+        fail_expiration_tp[h.index] +=
+                static_cast<time_t>((1 + std::rand() % 10) * g_config.m_relay_connect_timeout);
+        break;
+#if 0
+        // this status code is not used now
+    case host_status::fail:
+        fail_expiration_tp[h.index] +=
+                static_cast<time_t>((1 + std::rand() % 10) * g_config.m_relay_connect_timeout);
+        break;
+#endif
+    default:
+        assert(false && "unreachable");
+    }
 }

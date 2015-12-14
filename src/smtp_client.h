@@ -105,32 +105,37 @@ protected:
 
     void start_read_line();
 
-    void handle_read_smtp_line(const boost::system::error_code& _err);
+    void handle_read_smtp_line(const boost::system::error_code &ec);
 
     bool process_answer(std::istream &_stream);
 
-    void handle_connect(const boost::system::error_code& ec, y::net::dns::resolver::iterator);
+    void handle_simple_connect(const boost::system::error_code &ec);
+    void handle_connect(const boost::system::error_code &ec,
+                        y::net::dns::resolver::iterator);
+    void handle_resolve(const boost::system::error_code &ec,
+                        y::net::dns::resolver::iterator);
 
-    void handle_resolve(const boost::system::error_code& ec, y::net::dns::resolver::iterator);
+    void handle_write_request(const boost::system::error_code &ec, size_t sz, const std::string& s);
+    void handle_write_data_request(const boost::system::error_code &ec, size_t sz);
 
-    void handle_write_request(const boost::system::error_code& _err, size_t sz, const std::string& s);
-
-    void handle_write_data_request(const boost::system::error_code& _err, size_t sz);
-
-
-    void fault(const std::string &_log, const std::string &_remote);
-
-    void success();
-
-    void handle_timer(const boost::system::error_code &_error);
-
+    void handle_timer(const boost::system::error_code &ec);
     void restart_timeout();
 
-    check::chk_status report_rcpt(bool _success,
-                                  const string &_log,
-                                  const string &_remote);
+    // log delivery status for each recipient
+    check::chk_status report_rcpt(bool success,
+                                  string log_msg,
+                                  string remote_answer);
 
-    void handle_simple_connect(const boost::system::error_code& error);
+
+    // called on error (protocol, network, etc.) after connection with backend was established
+    void fault(string log_msg,
+               string remote_answer);
+    // called on backend host resolve or connection error
+    void fault_backend();
+    // called when all backends are currently unavailable
+    void fault_all_backends();
+
+    void success();
 };
 
 typedef boost::shared_ptr<smtp_client> smtp_client_ptr;

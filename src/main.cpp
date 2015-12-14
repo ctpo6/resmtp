@@ -6,6 +6,8 @@
 #include <pthread.h>
 #include <signal.h>
 
+#include <cstdlib>
+#include <ctime>
 #include <exception>
 #include <iostream>
 #include <stdexcept>
@@ -41,6 +43,9 @@ void cxx_exception_handler() {
 
 int main(int argc, char* argv[]) {
     std::set_terminate(cxx_exception_handler);
+
+    // used to randomize timeouts
+    std::srand(std::time(0));
 
     bool daemonized = false;
     if (!g_config.parse_config(argc, argv, std::cout)) {

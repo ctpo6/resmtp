@@ -38,7 +38,7 @@ public:
 
     enum class host_status {
         ok = 0,
-        fail,
+//        fail,
         fail_resolve,
         fail_connect
     };
@@ -70,7 +70,8 @@ private:
     vector<int32_t> weight;
 
     vector<host_status> status;
-    vector<std::time_t> status_tp;  // time point of the fail status update
+    // time point of the fail status expiration
+    vector<std::time_t> fail_expiration_tp;
 
     std::mutex mtx;
 };
