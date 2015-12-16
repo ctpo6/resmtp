@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <string>
 
+using std::string;
+
 struct check
 {
     typedef enum {
@@ -14,25 +16,24 @@ struct check
     } chk_status;
 
     chk_status m_result;
-    std::string m_answer;
+    string m_answer;
 
-    std::string m_session_id;
-    std::string m_remote_ip;
+    string m_session_id;
+    // client IP
+    string m_remote_ip;
 };
 
 struct check_rcpt_t : public check {
-    std::string m_rcpt;
+    string m_rcpt;
     uint64_t m_suid;
-    std::string m_uid;
+    string m_uid;
 };
 
 struct check_data_t : public check {
-    // client IP
-    std::string m_remote_ip;
     // resolved from client IP
-    std::string m_remote_host;
+    string m_remote_host;
     // extracted from HELO/EHLO
-    std::string m_helo_host;
+    string m_helo_host;
 };
 
 #endif // _CHECK_H_

@@ -1,6 +1,6 @@
-#include <stdio.h>
-#include <time.h>
 #include "timer.h"
+
+#include <cstdio>
 
 using namespace std;
 
@@ -15,6 +15,7 @@ void timer::start()
     time(&m_time);
 }
 
+
 time_t timer::restart(bool _diff)
 {
     time_t ret = mark(_diff);
@@ -23,6 +24,7 @@ time_t timer::restart(bool _diff)
 
     return ret;
 }
+
 
 time_t timer::mark(bool _diff)
 {
@@ -47,10 +49,8 @@ string timer::format_time(time_t _time)
     int min = accu / 60;
     int sec = accu % 60;
 
-    char buffer[200];
-
-    snprintf(buffer, 199, "%02d:%02d:%02d", hours, min, sec);
+    char buffer[100];
+    snprintf(buffer, sizeof(buffer), "%02d:%02d:%02d", hours, min, sec);
 
     return buffer;
 }
-

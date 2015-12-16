@@ -695,7 +695,7 @@ check::chk_status smtp_client::report_rcpt(bool success,
 
 void smtp_client::fault(string log_msg, string remote_answer)
 {
-    if(cb_complete.empty()) return;
+    if (!cb_complete) return;
 
     m_proto_state = STATE_ERROR;
 
@@ -709,7 +709,7 @@ void smtp_client::fault(string log_msg, string remote_answer)
     } catch (...) {}
 
     m_socket.get_io_service().post(cb_complete);
-    cb_complete = NULL; // nullptr can't be assigned to boost::function
+    cb_complete = nullptr;
 }
 
 
@@ -727,7 +727,7 @@ void smtp_client::fault_backend()
 
 void smtp_client::fault_all_backends()
 {
-    if(cb_complete.empty()) return;
+    if (!cb_complete) return;
 
     m_proto_state = STATE_ERROR;
 
@@ -743,13 +743,13 @@ void smtp_client::fault_all_backends()
     m_resolver.cancel();
 
     m_socket.get_io_service().post(cb_complete);
-    cb_complete = NULL; // nullptr can't be assigned to boost::function
+    cb_complete = nullptr;
 }
 
 
 void smtp_client::success()
 {
-    if(cb_complete.empty()) return;
+    if (!cb_complete) return;
 
     m_data.m_result = report_rcpt(true, "success delivery", "");
 
@@ -761,7 +761,7 @@ void smtp_client::success()
     } catch (...) {}
 
     m_socket.get_io_service().post(cb_complete);
-    cb_complete = NULL; // nullptr can't be assigned to boost::function
+    cb_complete = nullptr;
 }
 
 

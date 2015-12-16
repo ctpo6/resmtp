@@ -20,6 +20,7 @@
 #include "log.h"
 #include "options.h"
 #include "param_parser.h"
+#include "smtp_backend_manager.h"
 #include "smtp_connection_manager.h"
 #include "util.h"
 #include "rfc_date.h"
@@ -83,7 +84,7 @@ void smtp_connection::start(bool force_ssl) {
 
     // resolve client IP to host name
     m_remote_host_name.clear();
-    PDBG("call async_resolve() %s", m_connected_ip.to_string().c_str());
+//    PDBG("call async_resolve() %s", m_connected_ip.to_string().c_str());
     m_resolver.async_resolve(
                 util::rev_order_av4_str(m_connected_ip.to_v4(), "in-addr.arpa"),
                 dns::type_ptr,
@@ -104,12 +105,8 @@ void smtp_connection::handle_back_resolve(
         return;
     }
 
-//    if (m_remote_host_name.empty()) {
-//        m_remote_host_name = "UNKNOWN";
-//    }
-
     g_log.msg(MSG_NORMAL,
-              str(boost::format("%1%-RECV: connect from %2%[%3%] here")
+              str(boost::format("%1%-RECV: ********* connected from %2%[%3%] *********")
                   % m_session_id
                   % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
                   % m_connected_ip.to_string()));
@@ -224,11 +221,10 @@ void smtp_connection::start_proto() {
     PDBG("m_dnswl_status:%d  m_dnswl_status_str:%s", m_dnswl_status, m_dnswl_status_str.c_str());
     if (!m_dnswl_status && g_config.m_tarpit_delay_seconds) {
         g_log.msg(MSG_NORMAL,
-                  str(boost::format("%1%-RECV: TARPIT connection from host %2%[%3%]: %4%")
+                  str(boost::format("%1%-RECV: TARPIT %2%[%3%]")
                       % m_session_id
                       % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
-                      % m_connected_ip.to_v4().to_string()
-                      % m_dnsbl_status_str));
+                      % m_connected_ip.to_v4().to_string()));
     }
 
     //--------------------------------------------------------------------------
@@ -483,7 +479,6 @@ void smtp_connection::handle_read(const boost::system::error_code& _err, std::si
 void smtp_connection::start_check_data()
 {
     m_check_data.m_session_id = m_session_id;
-    m_check_data.m_remote_ip = m_connected_ip.to_string();
     m_check_data.m_result = check::CHK_ACCEPT;
     m_check_data.m_answer = "";
     // we will need client IP in the upstream SMTP client for XCLIENT command
@@ -982,24 +977,22 @@ bool smtp_connection::execute_command(const std::string &_cmd, std::ostream &_re
     std::transform(command.begin(), command.end(), command.begin(), ::tolower);
 
     proto_map_t::iterator func = m_proto_map.find(command);
-
-    if (func != m_proto_map.end())
-    {
+    if (func != m_proto_map.end()) {
         return (func->second)(this, arg, _response);
-    }
-    else
-    {
-        m_error_count++;
+    } else {
+        ++m_error_count;
         _response << "502 5.5.2 Syntax error, command unrecognized.\r\n";
     }
 
     return true;
 }
 
+
 void smtp_connection::add_new_command(const char *_command, proto_func_t _func)
 {
     m_proto_map[_command] = _func;
 }
+
 
 bool smtp_connection::smtp_quit( const std::string& _cmd, std::ostream &_response )
 {
@@ -1362,12 +1355,6 @@ bool smtp_connection::smtp_data( const std::string& _cmd, std::ostream &_respons
 }
 
 void smtp_connection::stop() {
-    g_log.msg(MSG_NORMAL,
-              str(boost::format("%1%-RECV: disconnect from %2%[%3%]")
-                  % m_session_id
-                  % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
-                  % m_connected_ip.to_string()));
-
 	m_timer.cancel();
 	m_resolver.cancel();
 
@@ -1394,12 +1381,14 @@ void smtp_connection::stop() {
     }
 
     m_connected_ip = boost::asio::ip::address_v4::any();
+
+    g_log.msg(MSG_NORMAL,
+              str(boost::format("%1%-RECV: ******** disconnected from %2%[%3%] ********")
+                  % m_session_id
+                  % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
+                  % m_connected_ip.to_string()));
 }
 
-boost::asio::ip::address smtp_connection::remote_address()
-{
-    return m_connected_ip;
-}
 
 void smtp_connection::handle_timer(const boost::system::error_code& _e)
 {
@@ -1409,7 +1398,7 @@ void smtp_connection::handle_timer(const boost::system::error_code& _e)
     response_stream << "421 4.4.2 " << boost::asio::ip::host_name()
                     << " Error: timeout exceeded\r\n";
 
-    if ( m_proto_state == STATE_BLAST_FILE ) {
+    if (m_proto_state == STATE_BLAST_FILE) {
         g_log.msg(MSG_NORMAL,
                   str(boost::format("%1%-RECV: timeout after DATA (%2% bytes) from %3%[%4%]")
                       % m_session_id

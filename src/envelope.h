@@ -1,8 +1,6 @@
 #ifndef _ENVELOPE_H_
 #define _ENVELOPE_H_
 
-#include <sys/types.h>
-
 #include <list>
 #include <string>
 
@@ -16,6 +14,8 @@
 #include "check.h"
 #include "timer.h"
 
+using std::list;
+using std::string;
 
 struct envelope :
         public boost::enable_shared_from_this<envelope>,
@@ -26,52 +26,62 @@ struct envelope :
     typedef ybuffers_iterator<yconst_buffers> yconst_buffers_iterator;
 
     struct rcpt {
-        std::string m_name;
+        string m_name;
+        uint64_t m_suid;
+        string m_uid;
 
-        long long unsigned m_suid = 0;
-        std::string m_uid;
-
-        std::string m_remote_answer;
-
+        string m_remote_answer;
         check::chk_status m_delivery_status = check::CHK_TEMPFAIL;
 
-        unsigned int m_spam_status = 0;
+        rcpt(string name, uint64_t suid, string uid) :
+            m_name(name), m_suid(suid), m_uid(uid)
+        {
+        }
 
-        bool operator == (const struct rcpt &_rcpt) const {
-            return m_name == _rcpt.m_name;
+        inline bool operator==(const rcpt &r) const
+        {
+            return m_name == r.m_name;
         }
     };
-
-    typedef std::list<rcpt> rcpt_list_t;
+    typedef list<rcpt> rcpt_list_t;
 
     envelope();
 
-    rcpt_list_t::iterator add_recipient(const std::string &_rcpt,
-            long long unsigned _suid, const std::string& _uid);
-    bool has_recipient(long long unsigned suid);
-
-    void set_personal_spam_status(long long unsigned _suid, unsigned int _status);
-    void set_karma_status(int _karma, int _karma_status, time_t _born_time);
+    rcpt_list_t::iterator add_recipient(std::string name,
+                                        uint64_t suid,
+                                        std::string uid);
+    bool has_recipient(uint64_t suid) const;
 
     void remove_delivered_rcpt();
 
-    static std::string generate_new_id();
-    static check::chk_status smtp_code_decode(unsigned int code);
-
     void cleanup_answers();
+
+    static string generate_new_id();
+
+    static check::chk_status smtp_code_decode(uint32_t code)
+    {
+        switch (code / 100) {
+        case 2:
+            return check::CHK_ACCEPT;
+        case 5:
+            return check::CHK_REJECT;
+        default:
+            break;
+        }
+        return check::CHK_TEMPFAIL;
+    }
 
     yconst_buffers added_headers_;
     yconst_buffers orig_headers_;
     yconst_buffers altered_message_;
     yconst_buffers orig_message_;
-    std::size_t orig_message_token_marker_size_;
     yconst_buffers_iterator orig_message_body_beg_;
-    std::size_t orig_message_size_;
+    size_t orig_message_token_marker_size_ = 0;
+    size_t orig_message_size_ = 0;
 
-    std::string m_id;
-    std::string m_sender;
+    string m_id;
+    string m_sender;
     rcpt_list_t m_rcpt_list;
-    bool m_spam;                        // envelope is spam
     timer m_timer;
 //    resmtp::coroutine smtp_delivery_coro_;
 };

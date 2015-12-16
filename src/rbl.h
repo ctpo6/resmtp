@@ -1,12 +1,12 @@
-#if !defined(_RBL_H_)
+#ifndef _RBL_H_
 #define _RBL_H_
 
+#include <functional>
 #include <list>
 #include <string>
 
 #include <boost/asio.hpp>
 #include <boost/enable_shared_from_this.hpp>
-#include <boost/function.hpp>
 #include <boost/noncopyable.hpp>
 #include <boost/shared_ptr.hpp>
 
@@ -16,19 +16,20 @@ class rbl_check:
         public boost::enable_shared_from_this<rbl_check>,
         private boost::noncopyable {
 public:
+    typedef std::function<void ()> complete_cb;
 
     rbl_check(boost::asio::io_service& io_service);
 
-    void add_nameserver(const boost::asio::ip::address &addr) {
+    void add_nameserver(const boost::asio::ip::address &addr)
+    {
         m_resolver.add_nameserver(addr);
     }
 
-    void add_rbl_source(const std::string &_host_name);         // Add rbl source host
+    void add_rbl_source(const std::string &_host_name); // Add rbl source host
 
-    typedef boost::function<void ()> complete_cb;
-
-    void start(const boost::asio::ip::address_v4 &_address, complete_cb _callback);     // Start async check
-    void stop();                        // stop all active resolve
+    void start(const boost::asio::ip::address_v4 &_address,
+               complete_cb _callback);
+    void stop();
 
     bool get_status(std::string &_message);
 

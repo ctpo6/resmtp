@@ -1,9 +1,10 @@
 #ifndef _SMTP_CLIENT_H_
 #define _SMTP_CLIENT_H_
 
+#include <functional>
+
 #include <boost/asio/ssl.hpp>
 #include <boost/enable_shared_from_this.hpp>
-#include <boost/function.hpp>
 #include <boost/noncopyable.hpp>
 #include <boost/shared_ptr.hpp>
 
@@ -26,7 +27,7 @@ public:
     smtp_client(boost::asio::io_service &io_service,
                 smtp_backend_manager &bm);
 
-    typedef boost::function<void ()> complete_cb_t;
+    typedef std::function<void ()> complete_cb_t;
 
 #if 0
     void start(const check_data_t &_data,
@@ -40,11 +41,11 @@ public:
     void start(const check_data_t &_data,
                complete_cb_t complete,
                envelope_ptr _envelope,
-               const std::vector<std::string> &dns_servers);
+               const vector<string> &dns_servers);
 
     void stop();
 
-    check_data_t check_data() const { return m_data; }
+    const check_data_t & check_data() const { return m_data; }
 
 protected:
 

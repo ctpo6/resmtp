@@ -1,11 +1,14 @@
-#if !defined(_TIMER_H_)
+#ifndef _TIMER_H_
 #define _TIMER_H_
 
+#include <ctime>
 #include <string>
+
+using std::string;
 
 class timer
 {
-  public:
+public:
     timer();
 
     void start();
@@ -13,9 +16,9 @@ class timer
     time_t mark(bool _diff=true);
     time_t restart(bool _diff=true);
 
-    static      std::string format_time(time_t _time);
+    static string format_time(time_t _time);
 
-  protected:
+protected:
     time_t m_time;
 };
 

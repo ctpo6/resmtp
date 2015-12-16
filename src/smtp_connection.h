@@ -2,16 +2,16 @@
 #define _SMTP_CONNECTION_H_
 
 #include <cstdint>
+#include <functional>
+#include <unordered_map>
 
 #include <boost/array.hpp>
 #include <boost/asio.hpp>
 #include <boost/enable_shared_from_this.hpp>
-#include <boost/function.hpp>
 #include <boost/noncopyable.hpp>
 #include <boost/optional.hpp>
 #include <boost/range/iterator_range.hpp>
 #include <boost/shared_ptr.hpp>
-#include <boost/unordered_map.hpp>
 
 #include "net/dns_resolver.hpp"
 
@@ -20,16 +20,18 @@
 #include "envelope.h"
 #include "eom_parser.h"
 #include "rbl.h"
-#include "smtp_backend_manager.h"
 #include "smtp_client.h"
 
+
+using std::string;
+
 class smtp_connection_manager;
+class smtp_backend_manager;
 
 class smtp_connection :
         public boost::enable_shared_from_this<smtp_connection>,
-        private boost::noncopyable
-{
-  public:
+        private boost::noncopyable {
+public:
 
     smtp_connection(
             boost::asio::io_service &_io_service,
@@ -44,14 +46,18 @@ class smtp_connection :
     void start(bool force_ssl);
     void stop();
 
-    boost::asio::ip::address remote_address();
+    const boost::asio::ip::address & remote_address() const { return m_connected_ip; }
 
-  protected:
+protected:
 
     typedef boost::asio::ssl::stream<boost::asio::ip::tcp::socket> ssl_socket_t;
+
     typedef ystreambuf::mutable_buffers_type ymutable_buffers;
     typedef ystreambuf::const_buffers_type yconst_buffers;
     typedef ybuffers_iterator<yconst_buffers> yconst_buffers_iterator;
+
+    typedef std::function<bool (smtp_connection *, const string &, std::ostream&)> proto_func_t;
+    typedef std::unordered_map<string, proto_func_t> proto_map_t;
 
     void handle_write_request(const boost::system::error_code& err);
     void handle_ssl_handshake(const boost::system::error_code& err);
@@ -75,9 +81,6 @@ class smtp_connection :
     boost::asio::streambuf m_response;
 
     //---
-
-    typedef boost::function< bool (smtp_connection*, const std::string&, std::ostream&) > proto_func_t;
-    typedef boost::unordered_map < std::string, proto_func_t> proto_map_t;
 
     // map: smtp command name -> command handler ptr
     proto_map_t m_proto_map;

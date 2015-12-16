@@ -1,9 +1,13 @@
 #ifndef ADKIM_H
 #define ADKIM_H
 
-#include "buffers.h"
-#include <boost/function.hpp>
+#include <functional>
+#include <string>
+
 #include <boost/asio.hpp>
+
+#include "buffers.h"
+
 
 struct dkim_parameters
 {
@@ -14,14 +18,15 @@ struct dkim_parameters
     yconst_buffers_iterator e;
 
     dkim_parameters(const yconst_buffers_iterator& beg,
-            const yconst_buffers_iterator& body_beg, const yconst_buffers_iterator& end)
-            :  b(beg), bs(body_beg), e(end)
+                    const yconst_buffers_iterator& body_beg,
+                    const yconst_buffers_iterator& end)
+            : b(beg), bs(body_beg), e(end)
     {}
 };
 
-class dkim_check
-{
-  public:
+
+class dkim_check {
+public:
     struct dkim_check_impl;
     enum DKIM_STATUS
     {
@@ -31,21 +36,21 @@ class dkim_check
         DKIM_NONE
     };
 
-    typedef boost::function< void (DKIM_STATUS, const std::string& indentity) > handler_t;
+    typedef std::function<void (DKIM_STATUS, const std::string& indentity)> handler_t;
 
     dkim_check();
 
-    void start(boost::asio::io_service& ios, const dkim_parameters& p, handler_t handler);
-
+    void start(boost::asio::io_service& ios,
+               const dkim_parameters& p,
+               handler_t handler);
     void stop();
 
     bool is_inprogress() const;
 
     static const char* status(DKIM_STATUS s);
 
-  private:
+private:
     boost::shared_ptr<dkim_check_impl> impl_;
 };
 
-
-#endif // ADKIM_H
+#endif
