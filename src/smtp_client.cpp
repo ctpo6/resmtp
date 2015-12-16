@@ -9,12 +9,11 @@
 #include "log.h"
 #include "util.h"
 
+using namespace std;
 using namespace y::net;
 namespace ba = boost::asio;
 namespace bs = boost::system;
 
-using std::list;
-using std::string;
 
 namespace {
 string log_request_helper(const ba::streambuf& buf) {

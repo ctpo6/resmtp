@@ -3,15 +3,14 @@
 
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <unordered_map>
 
 #include <boost/array.hpp>
 #include <boost/asio.hpp>
-#include <boost/enable_shared_from_this.hpp>
 #include <boost/noncopyable.hpp>
 #include <boost/optional.hpp>
 #include <boost/range/iterator_range.hpp>
-#include <boost/shared_ptr.hpp>
 
 #include "net/dns_resolver.hpp"
 
@@ -29,7 +28,7 @@ class smtp_connection_manager;
 class smtp_backend_manager;
 
 class smtp_connection :
-        public boost::enable_shared_from_this<smtp_connection>,
+        public std::enable_shared_from_this<smtp_connection>,
         private boost::noncopyable {
 public:
 
@@ -126,11 +125,11 @@ protected:
 
     bool m_ehlo;
     boost::asio::ip::address m_connected_ip;
-    std::string m_remote_host_name;
-    std::string m_helo_host;
+    string m_remote_host_name;
+    string m_helo_host;
 
     //---
-    unsigned int m_message_count;
+    uint32_t m_message_count;
 
     //---
     smtp_connection_manager &m_manager;
@@ -149,27 +148,27 @@ protected:
     bool m_force_ssl;
 
     // SPF
-
-    std::string m_smtp_from;
+    string m_smtp_from;
     bool m_smtp_delivery_pending = false;
-    boost::optional<std::string> m_spf_result;
-    boost::optional<std::string> m_spf_expl;
+    boost::optional<string> m_spf_result;
+    boost::optional<string> m_spf_expl;
+    std::shared_ptr<class spf_check> spf_check_;
+
     void handle_spf_check(boost::optional<std::string> result, boost::optional<std::string> expl);
     void handle_spf_timeout(const boost::system::error_code& ec);
-    boost::shared_ptr<class spf_check> spf_check_;
 
     // DKIM
-    typedef boost::shared_ptr<dkim_check> dkim_check_ptr;
+    typedef std::shared_ptr<dkim_check> dkim_check_ptr;
     dkim_check_ptr dkim_check_;
     dkim_check::DKIM_STATUS m_dkim_status;
-    std::string m_dkim_identity;
+    string m_dkim_identity;
     bool has_dkim_headers_;
+
     void handle_dkim_check(dkim_check::DKIM_STATUS status, const std::string& identity);
     void handle_dkim_timeout(const boost::system::error_code& ec);
 
 
-    //---
-
+    // BLACK AND WHITELIST CHECK
     rbl_client_ptr m_dnsbl_check;
     bool m_dnsbl_status; // true: IP is blacklisted
     std::string m_dnsbl_status_str;
@@ -232,6 +231,6 @@ protected:
     uint32_t m_error_count = 0;
 };
 
-typedef boost::shared_ptr<smtp_connection> smtp_connection_ptr;
+typedef std::shared_ptr<smtp_connection> smtp_connection_ptr;
 
 #endif // _SMTP_CONNECTION_H_

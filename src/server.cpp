@@ -6,14 +6,12 @@
 #include <boost/bind.hpp>
 #include <boost/format.hpp>
 #include <boost/lexical_cast.hpp>
-#include <boost/make_shared.hpp>
 #include <boost/thread/thread.hpp>
 
 #include "log.h"
 
+using namespace std;
 namespace ba = boost::asio;
-
-using std::string;
 
 namespace resmtp {
 
@@ -49,10 +47,10 @@ server::server(const server_parameters &cfg)
         }
     }
 
+    m_acceptors.reserve(cfg.m_listen_points.size());
     for(auto &s: cfg.m_listen_points) {
         setup_acceptor(s, false);
     }
-
     if (m_acceptors.empty()) {
         throw std::logic_error("No address to bind to!");
     }
@@ -79,12 +77,11 @@ bool server::setup_acceptor(const std::string& address, bool ssl)
     ba::ip::tcp::resolver::query query(address.substr(0, pos), address.substr(pos+1));
     ba::ip::tcp::endpoint endpoint = *resolver.resolve(query);
 
-    smtp_connection_ptr connection = boost::make_shared<smtp_connection>(
+    smtp_connection_ptr connection = std::make_shared<smtp_connection>(
                 m_io_service, m_connection_manager, backend_mgr, m_ssl_context);
 
-    boost::shared_ptr<ba::ip::tcp::acceptor> acceptor =
-            boost::make_shared<ba::ip::tcp::acceptor>(m_io_service);
-    m_acceptors.push_front(acceptor);
+    m_acceptors.emplace_back(m_io_service);
+    acceptor_t *acceptor = &m_acceptors[m_acceptors.size() - 1];
 
     acceptor->open(endpoint.protocol());
     acceptor->set_option(ba::ip::tcp::acceptor::reuse_address(true));
@@ -94,7 +91,7 @@ bool server::setup_acceptor(const std::string& address, bool ssl)
     acceptor->async_accept(connection->socket(),
                            boost::bind(&server::handle_accept,
                                        this,
-                                       m_acceptors.begin(),
+                                       acceptor,
                                        connection,
                                        ssl,
                                        ba::placeholders::error));
@@ -111,8 +108,9 @@ void server::run() {
 
 void server::stop() {
     boost::mutex::scoped_lock lock(m_mutex);
-    for (auto a: m_acceptors) {
-        a->close();
+
+    for (auto &a: m_acceptors) {
+        a.close();
     }
     lock.unlock();
 
@@ -120,7 +118,8 @@ void server::stop() {
     m_acceptors.clear();
 }
 
-void server::handle_accept(acceptor_list::iterator acceptor,
+
+void server::handle_accept(acceptor_t *acceptor,
                            smtp_connection_ptr _connection,
                            bool _force_ssl,
                            const boost::system::error_code& e) {
@@ -147,12 +146,12 @@ void server::handle_accept(acceptor_list::iterator acceptor,
         }
     }
 
-    (*acceptor)->async_accept(_connection->socket(),
-            boost::bind(&server::handle_accept,
-                        this,
-                        acceptor,
-                        _connection,
-                        _force_ssl,
-                        ba::placeholders::error));
+    acceptor->async_accept(_connection->socket(),
+                           boost::bind(&server::handle_accept,
+                                       this,
+                                       acceptor,
+                                       _connection,
+                                       _force_ssl,
+                                       ba::placeholders::error));
 }
 }

@@ -2,11 +2,10 @@
 #define _SMTP_CLIENT_H_
 
 #include <functional>
+#include <memory>
 
 #include <boost/asio/ssl.hpp>
-#include <boost/enable_shared_from_this.hpp>
 #include <boost/noncopyable.hpp>
-#include <boost/shared_ptr.hpp>
 
 #include "net/dns_resolver.hpp"
 
@@ -19,8 +18,9 @@
 using std::string;
 using std::vector;
 
+
 class smtp_client :
-        public boost::enable_shared_from_this<smtp_client>,
+        public std::enable_shared_from_this<smtp_client>,
         private boost::noncopyable {
 public:
 
@@ -139,6 +139,6 @@ protected:
     void success();
 };
 
-typedef boost::shared_ptr<smtp_client> smtp_client_ptr;
+typedef std::shared_ptr<smtp_client> smtp_client_ptr;
 
 #endif // _SMTP_CLIENT_H_
