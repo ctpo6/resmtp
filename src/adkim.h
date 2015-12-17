@@ -2,6 +2,7 @@
 #define ADKIM_H
 
 #include <functional>
+#include <memory>
 #include <string>
 
 #include <boost/asio.hpp>
@@ -38,10 +39,11 @@ public:
 
     typedef std::function<void (DKIM_STATUS, const std::string& indentity)> handler_t;
 
-    dkim_check();
+    dkim_check() = default;
+    ~dkim_check();
 
-    void start(boost::asio::io_service& ios,
-               const dkim_parameters& p,
+    void start(boost::asio::io_service &ios,
+               const dkim_parameters &p,
                handler_t handler);
     void stop();
 
@@ -50,7 +52,7 @@ public:
     static const char* status(DKIM_STATUS s);
 
 private:
-    boost::shared_ptr<dkim_check_impl> impl_;
+    std::unique_ptr<dkim_check_impl> impl_;
 };
 
 #endif

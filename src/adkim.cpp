@@ -1,20 +1,21 @@
-#include "adkim.h"
-
 #define new a_better_variable_name
 #define _Bool bool
 #include <opendkim/dkim.h>
 #undef new
 #undef _Bool
 
-#include <net/dns_resolver.hpp>
+#include "adkim.h"
+
+#include <memory>
 
 #include <boost/array.hpp>
-#include <boost/scoped_ptr.hpp>
 #include <boost/thread.hpp>
 
 #include <netinet/in.h>
 #include <arpa/nameser.h>
 #include <resolv.h>
+
+#include <net/dns_resolver.hpp>
 
 using namespace y::net;
 
@@ -47,10 +48,10 @@ struct dkim_lib_loader : private boost::noncopyable
 template <class KeyLookup>
 class dkim_lib_singleton
 {
-    static boost::scoped_ptr<dkim_lib_loader> ptr_;
+    static std::unique_ptr<dkim_lib_loader> ptr_;
     static boost::once_flag flag_;
 
-  public:
+public:
     static DKIM_LIB* instance()
     {
         boost::call_once(init, flag_);
@@ -64,7 +65,7 @@ class dkim_lib_singleton
     }
 };
 
-template <class T> boost::scoped_ptr<dkim_lib_loader> dkim_lib_singleton<T>::ptr_;
+template <class T> std::unique_ptr<dkim_lib_loader> dkim_lib_singleton<T>::ptr_;
 template <class T> boost::once_flag dkim_lib_singleton<T>::flag_ = BOOST_ONCE_INIT;
 
 struct key_collect_adaptor
@@ -88,10 +89,8 @@ dkim_lib_singleton<key_seed_adaptor> lib1;
 } // namespace
 
 
-struct dkim_check::dkim_check_impl :
-    public boost::enable_shared_from_this<dkim_check::dkim_check_impl>,
-    private boost::noncopyable
-{
+
+struct dkim_check::dkim_check_impl : private boost::noncopyable {
     typedef boost::array<char, DKIM_MAXHOSTNAMELEN + 1> req_t;
     typedef std::string res_t;
     typedef std::pair<req_t, res_t> query_t;
@@ -121,22 +120,24 @@ struct dkim_check::dkim_check_impl :
     void start(dkim_check::handler_t handler);
     void cont(dkim_check::handler_t handler);
     DKIM_STAT helper(yconst_buffers_iterator b,
-            const yconst_buffers_iterator& e);
+                     const yconst_buffers_iterator& e);
     void complete();
 };
 
 typedef boost::shared_ptr<dkim_check::dkim_check_impl> dkim_check_impl_ptr;
 
 namespace {
-extern "C" DKIM_CBSTAT y_dkim_key_lookup_seed (DKIM *dkim, DKIM_SIGINFO *sig,
-        unsigned char *buf, size_t buflen)
+extern "C" DKIM_CBSTAT y_dkim_key_lookup_seed(DKIM *dkim,
+                                              DKIM_SIGINFO *sig,
+                                              unsigned char *buf,
+                                              size_t buflen)
 {
     void* ctx = const_cast<void*>(dkim_get_user_context(dkim));
     if (!ctx)
         return DKIM_STAT_NORESOURCE;
 
     typedef dkim_check::dkim_check_impl impl_t;
-    dkim_check_impl_ptr impl = reinterpret_cast<impl_t*>(ctx)->shared_from_this();
+    impl_t *impl = reinterpret_cast<impl_t *>(ctx);
 
     impl_t::req_t req;
     int n = snprintf(req.data(), req.size() - 1, "%s.%s.%s", dkim_sig_getselector(sig),
@@ -166,10 +167,11 @@ extern "C" DKIM_CBSTAT y_dkim_key_lookup_seed (DKIM *dkim, DKIM_SIGINFO *sig,
     return DKIM_STAT_KEYFAIL;
 }
 
-void y_dkim_key_lookup_collect_helper(const boost::system::error_code& ec, dns::resolver::iterator it,
-        dkim_check_impl_ptr impl,
-        dkim_check::dkim_check_impl::ql_t::iterator qlit,
-        dkim_check::handler_t handler)
+void y_dkim_key_lookup_collect_helper(const boost::system::error_code& ec,
+                                      dns::resolver::iterator it,
+                                      dkim_check::dkim_check_impl *impl,
+                                      dkim_check::dkim_check_impl::ql_t::iterator qlit,
+                                      dkim_check::handler_t handler)
 {
     if (ec == boost::asio::error::operation_aborted || impl->done_)
         return;
@@ -189,10 +191,14 @@ void y_dkim_key_lookup_collect_helper(const boost::system::error_code& ec, dns::
     {
         boost::mutex::scoped_lock lock(impl->mux_);
         dkim_check::dkim_check_impl::req_t& req = qlit->first;
-        impl->r_.async_resolve(req.data(), dns::type_txt,
-                boost::bind(y_dkim_key_lookup_collect_helper,
-                        _1, _2, impl, qlit, handler)
-                               );
+        impl->r_.async_resolve(req.data(),
+                               dns::type_txt,
+                               boost::bind(y_dkim_key_lookup_collect_helper,
+                                           _1,
+                                           _2,
+                                           impl,
+                                           qlit,
+                                           handler));
     }
     else // last request was resolved
     {
@@ -200,15 +206,18 @@ void y_dkim_key_lookup_collect_helper(const boost::system::error_code& ec, dns::
     }
 }
 
-extern "C" DKIM_CBSTAT y_dkim_key_lookup_collect (DKIM *dkim, DKIM_SIGINFO *sig,
-        unsigned char *buf, size_t buflen)
+extern "C" DKIM_CBSTAT y_dkim_key_lookup_collect(DKIM *dkim,
+                                                 DKIM_SIGINFO *sig,
+                                                 unsigned char *buf,
+                                                 size_t buflen)
 {
     void* ctx = const_cast<void*>(dkim_get_user_context(dkim));
     if (!ctx)
         return DKIM_STAT_NORESOURCE;
 
     typedef dkim_check::dkim_check_impl impl_t;
-    dkim_check_impl_ptr impl = reinterpret_cast<impl_t*>(ctx)->shared_from_this();
+    impl_t *impl = reinterpret_cast<impl_t *>(ctx);
+
     impl->ql_.resize( impl->ql_.size() + 1 );
     impl_t::query_t& q = impl->ql_.back();
     impl_t::req_t& req = q.first;
@@ -320,21 +329,6 @@ DKIM_STAT dkim_check::dkim_check_impl::helper(
     return st;
 }
 
-dkim_check::dkim_check()
-{}
-
-void dkim_check::stop()
-{
-    if (impl_)
-    {
-        boost::mutex::scoped_lock lock(impl_->mux_);
-        impl_->r_.cancel();
-        impl_->done_ = true;
-        lock.unlock();
-
-        impl_.reset();
-    }
-}
 
 bool dkim_check::is_inprogress() const
 {
@@ -423,15 +417,40 @@ void dkim_check::dkim_check_impl::start(dkim_check::handler_t handler)
     boost::mutex::scoped_lock lock(mux_);
     ql_t::iterator qlit = ql_.begin();
     req_t& req = qlit->first;
-    r_.async_resolve(req.data(), dns::type_txt,
-            boost::bind(y_dkim_key_lookup_collect_helper,
-                    _1, _2, shared_from_this(), qlit, handler)
-                     );
+    r_.async_resolve(req.data(),
+                     dns::type_txt,
+                     boost::bind(y_dkim_key_lookup_collect_helper,
+                                 _1,
+                                 _2,
+                                 this,
+                                 qlit,
+                                 handler));
 }
 
-void dkim_check::start(boost::asio::io_service& ios, const dkim_parameters& p, dkim_check::handler_t handler)
+
+void dkim_check::start(boost::asio::io_service& ios,
+                       const dkim_parameters& p,
+                       dkim_check::handler_t handler)
 {
     impl_.reset(new dkim_check_impl(ios, p));
     impl_->start(handler);
 }
 
+
+void dkim_check::stop()
+{
+    if (impl_)
+    {
+        boost::mutex::scoped_lock lock(impl_->mux_);
+        impl_->r_.cancel();
+        impl_->done_ = true;
+        lock.unlock();
+
+        impl_.reset();
+    }
+}
+
+
+dkim_check::~dkim_check()
+{
+}

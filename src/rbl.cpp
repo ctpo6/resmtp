@@ -18,9 +18,9 @@ rbl_check::rbl_check(boost::asio::io_service& _io_service)
 }
 
 
-void rbl_check::add_rbl_source(const std::string &_host_name)
+void rbl_check::add_rbl_source(string host_name)
 {
-    m_source_list.push_back(_host_name);
+    m_source_list.push_back(host_name);
 }
 
 

@@ -2,11 +2,10 @@
 #define _ENVELOPE_H_
 
 #include <list>
+#include <memory>
 #include <string>
 
-#include <boost/enable_shared_from_this.hpp>
 #include <boost/noncopyable.hpp>
-#include <boost/shared_ptr.hpp>
 
 //#include "coroutine/coroutine.hpp"
 
@@ -18,7 +17,7 @@ using std::list;
 using std::string;
 
 struct envelope :
-        public boost::enable_shared_from_this<envelope>,
+        public std::enable_shared_from_this<envelope>,
         private boost::noncopyable
 {
     typedef ystreambuf::mutable_buffers_type ymutable_buffers;
@@ -86,6 +85,6 @@ struct envelope :
 //    resmtp::coroutine smtp_delivery_coro_;
 };
 
-typedef boost::shared_ptr<envelope> envelope_ptr;
+typedef std::shared_ptr<envelope> envelope_ptr;
 
 #endif
