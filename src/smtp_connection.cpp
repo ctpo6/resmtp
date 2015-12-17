@@ -45,7 +45,6 @@ smtp_connection::smtp_connection(boost::asio::io_service &_io_service,
     m_timer(_io_service),
     m_timer_spfdkim(_io_service),
     m_tarpit_timer(_io_service),
-    m_connected_ip(boost::asio::ip::address_v4::any()),
     m_manager(_manager),
     backend_mgr(bmgr),
     m_resolver(_io_service),
@@ -1379,8 +1378,6 @@ void smtp_connection::stop() {
         m_smtp_client->stop();
         m_smtp_client.reset();
     }
-
-    m_connected_ip = boost::asio::ip::address_v4::any();
 
     g_log.msg(MSG_NORMAL,
               str(boost::format("%1%-RECV: ******** disconnected from %2%[%3%] ********")
