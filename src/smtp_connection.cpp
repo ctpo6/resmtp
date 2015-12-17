@@ -6,6 +6,7 @@
 #include <iostream>
 #include <iterator>
 #include <sstream>
+#include <unordered_set>
 #include <vector>
 
 #include <boost/bind.hpp>
@@ -29,11 +30,10 @@
 // must be included the last
 //#include "coroutine/yield.hpp"
 
+using namespace std;
 using namespace y::net;
 namespace ba = boost::asio;
 
-using std::list;
-using std::string;
 
 smtp_connection::smtp_connection(boost::asio::io_service &_io_service,
         smtp_connection_manager &_manager,
@@ -546,7 +546,7 @@ void handle_parse_header(const header_iterator_range_t &name,
                          const header_iterator_range_t &value,
                          list<header_iterator_range_t> &h,
                          header_iterator_range_t &message_id,
-                         boost::unordered_set<string> &unique_h) {
+                         unordered_set<string> &unique_h) {
     string lname;   // lower-cased header name
     lname.reserve(name.size());
     std::transform(name.begin(), name.end(), back_inserter(lname), ::tolower);
@@ -562,7 +562,7 @@ void handle_parse_header(const header_iterator_range_t &name,
 
 void smtp_connection::smtp_delivery_start()
 {
-    PDBG("ENTER");
+//    PDBG("ENTER");
 #if 0
     if (dkim_check_ && dkim_check_->is_inprogress()) // wait for DKIM check to complete
     {
@@ -589,16 +589,16 @@ void smtp_connection::smtp_delivery_start()
             return;
         }
 
-        PDBG("");
+//        PDBG("");
         // alter headers & compose the resulting message here
         typedef list<header_iterator_range_t> hl_t; // header fields subset from the original message for the composed message
         hl_t h;
         header_iterator_range_t message_id;
-        boost::unordered_set<std::string> unique_h;
+        unordered_set<string> unique_h;
         header_iterator_range_t::iterator b = ybuffers_begin(orig_m);
         header_iterator_range_t::iterator e = ybuffers_end(orig_m);
         header_iterator_range_t r(b, e);
-        PDBG("call parse_header()");
+//        PDBG("call parse_header()");
         m_envelope->orig_message_body_beg_ = parse_header(r,
                 boost::bind(&handle_parse_header,
                             _1,
@@ -618,14 +618,17 @@ void smtp_connection::smtp_delivery_start()
         // add missing headers
         if (unique_h.find("message-id") == unique_h.end()) {
             time_t rawtime;
-            struct tm * timeinfo;
-            char timeid [1024];
-            time ( &rawtime );
-            timeinfo = localtime ( &rawtime );
-            strftime (timeid, sizeof timeid, "%Y%m%d%H%M%S",timeinfo);
+            time(&rawtime);
+            struct tm timeinfo;
+            localtime_r(&rawtime, &timeinfo);
+            char timeid[100];
+            strftime(timeid, sizeof(timeid), "%Y%m%d%H%M%S", &timeinfo);
 
-            string message_id_str = str( boost::format("<%1%.%2%@%3%>")
-                    % timeid % m_envelope->m_id % boost::asio::ip::host_name());     // format: <20100406110540.C671D18D007F@mxback1.mail.yandex.net>
+            // format: <20100406110540.C671D18D007F@mxback1.mail.yandex.net>
+            string message_id_str = str(boost::format("<%1%.%2%@%3%>")
+                                        % timeid
+                                        % m_envelope->m_id
+                                        % boost::asio::ip::host_name());
 
             append(str(boost::format("Message-Id: %1%\r\n") % message_id_str), added_h);
 
@@ -1362,7 +1365,7 @@ void smtp_connection::stop() {
     try {
         socket().shutdown(boost::asio::ip::tcp::socket::shutdown_both);
         socket().close();
-    } catch(...){}
+    } catch (...) {}
 
     if (m_dnsbl_check) {
         m_dnsbl_check->stop();

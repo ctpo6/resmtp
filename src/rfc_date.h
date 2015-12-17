@@ -1,4 +1,4 @@
-#if !defined(_RFC_DATE_H_)
+#ifndef _RFC_DATE_H_
 #define _RFC_DATE_H_
 
 #include <string>

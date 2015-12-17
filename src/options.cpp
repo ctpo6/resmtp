@@ -327,25 +327,27 @@ bool server_parameters::parse_config(int _argc,
         bpo::options_description config_options("Configuration");
 
         config_options.add_options()
-                ("listen", bpo::value<std::vector<std::string>>(&m_listen_points), "listen on host:port")
-                ("ssl_listen", bpo::value<std::vector<std::string>>(&m_ssl_listen_points), "SSL listen on host:port")
+                ("listen", bpo::value<vector<string>>(&m_listen_points), "listen on host:port")
+                ("ssl_listen", bpo::value<vector<string>>(&m_ssl_listen_points), "SSL listen on host:port")
+
+                ("monitoring_listen", bpo::value<string>(&mon_listen_point)->default_value("localhost:11311"), "monitoring listen on host:port")
 
                 ("user", bpo::value<uid_value>(&m_uid), "set uid after port bindings")
                 ("group", bpo::value<gid_value>(&m_gid), "set gid after port bindings")
 
                 ("use_system_dns_servers", bpo::value<bool>(&m_use_system_dns_servers)->default_value(true), "use host's DNS servers settings?")
-                ("custom_dns_servers", bpo::value<std::string>(&m_custom_dns_servers), "custom DNS servers IP addresses list")
+                ("custom_dns_servers", bpo::value<string>(&m_custom_dns_servers), "custom DNS servers IP addresses list")
 
                 ("socket_check", bpo::value<bool>(&m_socket_check)->default_value(false), "check socket emptiness before sending greeting ?")
 
                 ("tarpit_delay_seconds", bpo::value<uint32_t>(&m_tarpit_delay_seconds)->default_value(0), "tarpit delay")
 
-                ("smtp_banner", bpo::value<std::string>(&m_smtp_banner), "smtp banner")
+                ("smtp_banner", bpo::value<string>(&m_smtp_banner), "smtp banner")
 
                 ("workers", bpo::value<uint32_t>(&m_worker_count), "workers count")
                 ("rbl_check", bpo::value<bool>(&m_rbl_active)->default_value(false), "RBL active ?")
-                ("rbl_hosts", bpo::value<std::string>(&m_rbl_hosts), "RBL hosts list")
-                ("dnswl_host", bpo::value<std::string>(&m_dnswl_host), "DNSWL host")
+                ("rbl_hosts", bpo::value<string>(&m_rbl_hosts), "RBL hosts list")
+                ("dnswl_host", bpo::value<string>(&m_dnswl_host), "DNSWL host")
 
                 ("spf_timeout", bpo::value<time_t>(&m_spf_timeout)->default_value(15), "spf calculation timeout")
                 ("dkim_timeout", bpo::value<time_t>(&m_dkim_timeout)->default_value(15), "dkim calculation timeout")
@@ -367,18 +369,18 @@ bool server_parameters::parse_config(int _argc,
                 ("use_local_relay", bpo::value<bool>(&m_use_local_relay)->default_value(false), "use local (LMTP) relay ?")
                 ("local_relay_host", bpo::value<remote_point>(&m_local_relay_host), "local (LMTP) relay")
 
-                ("backend_host", bpo::value<std::vector<std::string>>(&backend_hosts_str), "backend host")
+                ("backend_host", bpo::value<vector<string>>(&backend_hosts_str), "backend host")
                 ("backend_port", bpo::value<uint16_t>(&backend_port), "backend hosts TCP port")
 
                 ("message_size_limit", bpo::value<uint32_t>(&m_message_size_limit)->default_value(10240000), "Message size limit")
 
                 ("remove_extra_cr", bpo::value<bool>(&m_remove_extra_cr)->default_value(true), "Remove extra carriage returns on/off")
 
-                ("ip_config_file", bpo::value<std::string>(&m_ip_config_file), "IP address depended config params")
+                ("ip_config_file", bpo::value<string>(&m_ip_config_file), "IP address depended config params")
 
                 ("use_tls", bpo::value<bool>(&m_use_tls)->default_value(false), "support TLS ?")
-                ("tls_cert_file", bpo::value<std::string>(&m_tls_cert_file), "use a certificate from file")
-                ("tls_key_file", bpo::value<std::string>(&m_tls_key_file), "use a private key from file")
+                ("tls_cert_file", bpo::value<string>(&m_tls_cert_file), "use a certificate from file")
+                ("tls_key_file", bpo::value<string>(&m_tls_key_file), "use a private key from file")
                 ;
 
         bpo::variables_map vm;

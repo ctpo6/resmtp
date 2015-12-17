@@ -1,65 +1,50 @@
+#include <ctime>
+#include <cstdio>
+#include <cstdlib>
 #include <string>
-#include <time.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
 
 #include "rfc_date.h"
 
-#define DAY_MIN         (24 * HOUR_MIN) /* minutes in a day */
-#define HOUR_MIN        60              /* minutes in an hour */
-#define MIN_SEC         60              /* seconds in a minute */
+using namespace std;
+
+#define DAY_MIN         1440
 
 #define STRFTIME_FMT "%a, %e %b %Y %H:%M:%S "
 
 std::string mail_date(time_t when)
 {
-    std::string collect;
-
-    struct tm *lt;
     struct tm gmt;
-    int     gmtoff;
+    gmtime_r(&when, &gmt);
+    struct tm lt;
+    localtime_r(&when, &lt);
 
-    gmt = *gmtime(&when);
-    lt = localtime(&when);
+    int gmtoff = (lt.tm_hour - gmt.tm_hour) * 60 + lt.tm_min - gmt.tm_min;
 
-    gmtoff = (lt->tm_hour - gmt.tm_hour) * HOUR_MIN + lt->tm_min - gmt.tm_min;
-    if (lt->tm_year < gmt.tm_year)
+    if (lt.tm_year < gmt.tm_year)
         gmtoff -= DAY_MIN;
-    else if (lt->tm_year > gmt.tm_year)
+    else if (lt.tm_year > gmt.tm_year)
         gmtoff += DAY_MIN;
-    else if (lt->tm_yday < gmt.tm_yday)
+    else if (lt.tm_yday < gmt.tm_yday)
         gmtoff -= DAY_MIN;
-    else if (lt->tm_yday > gmt.tm_yday)
+    else if (lt.tm_yday > gmt.tm_yday)
         gmtoff += DAY_MIN;
-    if (lt->tm_sec <= gmt.tm_sec - MIN_SEC)
+
+    if (lt.tm_sec <= gmt.tm_sec - 60)
         gmtoff -= 1;
-    else if (lt->tm_sec >= gmt.tm_sec + MIN_SEC)
+    else if (lt.tm_sec >= gmt.tm_sec + 60)
         gmtoff += 1;
 
-
-    char buffer[100];
-
-    memset(buffer, 0, sizeof(buffer));
-
-    strftime(buffer, sizeof(buffer)-1, STRFTIME_FMT, lt);
-
-    collect = buffer;
-
-    if (gmtoff < -DAY_MIN || gmtoff > DAY_MIN)
-    {
+    if (gmtoff < -DAY_MIN || gmtoff > DAY_MIN) {
         // error
     }
 
-    memset(buffer, 0, sizeof(buffer));
+    char buffer[200];
+    size_t c = strftime(buffer, sizeof(buffer), STRFTIME_FMT, &lt);
+    snprintf(buffer + c, sizeof(buffer) - c, "%+03d%02d",
+             gmtoff / 60,
+             abs(gmtoff) % 60);
 
-    snprintf(buffer, sizeof(buffer)-1, "%+03d%02d", (int) (gmtoff / HOUR_MIN), (int) (abs(gmtoff) % HOUR_MIN));
+//    strftime(buffer, sizeof(buffer), " (%Z)", lt);
 
-    collect.append(buffer);
-
-    memset(buffer, 0, sizeof(buffer));
-
-    strftime(buffer, sizeof(buffer)-1, " (%Z)", lt);
-
-    return collect;
+    return string(buffer);
 }

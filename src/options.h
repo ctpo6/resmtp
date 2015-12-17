@@ -9,8 +9,8 @@
 #include <set>
 #include <vector>
 
-#include <boost/unordered_set.hpp>
-
+using std::string;
+using std::vector;
 
 // these types are needed for boost::program_options validation mechanism
 struct uid_value {
@@ -53,13 +53,15 @@ struct server_parameters {
 
     uint32_t m_worker_count;
 
-    std::string m_pid_file;
+    string m_pid_file;
 
     uid_value m_uid;
     gid_value m_gid;
 
-    std::vector<std::string> m_listen_points;
-    std::vector<std::string> m_ssl_listen_points;
+    vector<string> m_listen_points;
+    vector<string> m_ssl_listen_points;
+
+    string mon_listen_point;
 
     // max number of incoming connections
     uint32_t m_connection_count_limit;
