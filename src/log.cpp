@@ -1,8 +1,8 @@
-#include <iostream>
 #include "log.h"
 
-logger g_log;
+#include <syslog.h>
 
+logger g_log;
 
 void logger::init(const char *ident, int log_prio) {
     openlog(ident, 0, LOG_MAIL);
@@ -10,7 +10,7 @@ void logger::init(const char *ident, int log_prio) {
 }
 
 
-void logger::msg(uint32_t prio, const std::string &msg) noexcept {
+void logger::msg(uint32_t prio, std::string msg) noexcept {
     if (prio <= m_log_prio) {
         boost::mutex::scoped_lock lck(m_condition_mutex);
         if (prio == MSG_DEBUG) {

@@ -23,6 +23,7 @@
 
 #include <resolv.h>
 
+#include "global.h"
 #include "log.h"
 
 using namespace std;
@@ -395,7 +396,7 @@ bool server_parameters::parse_config(int _argc,
         }
 
         if (vm.count("version")) {
-            os << "0.0.1" << std::endl;
+            os << g::app_version() << std::endl;
             return false;
         }
 

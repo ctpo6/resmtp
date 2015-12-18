@@ -74,6 +74,27 @@ server::server(const server_parameters &cfg)
 }
 
 
+void server::run() {
+    for (uint32_t i = 0; i < m_io_service_pool_size; ++i) {
+        m_threads_pool.create_thread( [this](){ m_io_service.run(); } );
+    }
+}
+
+
+void server::stop() {
+    boost::mutex::scoped_lock lock(m_mutex);
+    mon_acceptor->close();
+    for (auto &a: m_acceptors) {
+        a.close();
+    }
+    lock.unlock();
+
+    m_threads_pool.join_all();
+    m_acceptors.clear();
+    mon_acceptor.reset();
+}
+
+
 bool server::setup_mon_acceptor(const string &addr)
 {
     string::size_type pos = addr.find(":");
@@ -130,29 +151,6 @@ bool server::setup_acceptor(const std::string& address, bool ssl)
 }
 
 
-void server::run() {
-    for (std::size_t i = 0; i < m_io_service_pool_size; ++i) {
-        m_threads_pool.create_thread( [this](){ m_io_service.run(); } );
-    }
-}
-
-
-void server::stop() {
-    boost::mutex::scoped_lock lock(m_mutex);
-
-    mon_acceptor->close();
-
-    for (auto &a: m_acceptors) {
-        a.close();
-    }
-    lock.unlock();
-
-    m_threads_pool.join_all();
-    m_acceptors.clear();
-    mon_acceptor.reset();
-}
-
-
 void server::handle_mon_accept(const boost::system::error_code &ec)
 {
     if (ec == ba::error::operation_aborted) {
@@ -198,44 +196,48 @@ void server::handle_mon_write_request(const boost::system::error_code &ec,
 
 void server::get_mon_response(std::ostream &os)
 {
-    os << "hui!\n";
+    g::mon().print(os);
 }
 
 
 void server::handle_accept(acceptor_t *acceptor,
-                           smtp_connection_ptr _connection,
-                           bool _force_ssl,
-                           const boost::system::error_code& e)
+                           smtp_connection_ptr conn,
+                           bool force_ssl,
+                           const boost::system::error_code &ec)
 {
-    boost::mutex::scoped_lock lock(m_mutex);
 
-    if (e == ba::error::operation_aborted)
+    if (ec == ba::error::operation_aborted)
         return;
 
-    if (!e) {
+    boost::mutex::scoped_lock lock(m_mutex);
+    if (!ec) {
         try {
-            _connection->start(_force_ssl);
+            conn->start(force_ssl);
         } catch (const boost::system::system_error &e) {
             if (e.code() != ba::error::not_connected) {
-                g_log.msg(MSG_NORMAL, str(boost::format("Accept exception: %1%") % e.what()));
+                g_log.msg(MSG_CRITICAL,
+                          str(boost::format("ERROR: connection start exception: %1%")
+                              % e.what()));
             }
         }
-        _connection.reset(new smtp_connection(m_io_service,
-                                              m_connection_manager,
-                                              backend_mgr,
-                                              m_ssl_context));
+        conn.reset(new smtp_connection(m_io_service,
+                                       m_connection_manager,
+                                       backend_mgr,
+                                       m_ssl_context));
     } else {
-        if (e != ba::error::not_connected) {
-            g_log.msg(MSG_NORMAL, str(boost::format("Accept error: %1%") % e.message()));
+        if (ec != ba::error::not_connected) {
+            g_log.msg(MSG_CRITICAL,
+                      str(boost::format("ERROR: accept failed: %1%")
+                          % ec.message()));
         }
     }
 
-    acceptor->async_accept(_connection->socket(),
+    acceptor->async_accept(conn->socket(),
                            boost::bind(&server::handle_accept,
                                        this,
                                        acceptor,
-                                       _connection,
-                                       _force_ssl,
+                                       conn,
+                                       force_ssl,
                                        ba::placeholders::error));
 }
 }

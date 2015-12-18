@@ -25,10 +25,10 @@
 
 
 namespace {
-void log_err(int prio, const std::string& what, bool copy_to_stderr) {
-    g_log.msg(prio, what);
+void log_err(int prio, std::string s, bool copy_to_stderr) {
+    g_log.msg(prio, s);
     if (copy_to_stderr)
-        std::cerr << what << std::endl;
+        std::cerr << s << std::endl;
 }
 }
 
@@ -61,7 +61,7 @@ int main(int argc, char* argv[]) {
     // initialize DNS servers settings
     if (!g_config.init_dns_settings()) {
         log_err(MSG_CRITICAL, str(boost::format(
-            "Can't obtain DNS settings (cfg: use_system_dns_servers=%1% custom_dns_servers=%2%")
+            "can't obtain DNS settings (cfg: use_system_dns_servers=%1% custom_dns_servers=%2%")
                 % (g_config.m_use_system_dns_servers ? "yes" : "no")
                 % g_config.m_custom_dns_servers),
                 true);
@@ -76,7 +76,7 @@ int main(int argc, char* argv[]) {
     // initialize backend hosts settings
     if (!g_config.init_backend_hosts_settings()) {
         log_err(MSG_CRITICAL,
-                string("Can't obtain backend hosts settings"),
+                string("can't obtain backend hosts settings"),
                 true);
         log_err(MSG_VERY_CRITICAL, "Exit (201)", true);
         return 201;
@@ -92,13 +92,9 @@ int main(int argc, char* argv[]) {
     int rval = 0;
     try {
         if (!g_config.m_ip_config_file.empty()) {
-            if (g_ip_config.load(g_config.m_ip_config_file)) {
-                g_log.msg(MSG_NORMAL,
-                          str(boost::format("Load IP restriction file: name='%1%'")
-                              % g_config.m_ip_config_file));
-            } else {
+            if (!g_ip_config.load(g_config.m_ip_config_file)) {
                 throw std::logic_error(
-                            str(boost::format("Can't load IP restriction file: name='%1%'")
+                            str(boost::format("can't load IP restriction file: %1%")
                                 % g_config.m_ip_config_file));
             }
         }
@@ -108,13 +104,12 @@ int main(int argc, char* argv[]) {
         sigset_t old_mask;
         pthread_sigmask(SIG_BLOCK, &new_mask, &old_mask);
 
-        g_log.msg(MSG_NORMAL, "Starting server...");
         resmtp::server server(g_config);
 
         // Daemonize as late as possible, so as to be able to copy fatal error to stderr in case the server can't start
         if (!g_config.m_foreground) {
             if (daemon(0, 0) < 0) {
-                throw std::runtime_error("Failed to daemonize!");
+                throw std::runtime_error("failed to daemonize");
             }
             daemonized = true;
         }
@@ -127,11 +122,13 @@ int main(int argc, char* argv[]) {
 
         if (!g_pid_file.create(g_config.m_pid_file)) {
             log_err(MSG_CRITICAL,
-                    str(boost::format("Can't create PID file: %1% (%2%)")
+                    str(boost::format("can't create PID file: %1% (%2%)")
                         % g_config.m_pid_file
                         % strerror(errno)),
                     !daemonized);
         }
+
+        g_log.msg(MSG_NORMAL, "Server successfully started");
 
         while(true) {
             pthread_sigmask(SIG_SETMASK, &old_mask, 0);
@@ -171,7 +168,7 @@ int main(int argc, char* argv[]) {
         server.stop();
     } catch (const std::exception &e) {
         log_err(MSG_CRITICAL,
-                str(boost::format("Can't start server: %1%") % e.what()),
+                str(boost::format("ERROR: %1%") % e.what()),
                 !daemonized);
         rval = 202;
     }

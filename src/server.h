@@ -2,6 +2,7 @@
 #define _SERVER_H_
 
 #include <memory>
+#include <ostream>
 #include <string>
 #include <vector>
 
@@ -10,6 +11,7 @@
 #include <boost/noncopyable.hpp>
 #include <boost/thread.hpp>
 
+#include "global.h"
 #include "options.h"
 #include "smtp_backend_manager.h"
 #include "smtp_connection.h"
@@ -37,7 +39,7 @@ private:
 
     bool setup_acceptor(const string &address, bool ssl);
     void handle_accept(acceptor_t *acceptor,
-                       smtp_connection_ptr _connection,
+                       smtp_connection_ptr conn,
                        bool force_ssl,
                        const boost::system::error_code &ec);
 

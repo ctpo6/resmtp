@@ -30,7 +30,7 @@ class logger {
 public:
     void init(const char *ident, int log_prio);
 
-    void msg(uint32_t prio, const std::string &msg_) noexcept;
+    void msg(uint32_t prio, std::string msg_) noexcept;
 
     void msg(uint32_t prio, const char *msg_) noexcept {
         msg(prio, std::string(msg_));
