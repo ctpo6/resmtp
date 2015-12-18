@@ -29,9 +29,13 @@ public:
     smtp_connection_manager(uint32_t max_sess,
                             uint32_t max_sess_per_ip);
 
+    // error_msg - returned on fail
     bool start(smtp_connection_ptr session,
-               std::string &msg);
-    void stop(smtp_connection_ptr session);
+               std::string &error_msg);
+
+    // called by conn itself
+    void stop(smtp_connection_ptr conn);
+
     void stop_all();
 
 protected:
@@ -40,11 +44,11 @@ protected:
     const uint32_t max_sessions;
     const uint32_t max_sessions_per_ip;
 
-    std::unordered_set<smtp_connection_ptr> m_sessions;
+    std::unordered_set<smtp_connection_ptr> connections;
 
     // pairs: IPv4 (as uint32_t) -> count of sessions
-    typedef std::unordered_map<uint32_t, uint32_t> per_ip_session_t;
-    per_ip_session_t m_ip_count;
+    typedef std::unordered_map<uint32_t, uint32_t> ip_connection_map_t;
+    ip_connection_map_t m_ip_count;
 
     uint32_t ip_count_inc(const boost::asio::ip::address &addr);
     uint32_t ip_count_dec(const boost::asio::ip::address &addr);

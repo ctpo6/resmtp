@@ -58,16 +58,6 @@ protected:
     typedef std::function<bool (smtp_connection *, const string &, std::ostream&)> proto_func_t;
     typedef std::unordered_map<string, proto_func_t> proto_map_t;
 
-    void handle_write_request(const boost::system::error_code& err);
-    void handle_ssl_handshake(const boost::system::error_code& err);
-    void handle_last_write_request(const boost::system::error_code& err);
-
-    void handle_read(const boost::system::error_code& _err, std::size_t _size);
-    void handle_read_helper(std::size_t size);
-    bool handle_read_command_helper(const yconst_buffers_iterator& b, const yconst_buffers_iterator& e, yconst_buffers_iterator& parsed, yconst_buffers_iterator& read);
-    bool handle_read_data_helper(const yconst_buffers_iterator& b, const yconst_buffers_iterator& e, yconst_buffers_iterator& parsed, yconst_buffers_iterator& read);
-    void start_read();
-
     boost::asio::io_service &io_service_;
     boost::asio::io_service::strand strand_;
     ssl_socket_t m_ssl_socket;
@@ -79,24 +69,8 @@ protected:
 
     boost::asio::streambuf m_response;
 
-    //---
-
     // map: smtp command name -> command handler ptr
     proto_map_t m_proto_map;
-    void add_new_command(const char *_command, proto_func_t _func);
-    bool execute_command(const std::string &_cmd, std::ostream &_response);
-
-    //---
-    bool smtp_quit(const std::string& _cmd, std::ostream &_response);
-    bool smtp_noop(const std::string& _cmd, std::ostream &_response);
-    bool smtp_rset(const std::string& _cmd, std::ostream &_response);
-    bool smtp_ehlo(const std::string& _cmd, std::ostream &_response);
-    bool smtp_helo(const std::string& _cmd, std::ostream &_response);
-    bool smtp_mail(const std::string& _cmd, std::ostream &_response);
-    bool smtp_rcpt(const std::string& _cmd, std::ostream &_response);
-    bool smtp_data(const std::string& _cmd, std::ostream &_response);
-
-    bool smtp_starttls(const std::string& _cmd, std::ostream &_response);
 
     //---
     typedef enum {
@@ -119,6 +93,32 @@ protected:
     } ssl_state_t;
 
     ssl_state_t ssl_state_;
+
+
+    void handle_write_request(const boost::system::error_code& ec);
+    void handle_ssl_handshake(const boost::system::error_code& ec);
+    void handle_last_write_request(const boost::system::error_code& ec);
+
+    void handle_read(const boost::system::error_code& _err, std::size_t _size);
+    void handle_read_helper(std::size_t size);
+    bool handle_read_command_helper(const yconst_buffers_iterator& b, const yconst_buffers_iterator& e, yconst_buffers_iterator& parsed, yconst_buffers_iterator& read);
+    bool handle_read_data_helper(const yconst_buffers_iterator& b, const yconst_buffers_iterator& e, yconst_buffers_iterator& parsed, yconst_buffers_iterator& read);
+    void start_read();
+
+    //---
+    void add_new_command(const char *_command, proto_func_t _func);
+    bool execute_command(string cmd, std::ostream &_response);
+
+    bool smtp_quit(const std::string& _cmd, std::ostream &_response);
+    bool smtp_noop(const std::string& _cmd, std::ostream &_response);
+    bool smtp_rset(const std::string& _cmd, std::ostream &_response);
+    bool smtp_ehlo(const std::string& _cmd, std::ostream &_response);
+    bool smtp_helo(const std::string& _cmd, std::ostream &_response);
+    bool smtp_mail(const std::string& _cmd, std::ostream &_response);
+    bool smtp_rcpt(const std::string& _cmd, std::ostream &_response);
+    bool smtp_data(const std::string& _cmd, std::ostream &_response);
+    bool smtp_starttls(const std::string& _cmd, std::ostream &_response);
+
 
     //---
     bool hello( const std::string &_host);
@@ -208,12 +208,19 @@ protected:
     eom_parser eom_parser_;
     crlf_parser crlf_parser_;
     std::string m_session_id;
-    // ---
 
-    void handle_timer( const boost::system::error_code &_error);
+    // ---
+    uint32_t m_max_rcpt_count;
+    bool m_read_pending_ = false;
+
+    uint32_t m_error_count = 0;
+
+    bool tarpit = false;
+
+
+    void handle_timer(const boost::system::error_code &ec);
     void restart_timeout();
     void cancel_timer();
-
 
     void send_response(
             boost::function<void(const boost::system::error_code &)> handler);
@@ -225,10 +232,8 @@ protected:
     // isn't RFC compliant
     bool check_socket_read_buffer_is_empty();
 
-    uint32_t m_max_rcpt_count;
-    bool m_read_pending_ = false;
-
-    uint32_t m_error_count = 0;
+    void on_connection_tarpitted();
+    void on_connection_close();
 };
 
 typedef std::shared_ptr<smtp_connection> smtp_connection_ptr;

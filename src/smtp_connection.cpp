@@ -18,6 +18,7 @@
 #include "aspf.h"
 #include "header_parser.h"
 #include "ip_options.h"
+#include "global.h"
 #include "log.h"
 #include "options.h"
 #include "param_parser.h"
@@ -105,13 +106,13 @@ void smtp_connection::handle_back_resolve(
     }
 
     g_log.msg(MSG_NORMAL,
-              str(boost::format("%1%-RECV: ********* connected from %2%[%3%] *********")
+              str(boost::format("%1%-RECV: ******** connected from %2%[%3%] ********")
                   % m_session_id
                   % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
                   % m_connected_ip.to_string()));
     
     // blacklist check is OFF
-    if(!g_config.m_rbl_active) {
+    if (!g_config.m_rbl_active) {
         handle_dnsbl_check();
         return;
     }
@@ -219,6 +220,7 @@ void smtp_connection::start_proto() {
     m_dnswl_check.reset();
     PDBG("m_dnswl_status:%d  m_dnswl_status_str:%s", m_dnswl_status, m_dnswl_status_str.c_str());
     if (!m_dnswl_status && g_config.m_tarpit_delay_seconds) {
+        on_connection_tarpitted();
         g_log.msg(MSG_NORMAL,
                   str(boost::format("%1%-RECV: TARPIT %2%[%3%]")
                       % m_session_id
@@ -270,7 +272,21 @@ void smtp_connection::start_proto() {
 }
 
 
-bool smtp_connection::check_socket_read_buffer_is_empty() {
+void smtp_connection::on_connection_tarpitted()
+{
+    tarpit = true;
+    g::mon().conn_tarpitted();
+}
+
+
+void smtp_connection::on_connection_close()
+{
+    g::mon().conn_closed(tarpit);
+}
+
+
+bool smtp_connection::check_socket_read_buffer_is_empty()
+{
     ba::socket_base::bytes_readable command(true);
     socket().io_control(command);
     return command.get() == 0;
@@ -399,8 +415,8 @@ bool smtp_connection::handle_read_command_helper(
     std::string command(parsed, read);
     parsed = ++read;
 
-    std::ostream response_stream(&m_response);
-    bool res = execute_command(command, response_stream);
+    std::ostream os(&m_response);
+    bool res = execute_command(command, os);
 
     if (res) {
         switch (ssl_state_) {
@@ -888,9 +904,9 @@ void smtp_connection::send_response2(
 }
 
 
-void smtp_connection::handle_write_request(const boost::system::error_code& _err)
+void smtp_connection::handle_write_request(const boost::system::error_code &ec)
 {
-    if (!_err) {
+    if (!ec) {
         if (m_error_count > g_config.m_hard_error_limit) {
             g_log.msg(MSG_NORMAL,
                       str(boost::format("%1%: too many errors")
@@ -905,85 +921,79 @@ void smtp_connection::handle_write_request(const boost::system::error_code& _err
         }
         start_read();
     } else {
-        if (_err != boost::asio::error::operation_aborted) {
+        if (ec != boost::asio::error::operation_aborted) {
             m_manager.stop(shared_from_this());
         }
     }
 }
 
-void smtp_connection::handle_last_write_request(const boost::system::error_code& _err) {
-    if (!_err) {
+void smtp_connection::handle_last_write_request(
+        const boost::system::error_code &ec)
+{
+#if 0
+    // socket will be closed in stop()
+    if (!ec) {
         try {
             socket().shutdown(boost::asio::ip::tcp::socket::shutdown_both);
             socket().close();
-        } catch (boost::system::system_error &) {}
+        } catch (...) {}
     }
-
-    if (_err != boost::asio::error::operation_aborted) {
+#endif
+    if (ec != boost::asio::error::operation_aborted) {
         m_manager.stop(shared_from_this());
     }
 }
 
-void smtp_connection::handle_ssl_handshake(const boost::system::error_code& _err)
-{
-    if (!_err)
-    {
-        ssl_state_ = ssl_active;
 
+void smtp_connection::handle_ssl_handshake(const boost::system::error_code& ec)
+{
+    if (!ec) {
+        ssl_state_ = ssl_active;
         m_ssl_socket.async_handshake(boost::asio::ssl::stream_base::server,
                 strand_.wrap(boost::bind(&smtp_connection::handle_write_request, shared_from_this(),
                                 boost::asio::placeholders::error)));
-    }
-    else
-    {
-        if (_err != boost::asio::error::operation_aborted)
-        {
+    } else {
+        if (ec != boost::asio::error::operation_aborted) {
             m_manager.stop(shared_from_this());
         }
     }
 }
 
 
-bool smtp_connection::execute_command(const std::string &_cmd, std::ostream &_response) {
+bool smtp_connection::execute_command(string cmd, std::ostream &os)
+{
     g_log.msg(MSG_DEBUG,
               str(boost::format("%1%-RECV: exec cmd='%2%'")
                   % m_session_id
-                  % util::str_cleanup_crlf(_cmd)));
+                  % util::str_cleanup_crlf(cmd)));
 
-    std::string buffer(_cmd);
-
-    std::string::size_type pos = buffer.find_first_not_of( " \t" );
-    if ( pos != std::string::npos )
-        buffer.erase( 0, pos );    // Strip starting whitespace
-
-    pos = buffer.find_last_not_of( " \t\r\n" );
-    if ( pos != std::string::npos )
-        buffer.erase( pos + 1 );    // .. and ending whitespace
-
-    pos = buffer.find( ' ' );
-
-    std::string command;
-
-    std::string arg;
-
-    if ( pos == std::string::npos )     // Split line into command and argument parts
-    {
-        command = buffer;
+    // trim starting whitespace
+    string::size_type pos = cmd.find_first_not_of( " \t" );
+    if (pos != std::string::npos) {
+        cmd.erase(0, pos);
     }
-    else
-    {
-        command = buffer.substr( 0, pos );
-        arg = buffer.substr( pos + 1 );
+    // trim trailing whitespace
+    pos = cmd.find_last_not_of( " \t\r\n" );
+    if (pos != string::npos) {
+        cmd.resize(pos + 1);
     }
 
-    std::transform(command.begin(), command.end(), command.begin(), ::tolower);
+    // Split line into command and argument parts
+    string arg;
+    pos = cmd.find(' ');
+    if (pos != string::npos) {
+        arg = cmd.substr(pos + 1);
+        cmd.resize(pos);
+    }
 
-    proto_map_t::iterator func = m_proto_map.find(command);
+    std::transform(cmd.begin(), cmd.end(), cmd.begin(), ::tolower);
+
+    proto_map_t::iterator func = m_proto_map.find(cmd);
     if (func != m_proto_map.end()) {
-        return (func->second)(this, arg, _response);
+        return (func->second)(this, arg, os);
     } else {
         ++m_error_count;
-        _response << "502 5.5.2 Syntax error, command unrecognized.\r\n";
+        os << "502 5.5.2 Syntax error, command unrecognized.\r\n";
     }
 
     return true;
@@ -1085,11 +1095,11 @@ bool smtp_connection::smtp_ehlo( const std::string& _cmd, std::ostream &_respons
 }
 
 namespace {
-std::string extract_addr(const std::string &s) {
-    std::string::size_type beg = s.find("<");
-    if (beg != std::string::npos) {
-        std::string::size_type end = s.find(">", beg);
-        if (end != std::string::npos) {
+string extract_addr(string s) {
+    string::size_type beg = s.find("<");
+    if (beg != string::npos) {
+        string::size_type end = s.find(">", beg);
+        if (end != string::npos) {
             return s.substr(beg + 1, end - beg - 1);
         }
     }
@@ -1356,7 +1366,8 @@ bool smtp_connection::smtp_data( const std::string& _cmd, std::ostream &_respons
     return true;
 }
 
-void smtp_connection::stop() {
+void smtp_connection::stop()
+{
 	m_timer.cancel();
 	m_resolver.cancel();
 
@@ -1382,6 +1393,8 @@ void smtp_connection::stop() {
         m_smtp_client.reset();
     }
 
+    on_connection_close();
+
     g_log.msg(MSG_NORMAL,
               str(boost::format("%1%-RECV: ******** disconnected from %2%[%3%] ********")
                   % m_session_id
@@ -1390,12 +1403,15 @@ void smtp_connection::stop() {
 }
 
 
-void smtp_connection::handle_timer(const boost::system::error_code& _e)
+void smtp_connection::handle_timer(const boost::system::error_code &ec)
 {
-    if(_e) return;
+    if (ec) {
+        return;
+    }
 
     std::ostream response_stream(&m_response);
-    response_stream << "421 4.4.2 " << boost::asio::ip::host_name()
+    response_stream << "421 4.4.2 "
+                    << boost::asio::ip::host_name()
                     << " Error: timeout exceeded\r\n";
 
     if (m_proto_state == STATE_BLAST_FILE) {
@@ -1406,7 +1422,7 @@ void smtp_connection::handle_timer(const boost::system::error_code& _e)
                       % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
                       % m_connected_ip.to_string()));
     } else {
-        const char* state_desc = "";
+        const char *state_desc = "";
         switch (m_proto_state)
         {
         case STATE_START:
@@ -1435,17 +1451,6 @@ void smtp_connection::handle_timer(const boost::system::error_code& _e)
         &smtp_connection::handle_last_write_request,
         shared_from_this(),
         boost::asio::placeholders::error));
-
-//        if (ssl_state_ == ssl_active)
-//		{
-//			async_say_goodbye();
-//		}
-//		else
-//		{
-//    	    boost::asio::async_write(socket(), m_response,
-//                strand_.wrap(boost::bind(&smtp_connection::handle_last_write_request, shared_from_this(),
-//                                boost::asio::placeholders::error)));
-//		}
 }
 
 void smtp_connection::restart_timeout()

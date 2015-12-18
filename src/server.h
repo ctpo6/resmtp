@@ -43,6 +43,8 @@ private:
                        bool force_ssl,
                        const boost::system::error_code &ec);
 
+    void on_connection();
+
     const uint32_t m_io_service_pool_size;
 
     boost::asio::io_service m_io_service;

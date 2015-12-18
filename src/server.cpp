@@ -8,6 +8,7 @@
 #include <boost/lexical_cast.hpp>
 #include <boost/thread/thread.hpp>
 
+#include "global.h"
 #include "log.h"
 
 using namespace std;
@@ -205,14 +206,15 @@ void server::handle_accept(acceptor_t *acceptor,
                            bool force_ssl,
                            const boost::system::error_code &ec)
 {
-
     if (ec == ba::error::operation_aborted)
         return;
 
     boost::mutex::scoped_lock lock(m_mutex);
     if (!ec) {
+        on_connection();
         try {
             conn->start(force_ssl);
+            // TODO what really can be thrown here???
         } catch (const boost::system::system_error &e) {
             if (e.code() != ba::error::not_connected) {
                 g_log.msg(MSG_CRITICAL,
@@ -240,4 +242,12 @@ void server::handle_accept(acceptor_t *acceptor,
                                        force_ssl,
                                        ba::placeholders::error));
 }
+
+
+void server::on_connection()
+{
+    // signal about inbound connection
+    g::mon().conn();
+}
+
 }
