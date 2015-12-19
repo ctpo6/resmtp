@@ -100,7 +100,7 @@ protected:
     void handle_ssl_handshake(const boost::system::error_code& ec);
     void handle_last_write_request(const boost::system::error_code& ec);
 
-    void handle_read(const boost::system::error_code& _err, std::size_t _size);
+    void handle_read(const boost::system::error_code &ec, std::size_t size);
     void handle_read_helper(std::size_t size);
     bool handle_read_command_helper(const yconst_buffers_iterator& b, const yconst_buffers_iterator& e, yconst_buffers_iterator& parsed, yconst_buffers_iterator& read);
     bool handle_read_data_helper(const yconst_buffers_iterator& b, const yconst_buffers_iterator& e, yconst_buffers_iterator& parsed, yconst_buffers_iterator& read);

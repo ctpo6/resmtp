@@ -15,7 +15,10 @@ public:
     enum class status
     {
         ok = 0,
-        fail
+        fail,
+        // connection was closed by resmtp because client sarted writing to the
+        // socket before receiving a greeting message
+        fail_client_early_write
     };
 
     monitor();

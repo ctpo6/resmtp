@@ -25,6 +25,8 @@ struct monitor::impl_conn_t
 
         uint64_t n_closed_conn_fail_fast;
         uint64_t n_closed_conn_fail_tarpit;
+        // counters of specific fail reasons
+        uint64_t n_closed_conn_fail_client_early_write;
 
         uint32_t n_active_conn_fast;
         uint32_t n_active_conn_tarpit;
@@ -67,10 +69,14 @@ struct monitor::impl_conn_t
             else
                 ++c.n_closed_conn_ok_fast;
         } else {
+            // all fail statuses come here
             if (tarpit)
                 ++c.n_closed_conn_fail_tarpit;
             else
                 ++c.n_closed_conn_fail_fast;
+            // update specific fail reason counters
+            if (st == status::fail_client_early_write)
+                ++c.n_closed_conn_fail_client_early_write;
         }
     }
 
@@ -105,6 +111,7 @@ struct monitor::impl_conn_t
         os << "closed_conn_fail " << closed_conn_fail << '\n';
         os << "closed_conn_fail_fast " << cc.n_closed_conn_fail_fast << '\n';
         os << "closed_conn_fail_tarpit " << cc.n_closed_conn_fail_tarpit << '\n';
+        os << "closed_conn_fail_client_early_write " << cc.n_closed_conn_fail_client_early_write << '\n';
     }
 };
 
@@ -143,6 +150,5 @@ void monitor::conn_closed(status st, bool tarpit) noexcept
 {
     impl_conn->conn_closed(st, tarpit);
 }
-
 
 }

@@ -412,7 +412,7 @@ bool smtp_connection::handle_read_command_helper(
         return true;
     }
 
-    std::string command(parsed, read);
+    string command(parsed, read);
     parsed = ++read;
 
     std::ostream os(&m_response);
@@ -490,6 +490,7 @@ void smtp_connection::handle_read(const boost::system::error_code& ec,
     }
 }
 
+
 void smtp_connection::start_check_data()
 {
     m_check_data.m_session_id = m_session_id;
@@ -515,7 +516,7 @@ void smtp_connection::start_check_data()
     }
     else
     {
-        PDBG("call smtp_delivery_start()");
+//        PDBG("call smtp_delivery_start()");
         smtp_delivery_start();
     }
 }
@@ -542,7 +543,7 @@ void smtp_connection::handle_dkim_timeout(const boost::system::error_code& ec)
         dkim_check_->stop();
     dkim_check_.reset();
     if (m_smtp_delivery_pending) {
-        PDBG("call smtp_delivery_start()");
+//        PDBG("call smtp_delivery_start()");
         smtp_delivery_start();
     }
 }
@@ -852,7 +853,7 @@ void smtp_connection::end_check_data() {
 void smtp_connection::send_response(
         boost::function<void(const boost::system::error_code &)> handler) {
     if (m_response.size() == 0) {
-        // nothing to send
+        PDBG("nothing to send");
         return;
     }
 
@@ -863,7 +864,9 @@ void smtp_connection::send_response(
     }
 
     // send with tarpit timeout
-    PDBG("... tarpit delay ...");
+    g_log.msg(MSG_DEBUG,
+              str(boost::format("TARPIT: delay %1% seconds")
+                  % g_config.m_tarpit_delay_seconds));
     m_tarpit_timer.expires_from_now(
         boost::posix_time::seconds(g_config.m_tarpit_delay_seconds));
     m_tarpit_timer.async_wait(strand_.wrap(
@@ -880,9 +883,9 @@ void smtp_connection::send_response2(
             m_proto_state == STATE_START &&
             !check_socket_read_buffer_is_empty()) {
         g_log.msg(MSG_NORMAL,
-            str(boost::format("%1%: ABORT SESSION (bad client behavior)")
-                % m_session_id));
-        conn_close_status = status_t::fail;
+                  str(boost::format("%1%: ABORT SESSION (bad client behavior)")
+                      % m_session_id));
+        conn_close_status = status_t::fail_client_early_write;
         m_manager.stop(shared_from_this());
     }
 
