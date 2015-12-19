@@ -1,5 +1,7 @@
 #include "monitor.h"
 
+#include <unistd.h>
+
 #include <cstring>
 #include <mutex>
 
@@ -118,6 +120,7 @@ struct monitor::impl_conn_t
 
 monitor::monitor()
     : impl_conn(new impl_conn_t)
+    , tp_start(time(NULL))
 {
 }
 
@@ -129,6 +132,8 @@ monitor::~monitor()
 
 void monitor::print(std::ostream &os) const noexcept
 {
+    os << "pid " << getpid() << '\n';
+    os << "uptime " << time(NULL) - tp_start << '\n';
     os << "version " << g::app_version() << '\n';
     impl_conn->print(os);
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <ctime>
 #include <memory>
 #include <ostream>
 
@@ -34,5 +35,7 @@ public:
 private:
     struct impl_conn_t;
     std::unique_ptr<impl_conn_t> impl_conn;
+
+    std::time_t tp_start;
 };
 }
