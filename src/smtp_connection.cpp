@@ -281,7 +281,7 @@ void smtp_connection::on_connection_tarpitted()
 
 void smtp_connection::on_connection_close()
 {
-    g::mon().conn_closed(tarpit);
+    g::mon().conn_closed(conn_close_status, tarpit);
 }
 
 
@@ -467,25 +467,24 @@ void smtp_connection::handle_read_helper(std::size_t size)
         start_read();
 }
 
-void smtp_connection::handle_read(const boost::system::error_code& _err, std::size_t size)
+
+void smtp_connection::handle_read(const boost::system::error_code& ec,
+                                  size_t size)
 {
     m_read_pending_ = false;
 
-    if (size == 0)
-    {
+    if (size == 0) {
+        conn_close_status = status_t::fail;
         m_manager.stop(shared_from_this());
         return;
     }
 
-    if (!_err)
-    {
+    if (!ec) {
         buffers_.commit(size);
         handle_read_helper(buffers_.size());
-    }
-    else
-    {
-        if (_err != boost::asio::error::operation_aborted)
-        {
+    } else {
+        if (ec != boost::asio::error::operation_aborted) {
+            conn_close_status = status_t::fail;
             m_manager.stop(shared_from_this());
         }
     }
@@ -883,6 +882,7 @@ void smtp_connection::send_response2(
         g_log.msg(MSG_NORMAL,
             str(boost::format("%1%: ABORT SESSION (bad client behavior)")
                 % m_session_id));
+        conn_close_status = status_t::fail;
         m_manager.stop(shared_from_this());
     }
 
@@ -922,6 +922,7 @@ void smtp_connection::handle_write_request(const boost::system::error_code &ec)
         start_read();
     } else {
         if (ec != boost::asio::error::operation_aborted) {
+            conn_close_status = status_t::fail;
             m_manager.stop(shared_from_this());
         }
     }
@@ -940,6 +941,9 @@ void smtp_connection::handle_last_write_request(
     }
 #endif
     if (ec != boost::asio::error::operation_aborted) {
+        if (ec) {
+            conn_close_status = status_t::fail;
+        }
         m_manager.stop(shared_from_this());
     }
 }
@@ -954,6 +958,7 @@ void smtp_connection::handle_ssl_handshake(const boost::system::error_code& ec)
                                 boost::asio::placeholders::error)));
     } else {
         if (ec != boost::asio::error::operation_aborted) {
+            conn_close_status = status_t::fail;
             m_manager.stop(shared_from_this());
         }
     }

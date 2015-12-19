@@ -18,6 +18,7 @@
 #include "buffers.h"
 #include "envelope.h"
 #include "eom_parser.h"
+#include "monitor.h"
 #include "rbl.h"
 #include "smtp_client.h"
 
@@ -216,6 +217,9 @@ protected:
     uint32_t m_error_count = 0;
 
     bool tarpit = false;
+
+    using status_t = resmtp::monitor::status;
+    status_t conn_close_status = status_t::ok;
 
 
     void handle_timer(const boost::system::error_code &ec);

@@ -12,6 +12,12 @@ namespace resmtp {
 class monitor : private boost::noncopyable
 {
 public:
+    enum class status
+    {
+        ok = 0,
+        fail
+    };
+
     monitor();
     ~monitor();
 
@@ -19,11 +25,11 @@ public:
 
     void conn() noexcept;
     void conn_tarpitted() noexcept;
-    void conn_closed(bool tarpitted) noexcept;
+
+    void conn_closed(status st, bool tarpit) noexcept;
 
 private:
     struct impl_conn_t;
     std::unique_ptr<impl_conn_t> impl_conn;
-
 };
 }
