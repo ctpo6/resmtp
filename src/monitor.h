@@ -42,11 +42,17 @@ public:
                      uint16_t port,
                      uint32_t weight) noexcept;
 
-    // set current IP address of backend
+    // report current IP address of backend
     void on_backend_ip_address(uint32_t idx, string addr) noexcept;
 
+    // report current status of backend
     void on_backend_status(uint32_t idx,
                            smtp_backend_manager::host_status st) noexcept;
+
+    // report connection to backend established
+    void on_backend_conn(uint32_t idx) noexcept;
+    // report connection to backend closed
+    void on_backend_conn_closed(uint32_t idx) noexcept;
 
 private:
     struct impl_conn_t;

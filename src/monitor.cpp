@@ -145,25 +145,44 @@ struct monitor::impl_backend_t
 
         status_t status;
         string ip_address;
+        uint32_t n_active_conn;
+        uint64_t n_conn;
 
-        backend_t() : status(status_t::unknown) {}
+        backend_t()
+            : status(status_t::unknown)
+            , ip_address("0.0.0.0")
+            , n_active_conn(0)
+            , n_conn(0)
+        {}
 
         void print(ostream &os, uint32_t idx) const noexcept
         {
             os << "backend_status" << '[' << idx << "]";
             switch (status) {
             case status_t::ok:
-                os << " ok " << ip_address << '\n';
+                os << " ok "
+                   << ip_address << ' '
+                   << n_active_conn << ' '
+                   << n_conn << '\n';
                 break;
             case status_t::unknown:
                 // we still haven't tried to connect to this backend
-                os << " unknown\n";
+                os << " unknown "
+                   << ip_address << ' '
+                   << n_active_conn << ' '
+                   << n_conn << '\n';
                 break;
             case status_t::fail_resolve:
-                os << " fail_resolve\n";
+                os << " fail_resolve "
+                   << ip_address << ' '
+                   << n_active_conn << ' '
+                   << n_conn << '\n';
                 break;
             case status_t::fail_connect:
-                os << " fail_connect " << ip_address << '\n';
+                os << " fail_connect "
+                   << ip_address << ' '
+                   << n_active_conn << ' '
+                   << n_conn << '\n';
                 break;
             default:
                 assert(false && "unknown status code");
@@ -203,6 +222,21 @@ struct monitor::impl_backend_t
         backend.at(idx).status = st;
     }
 
+    void on_conn(uint32_t idx) noexcept
+    {
+        lock_guard<mutex> lock(mtx.at(idx));
+        auto &b = backend.at(idx);
+        ++b.n_active_conn;
+        ++b.n_conn;
+    }
+
+    void on_conn_closed(uint32_t idx) noexcept
+    {
+        lock_guard<mutex> lock(mtx.at(idx));
+        auto &b = backend.at(idx);
+        --b.n_active_conn;
+    }
+
     void print(std::ostream &os) const noexcept
     {
         os << "backends " << backend_ini.size() << '\n';
@@ -214,7 +248,7 @@ struct monitor::impl_backend_t
         }
 
         // print backend_status[]
-        os << "# <status> [<ip_address>]\n";
+        os << "# <status> <ip_address> <n_active_conn> <n_conn>\n";
         backend_t b;
         for (uint32_t i = 0; i < backend.size(); ++i) {
             {
@@ -291,6 +325,18 @@ void monitor::on_backend_status(uint32_t idx,
                                 smtp_backend_manager::host_status st) noexcept
 {
     impl_backend->set_status(idx, st);
+}
+
+
+void monitor::on_backend_conn(uint32_t idx) noexcept
+{
+    impl_backend->on_conn(idx);
+}
+
+
+void monitor::on_backend_conn_closed(uint32_t idx) noexcept
+{
+    impl_backend->on_conn_closed(idx);
 }
 
 }

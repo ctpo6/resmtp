@@ -139,6 +139,8 @@ protected:
     void success();
 
     void on_backend_ip_address();
+    void on_backend_conn();
+    void on_backend_conn_closed();
 };
 
 typedef std::shared_ptr<smtp_client> smtp_client_ptr;

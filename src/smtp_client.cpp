@@ -1,5 +1,6 @@
 #include "smtp_client.h"
 
+#include <cassert>
 #include <iostream>
 #include <fstream>
 
@@ -239,6 +240,7 @@ void smtp_client::handle_resolve(const bs::error_code &ec,
 
 void smtp_client::handle_simple_connect(const bs::error_code &ec) {
     if (!ec) {
+        on_backend_conn();
         m_proto_state = STATE_START;
         m_timer_value = g_config.backend_connect_timeout;
         start_read_line();
@@ -267,6 +269,7 @@ void smtp_client::handle_connect(const bs::error_code &ec,
                                  dns::resolver::iterator it)
 {
     if (!ec) {
+        on_backend_conn();
         m_proto_state = STATE_START;
         m_timer_value = g_config.backend_connect_timeout;
         start_read_line();
@@ -384,13 +387,17 @@ void smtp_client::start_read_line()
 
 void smtp_client::handle_read_smtp_line(const bs::error_code &ec) {
     if (ec) {
-        // TODO ????
+        if (ec != ba::error::operation_aborted) {
+            PDBG("call on_host_fail()");
+            backend_mgr.on_host_fail(backend_host,
+                                     smtp_backend_manager::host_status::fail_connect);
+            fault(string("ERROR: write failed: ") + ec.message(), "");
+        }
         return;
     }
 
     std::istream response_stream(&m_request);
     if (!process_answer(response_stream)) {
-        // TODO ????
         return;
     }
 
@@ -710,6 +717,9 @@ void smtp_client::fault(string log_msg, string remote_answer)
         m_socket.close();
     } catch (...) {}
 
+    PDBG("call on_backend_conn_closed()");
+    g::mon().on_backend_conn_closed(backend_host.index);
+
     m_socket.get_io_service().post(cb_complete);
     cb_complete = nullptr;
 }
@@ -718,12 +728,15 @@ void smtp_client::fault(string log_msg, string remote_answer)
 void smtp_client::fault_backend()
 {
     m_proto_state = STATE_ERROR;
+
     m_timer.cancel();
     m_resolver.cancel();
 
-    try {
-        m_socket.close();
-    } catch (...) {}
+    assert(!m_socket.is_open()
+           && "socket must not be open here - debug the code!!!");
+//    try {
+//        m_socket.close();
+//    } catch (...) {}
 }
 
 
@@ -757,10 +770,12 @@ void smtp_client::success()
 
     m_timer.cancel();
     m_resolver.cancel();
-
     try {
         m_socket.close();
     } catch (...) {}
+
+    PDBG("call on_backend_conn_closed()");
+    g::mon().on_backend_conn_closed(backend_host.index);
 
     m_socket.get_io_service().post(cb_complete);
     cb_complete = nullptr;
@@ -768,10 +783,12 @@ void smtp_client::success()
 
 
 void smtp_client::do_stop() {
+    m_timer.cancel();
+    m_resolver.cancel();
+
+    // TODO is it really needed here???
     try {
         m_socket.close();
-        m_resolver.cancel();
-        m_timer.cancel();
     } catch(...) {}
 }
 
@@ -823,19 +840,24 @@ void smtp_client::handle_timer(const bs::error_code &ec) {
         break;
     }
 
-    PDBG("call on_host_fail()");
-    backend_mgr.on_host_fail(backend_host,
-                                 smtp_backend_manager::host_status::fail_connect);
+    // TODO make a separate state: before connection is established
     if (m_proto_state == STATE_START) {
         g_log.msg(MSG_CRITICAL,
                   str(boost::format("%1%-%2%-SEND-%3%: ERROR: timeout expired connecting to backend host %4%")
                       % m_data.m_session_id
                       % m_envelope->m_id
                       % m_proto_name
-                      % backend_host.host_name));
+                      % backend_host.host_name));\
+
+        PDBG("call on_host_fail()");
+        backend_mgr.on_host_fail(backend_host,
+                                 smtp_backend_manager::host_status::fail_resolve);
         fault_backend();
         start_with_next_backend();
     } else {
+        PDBG("call on_host_fail()");
+        backend_mgr.on_host_fail(backend_host,
+                                 smtp_backend_manager::host_status::fail_connect);
         fault(string("ERROR: SMTP client timeout: ") + state, "");
     }
 }
@@ -851,4 +873,16 @@ void smtp_client::restart_timeout()
 void smtp_client::on_backend_ip_address()
 {
     g::mon().on_backend_ip_address(backend_host.index, backend_host_ip);
+}
+
+
+void smtp_client::on_backend_conn()
+{
+    g::mon().on_backend_conn(backend_host.index);
+}
+
+
+void smtp_client::on_backend_conn_closed()
+{
+    g::mon().on_backend_conn_closed(backend_host.index);
 }
