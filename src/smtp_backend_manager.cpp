@@ -4,6 +4,7 @@
 #include <cassert>
 #include <cstdlib>
 
+#include "global.h"
 #include "log.h"
 #include "options.h"
 
@@ -38,6 +39,12 @@ smtp_backend_manager::smtp_backend_manager(
 
     status.resize(hosts.size(), host_status::ok);
     fail_expiration_tp.resize(hosts.size(), 0);
+
+    // initialize backend hosts in monitor
+    g::mon().set_number_of_backends(hosts.size());
+    for (uint32_t i = 0; i < hosts.size(); ++i) {
+        g::mon().set_backend(i, hosts[i].host_name, port, hosts[i].weight);
+    }
 }
 
 

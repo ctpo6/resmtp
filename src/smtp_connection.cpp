@@ -887,6 +887,7 @@ void smtp_connection::send_response2(
                       % m_session_id));
         conn_close_status = status_t::fail_client_early_write;
         m_manager.stop(shared_from_this());
+        return;
     }
 
 	g_log.msg(MSG_DEBUG,

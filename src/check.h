@@ -23,13 +23,17 @@ struct check
     string m_remote_ip;
 };
 
-struct check_rcpt_t : public check {
+
+struct check_rcpt_t : public check
+{
     string m_rcpt;
     uint64_t m_suid;
     string m_uid;
 };
 
-struct check_data_t : public check {
+
+struct check_data_t : public check
+{
     // resolved from client IP
     string m_remote_host;
     // extracted from HELO/EHLO

@@ -24,9 +24,9 @@ using std::vector;
 
 class smtp_backend_manager :
         public boost::enable_shared_from_this<smtp_backend_manager>,
-        private boost::noncopyable {
+        private boost::noncopyable
+{
 public:
-
     struct backend_host {
         backend_host() = default;
         backend_host(uint32_t i, string h, uint16_t p) :

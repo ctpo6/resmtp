@@ -4,6 +4,7 @@
 
 #include <cstring>
 #include <mutex>
+#include <vector>
 
 #include "global.h"
 
@@ -118,8 +119,87 @@ struct monitor::impl_conn_t
 };
 
 
+struct monitor::impl_backend_t
+{
+    struct backend_ini_t
+    {
+        string host_name;
+        uint16_t port;
+        uint32_t weight;
+
+        backend_ini_t() = default;
+
+        backend_ini_t(string h, uint16_t p, uint32_t w) :
+            host_name(h), port(p), weight(w) {}
+
+        void print(ostream &os, uint32_t idx) const noexcept
+        {
+            os << "backend" << '[' << idx << "] "
+               << host_name << ':' << port << ' ' << weight << '\n';
+        }
+    };
+
+    struct backend_t {
+        string ip_address;
+
+        void print(ostream &os, uint32_t idx) const noexcept
+        {
+            os << "backend_status" << '[' << idx << "] "
+               << ip_address << '\n';
+        }
+    };
+
+    // it's immutable agter init, so no need in mutex protection
+    vector<backend_ini_t> backend_ini;
+
+    vector<backend_t> backend;
+    mutable vector<mutex> mtx;
+
+
+    void set_number_of_backends(uint32_t n) noexcept
+    {
+        backend_ini = vector<backend_ini_t>(n);
+        backend = vector<backend_t>(n);
+        mtx = vector<mutex>(n);
+    }
+
+    void set_backend(uint32_t idx, string h, uint16_t p, uint32_t w)
+    {
+        backend_ini.at(idx) = backend_ini_t(h, p, w);
+    }
+
+    void set_ip_address(uint32_t idx, string addr)
+    {
+        lock_guard<mutex> lock(mtx[idx]);
+        backend[idx].ip_address = addr;
+    }
+
+    void print(std::ostream &os) const noexcept
+    {
+        os << "backends " << backend_ini.size() << '\n';
+
+        // print backend[]
+        for (uint32_t i = 0; i < backend_ini.size(); ++i) {
+            backend_ini[i].print(os, i + 1);
+        }
+
+        // print backend_status[]
+        backend_t b;
+        for (uint32_t i = 0; i < backend_ini.size(); ++i) {
+            {
+                lock_guard<mutex> lock(mtx[i]);
+                b = backend[i];
+            }
+            b.print(os, i + 1);
+        }
+    }
+};
+
+
+
 monitor::monitor()
     : impl_conn(new impl_conn_t)
+    , impl_backend(new impl_backend_t)
     , tp_start(time(NULL))
 {
 }
@@ -136,6 +216,7 @@ void monitor::print(std::ostream &os) const noexcept
     os << "uptime " << time(NULL) - tp_start << '\n';
     os << "version " << g::app_version() << '\n';
     impl_conn->print(os);
+    impl_backend->print(os);
 }
 
 
@@ -154,6 +235,24 @@ void monitor::conn_tarpitted() noexcept
 void monitor::conn_closed(status st, bool tarpit) noexcept
 {
     impl_conn->conn_closed(st, tarpit);
+}
+
+
+void monitor::set_number_of_backends(uint32_t n)
+{
+    impl_backend->set_number_of_backends(n);
+}
+
+
+void monitor::set_backend(uint32_t idx, string h, uint16_t p, uint32_t w)
+{
+    impl_backend->set_backend(idx, h, p, w);
+}
+
+
+void monitor::set_backend_ip_address(uint32_t idx, string addr)
+{
+    impl_backend->set_ip_address(idx, addr);
 }
 
 }
