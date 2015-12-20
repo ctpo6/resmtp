@@ -6,6 +6,7 @@
 #include <boost/format.hpp>
 #include <boost/lexical_cast.hpp>
 
+#include "global.h"
 #include "log.h"
 #include "util.h"
 
@@ -167,6 +168,7 @@ void smtp_client::start_with_next_backend()
         // backend_host.host_name is an IP address, proceed to connect
         ep.port(backend_host.port);
         backend_host_ip = backend_host.host_name;
+        on_backend_ip_address();
         m_socket.async_connect(ep,
             strand_.wrap(boost::bind(&smtp_client::handle_simple_connect,
                                      shared_from_this(),
@@ -200,6 +202,7 @@ void smtp_client::handle_resolve(const bs::error_code &ec,
                     boost::dynamic_pointer_cast<dns::a_resource>(*it)->address(),
                     backend_host.port);
         backend_host_ip = ep.address().to_string();
+        on_backend_ip_address();
 
         g_log.msg(MSG_DEBUG,
                   str(boost::format("%1%-%2%-SEND-%3% connect to %4%[%5%]:%6%")
@@ -224,9 +227,9 @@ void smtp_client::handle_resolve(const bs::error_code &ec,
                           % m_proto_name
                           % backend_host.host_name));
 
-            PDBG("call report_host_fail()");
-            backend_mgr.report_host_fail(backend_host,
-                                         smtp_backend_manager::host_status::fail_resolve);
+            PDBG("call on_host_fail()");
+            backend_mgr.on_host_fail(backend_host,
+                                     smtp_backend_manager::host_status::fail_resolve);
             fault_backend();
             start_with_next_backend();
         }
@@ -250,9 +253,9 @@ void smtp_client::handle_simple_connect(const bs::error_code &ec) {
                           % backend_host_ip
                           % backend_host.port));
 
-            PDBG("call report_host_fail()");
-            backend_mgr.report_host_fail(backend_host,
-                                         smtp_backend_manager::host_status::fail_connect);
+            PDBG("call on_host_fail()");
+            backend_mgr.on_host_fail(backend_host,
+                                     smtp_backend_manager::host_status::fail_connect);
             fault_backend();
             start_with_next_backend();
         }
@@ -314,9 +317,9 @@ void smtp_client::handle_connect(const bs::error_code &ec,
                   % m_proto_name
                   % backend_host.host_name));
 
-    PDBG("call report_host_fail()");
-    backend_mgr.report_host_fail(backend_host,
-                                 smtp_backend_manager::host_status::fail_connect);
+    PDBG("call on_host_fail()");
+    backend_mgr.on_host_fail(backend_host,
+                             smtp_backend_manager::host_status::fail_connect);
     fault_backend();
     start_with_next_backend();
 }
@@ -327,9 +330,9 @@ void smtp_client::handle_write_data_request(const bs::error_code &ec,
 {
     if (ec) {
         if (ec != ba::error::operation_aborted) {
-            PDBG("call report_host_fail()");
-            backend_mgr.report_host_fail(backend_host,
-                                         smtp_backend_manager::host_status::fail_connect);
+            PDBG("call on_host_fail()");
+            backend_mgr.on_host_fail(backend_host,
+                                     smtp_backend_manager::host_status::fail_connect);
 //            start_with_next_backend();
             fault(string("ERROR: write failed: ") + ec.message(), "");
         }
@@ -355,9 +358,9 @@ void smtp_client::handle_write_request(const bs::error_code &ec,
 {
     if (ec) {
         if (ec != ba::error::operation_aborted) {
-            PDBG("call report_host_fail()");
-            backend_mgr.report_host_fail(backend_host,
-                                         smtp_backend_manager::host_status::fail_connect);
+            PDBG("call on_host_fail()");
+            backend_mgr.on_host_fail(backend_host,
+                                     smtp_backend_manager::host_status::fail_connect);
 //            start_with_next_backend();
             fault(string("ERROR: write failed: ") + ec.message(), "");
         }
@@ -439,8 +442,8 @@ bool smtp_client::process_answer(std::istream &_stream) {
             }
         } catch (const boost::bad_lexical_cast &) {}
         if (code == 0xffffffff) {
-//            backend_mgr.report_host_fail(backend_host,
-//                                         smtp_backend_manager::host_status::fail);
+//            backend_mgr.on_host_fail(backend_host,
+//                                     smtp_backend_manager::host_status::fail);
 //            start_with_next_backend();
             fault("ERROR: invalid SMTP state code", line_buffer);
             return false;
@@ -482,8 +485,8 @@ bool smtp_client::process_answer(std::istream &_stream) {
             break;
         }
         if (p_err_str) {
-//            backend_mgr.report_host_fail(backend_host,
-//                                         smtp_backend_manager::host_status::fail);
+//            backend_mgr.on_host_fail(backend_host,
+//                                     smtp_backend_manager::host_status::fail);
 //            start_with_next_backend();
             fault(string("ERROR: ") + p_err_str, line_buffer);
             return false;
@@ -820,8 +823,8 @@ void smtp_client::handle_timer(const bs::error_code &ec) {
         break;
     }
 
-    PDBG("call report_host_fail()");
-    backend_mgr.report_host_fail(backend_host,
+    PDBG("call on_host_fail()");
+    backend_mgr.on_host_fail(backend_host,
                                  smtp_backend_manager::host_status::fail_connect);
     if (m_proto_state == STATE_START) {
         g_log.msg(MSG_CRITICAL,
@@ -842,4 +845,10 @@ void smtp_client::restart_timeout()
 {
     m_timer.expires_from_now(boost::posix_time::seconds(m_timer_value));
     m_timer.async_wait(strand_.wrap(boost::bind(&smtp_client::handle_timer, shared_from_this(), ba::placeholders::error)));
+}
+
+
+void smtp_client::on_backend_ip_address()
+{
+    g::mon().on_backend_ip_address(backend_host.index, backend_host_ip);
 }

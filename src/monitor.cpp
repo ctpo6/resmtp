@@ -2,6 +2,7 @@
 
 #include <unistd.h>
 
+#include <cassert>
 #include <cstring>
 #include <mutex>
 #include <vector>
@@ -140,12 +141,33 @@ struct monitor::impl_backend_t
     };
 
     struct backend_t {
+        using status_t = smtp_backend_manager::host_status;
+
+        status_t status;
         string ip_address;
+
+        backend_t() : status(status_t::unknown) {}
 
         void print(ostream &os, uint32_t idx) const noexcept
         {
-            os << "backend_status" << '[' << idx << "] "
-               << ip_address << '\n';
+            os << "backend_status" << '[' << idx << "]";
+            switch (status) {
+            case status_t::ok:
+                os << " ok " << ip_address << '\n';
+                break;
+            case status_t::unknown:
+                // we still haven't tried to connect to this backend
+                os << " unknown\n";
+                break;
+            case status_t::fail_resolve:
+                os << " fail_resolve\n";
+                break;
+            case status_t::fail_connect:
+                os << " fail_connect " << ip_address << '\n';
+                break;
+            default:
+                assert(false && "unknown status code");
+            }
         }
     };
 
@@ -163,15 +185,22 @@ struct monitor::impl_backend_t
         mtx = vector<mutex>(n);
     }
 
-    void set_backend(uint32_t idx, string h, uint16_t p, uint32_t w)
+    void set_backend(uint32_t idx, string h, uint16_t p, uint32_t w) noexcept
     {
         backend_ini.at(idx) = backend_ini_t(h, p, w);
     }
 
-    void set_ip_address(uint32_t idx, string addr)
+    void set_ip_address(uint32_t idx, string addr) noexcept
     {
-        lock_guard<mutex> lock(mtx[idx]);
-        backend[idx].ip_address = addr;
+        lock_guard<mutex> lock(mtx.at(idx));
+        backend.at(idx).ip_address = addr;
+    }
+
+    void set_status(uint32_t idx,
+                    smtp_backend_manager::host_status st) noexcept
+    {
+        lock_guard<mutex> lock(mtx.at(idx));
+        backend.at(idx).status = st;
     }
 
     void print(std::ostream &os) const noexcept
@@ -179,13 +208,15 @@ struct monitor::impl_backend_t
         os << "backends " << backend_ini.size() << '\n';
 
         // print backend[]
+        os << "# <host_name>:<port> <weight>\n";
         for (uint32_t i = 0; i < backend_ini.size(); ++i) {
             backend_ini[i].print(os, i + 1);
         }
 
         // print backend_status[]
+        os << "# <status> [<ip_address>]\n";
         backend_t b;
-        for (uint32_t i = 0; i < backend_ini.size(); ++i) {
+        for (uint32_t i = 0; i < backend.size(); ++i) {
             {
                 lock_guard<mutex> lock(mtx[i]);
                 b = backend[i];
@@ -238,21 +269,28 @@ void monitor::conn_closed(status st, bool tarpit) noexcept
 }
 
 
-void monitor::set_number_of_backends(uint32_t n)
+void monitor::set_number_of_backends(uint32_t n) noexcept
 {
     impl_backend->set_number_of_backends(n);
 }
 
 
-void monitor::set_backend(uint32_t idx, string h, uint16_t p, uint32_t w)
+void monitor::set_backend(uint32_t idx, string h, uint16_t p, uint32_t w) noexcept
 {
     impl_backend->set_backend(idx, h, p, w);
 }
 
 
-void monitor::set_backend_ip_address(uint32_t idx, string addr)
+void monitor::on_backend_ip_address(uint32_t idx, string addr) noexcept
 {
     impl_backend->set_ip_address(idx, addr);
+}
+
+
+void monitor::on_backend_status(uint32_t idx,
+                                smtp_backend_manager::host_status st) noexcept
+{
+    impl_backend->set_status(idx, st);
 }
 
 }

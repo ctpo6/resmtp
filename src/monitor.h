@@ -8,6 +8,8 @@
 
 #include <boost/noncopyable.hpp>
 
+#include "smtp_backend_manager.h"
+
 using std::string;
 
 namespace resmtp {
@@ -33,18 +35,18 @@ public:
     void conn_tarpitted() noexcept;
     void conn_closed(status st, bool tarpit) noexcept;
 
-    void set_number_of_backends(uint32_t n);
+    // backend initialization
+    void set_number_of_backends(uint32_t n) noexcept;
     void set_backend(uint32_t idx,
                      string host_name,
                      uint16_t port,
-                     uint32_t weight);
+                     uint32_t weight) noexcept;
 
-    // initialize vector of backend hosts
-    void backend_push_back(string host_name,
-                           uint16_t port,
-                           uint32_t weight);
     // set current IP address of backend
-    void set_backend_ip_address(uint32_t idx, string addr);
+    void on_backend_ip_address(uint32_t idx, string addr) noexcept;
+
+    void on_backend_status(uint32_t idx,
+                           smtp_backend_manager::host_status st) noexcept;
 
 private:
     struct impl_conn_t;

@@ -37,7 +37,8 @@ public:
     };
 
     enum class host_status {
-        ok = 0,
+        unknown = 0,
+        ok,
 //        fail,
         fail_resolve,
         fail_connect
@@ -50,7 +51,7 @@ public:
     backend_host get_backend_host();
 
     // called by smtp_client to report host operation result
-    void report_host_fail(const backend_host &h, host_status st) noexcept;
+    void on_host_fail(const backend_host &h, host_status st) noexcept;
 
 private:
 
