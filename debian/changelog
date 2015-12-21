@@ -1,8 +1,14 @@
+resmtp (0.2.0) unstable; urgency=low
+
+  * Implemented state monitoring.
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Mon, 21 Dec 2015 16:43:00 +0300
+ 
 resmtp (0.1.0) unstable; urgency=low
 
   * Implemented multiple backends support with WRR selection.
 
- -- Yuri Epstein <yuri.epstein@gmail.com>  Thu, 14 Dec 2015 19:43:00 +0300
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Mon, 14 Dec 2015 19:43:00 +0300
  
 resmtp (0.0.2) unstable; urgency=low
 
