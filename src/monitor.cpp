@@ -277,9 +277,9 @@ monitor::~monitor()
 
 void monitor::print(std::ostream &os) const noexcept
 {
+    os << "version " << g::app_version() << '\n';
     os << "pid " << getpid() << '\n';
     os << "uptime " << time(NULL) - tp_start << '\n';
-    os << "version " << g::app_version() << '\n';
     impl_conn->print(os);
     impl_backend->print(os);
 }

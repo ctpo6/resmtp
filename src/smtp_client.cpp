@@ -80,7 +80,7 @@ void smtp_client::start(const check_data_t& _data,
 
     m_timer_value = g_config.backend_connect_timeout;
 
-    m_proto_state = STATE_START;
+    m_proto_state = proto_state_t::start;
 
     m_relay_name = _remote.m_host_name;
     m_relay_port = _remote.m_port;
@@ -150,7 +150,7 @@ void smtp_client::start(const check_data_t &_data,
 
 void smtp_client::start_with_next_backend()
 {
-    m_proto_state = STATE_START;
+    m_proto_state = proto_state_t::start;
 
     try {
         backend_host = backend_mgr.get_backend_host();
@@ -167,6 +167,7 @@ void smtp_client::start_with_next_backend()
     ep.address(ba::ip::address::from_string(backend_host.host_name, ec));
     if (!ec) {
         // backend_host.host_name is an IP address, proceed to connect
+        m_proto_state = proto_state_t::resolved;
         ep.port(backend_host.port);
         backend_host_ip = backend_host.host_name;
         on_backend_ip_address();
@@ -197,14 +198,13 @@ void smtp_client::handle_resolve(const bs::error_code &ec,
                                  dns::resolver::iterator it)
 {
     if (!ec) {
+        m_proto_state = proto_state_t::resolved;
         restart_timeout();
-
         ba::ip::tcp::endpoint ep(
                     boost::dynamic_pointer_cast<dns::a_resource>(*it)->address(),
                     backend_host.port);
         backend_host_ip = ep.address().to_string();
         on_backend_ip_address();
-
         g_log.msg(MSG_DEBUG,
                   str(boost::format("%1%-%2%-SEND-%3% connect to %4%[%5%]:%6%")
                       % m_data.m_session_id
@@ -213,7 +213,6 @@ void smtp_client::handle_resolve(const bs::error_code &ec,
                       % backend_host.host_name
                       % backend_host_ip
                       % backend_host.port));
-
         m_socket.async_connect(ep,
             strand_.wrap(boost::bind(&smtp_client::handle_connect,
                                      shared_from_this(),
@@ -241,7 +240,7 @@ void smtp_client::handle_resolve(const bs::error_code &ec,
 void smtp_client::handle_simple_connect(const bs::error_code &ec) {
     if (!ec) {
         on_backend_conn();
-        m_proto_state = STATE_START;
+        m_proto_state = proto_state_t::connected;
         m_timer_value = g_config.backend_connect_timeout;
         start_read_line();
     } else {
@@ -270,7 +269,7 @@ void smtp_client::handle_connect(const bs::error_code &ec,
 {
     if (!ec) {
         on_backend_conn();
-        m_proto_state = STATE_START;
+        m_proto_state = proto_state_t::connected;
         m_timer_value = g_config.backend_connect_timeout;
         start_read_line();
         return;
@@ -278,7 +277,7 @@ void smtp_client::handle_connect(const bs::error_code &ec,
         return;
     } else if (it != dns::resolver::iterator()) {     // if not last address
         // TODO why it is needed here???
-        m_socket.close();
+//        m_socket.close();
 
         // log the ip which we failed to connect to
         g_log.msg(MSG_CRITICAL,
@@ -459,37 +458,37 @@ bool smtp_client::process_answer(std::istream &_stream) {
         // check state code
         const char *p_err_str = nullptr;
         switch (m_proto_state) {
-        case STATE_START:
+        case proto_state_t::connected:
             if (code != 220) p_err_str = "invalid greeting";
             break;
-        case STATE_START_XCLIENT:
-            if (code != 220) p_err_str = "invalid XCLIENT greeting";
-            break;
-        case STATE_HELLO:
+        case proto_state_t::after_hello:
             if (code != 250) p_err_str = "invalid answer on EHLO command";
             break;
-        case STATE_HELLO_XCLIENT:
+        case proto_state_t::after_xclient:
+            if (code != 220) p_err_str = "invalid XCLIENT greeting";
+            break;
+        case proto_state_t::after_hello_xclient:
             if (code != 250) p_err_str = "invalid answer on XCLIENT EHLO command";
             break;
-        case STATE_AFTER_MAIL:
+        case proto_state_t::after_mail:
             if (code != 250) p_err_str = "invalid answer on MAIL command";
             break;
-        case STATE_AFTER_RCPT:
+        case proto_state_t::after_rcpt:
             if (code != 250) p_err_str = "invalid answer on RCPT command";
             break;
-        case STATE_AFTER_DATA:
+        case proto_state_t::after_data:
             if (code != 354) p_err_str = "invalid answer on DATA command";
             break;
-        case STATE_AFTER_DOT:
+        case proto_state_t::after_dot:
             if (code != 250) p_err_str = "invalid answer on DOT";
             break;
+        case proto_state_t::after_quit:
 #if 0
-        case STATE_AFTER_QUIT:
             if (code != 221) p_err_str = "invalid answer on QUIT command";
-            break;
 #endif
-        default:
             break;
+        default:
+            assert(false && "debug the code");
         }
         if (p_err_str) {
 //            backend_mgr.on_host_fail(backend_host,
@@ -500,7 +499,7 @@ bool smtp_client::process_answer(std::istream &_stream) {
         }
 
 
-        if (m_proto_state == STATE_HELLO) {
+        if (m_proto_state == proto_state_t::after_hello) {
             if (line_buffer.find("XCLIENT") != string::npos) {
                 m_use_xclient = true;
             }
@@ -518,7 +517,7 @@ bool smtp_client::process_answer(std::istream &_stream) {
         std::ostream answer_stream(&m_response);
 
         switch (m_proto_state) {
-        case STATE_START:
+        case proto_state_t::connected:
             // send:
             // EHLO client.example.com
 
@@ -528,25 +527,23 @@ bool smtp_client::process_answer(std::istream &_stream) {
                           << ba::ip::host_name()
                           << "\r\n";
 
-            m_proto_state = STATE_HELLO;
+            m_proto_state = proto_state_t::after_hello;
             break;
 
-        case STATE_START_XCLIENT:
+        case proto_state_t::after_xclient:
             // send:
             // EHLO spike.porcupine.org
-
-            m_timer_value = g_config.backend_cmd_timeout;
 
             answer_stream << (m_lmtp ? "LHLO " : "EHLO ")
                           << m_data.m_helo_host
                           << "\r\n";
 
-            m_proto_state = STATE_HELLO_XCLIENT;
+            m_proto_state = proto_state_t::after_hello_xclient;
             break;
 
-        case STATE_HELLO:
-        case STATE_HELLO_XCLIENT:
-            if (m_proto_state == STATE_HELLO && m_use_xclient) {
+        case proto_state_t::after_hello:
+        case proto_state_t::after_hello_xclient:
+            if (m_proto_state == proto_state_t::after_hello && m_use_xclient) {
                 // send:
                 // XCLIENT HELO=spike.porcupine.org ADDR=168.100.189.2 NAME=spike.porcupine.org
                 // or
@@ -555,7 +552,7 @@ bool smtp_client::process_answer(std::istream &_stream) {
                               << " ADDR=" << m_data.m_remote_ip
                               << " NAME=" << (m_data.m_remote_host.empty() ? "[UNAVAILABLE]" : m_data.m_helo_host.c_str())
                               << "\r\n";
-                m_proto_state = STATE_START_XCLIENT;
+                m_proto_state = proto_state_t::after_xclient;
             } else {
                 answer_stream << "MAIL FROM: <" << m_envelope->m_sender << ">\r\n";
                 if (m_use_pipelining) {
@@ -574,40 +571,40 @@ bool smtp_client::process_answer(std::istream &_stream) {
 //                              % m_proto_name
 //                              % m_envelope->m_sender));
 
-                m_proto_state = STATE_AFTER_MAIL;
+                m_proto_state = proto_state_t::after_mail;
             }
 
             break;
 
-        case STATE_AFTER_MAIL:
+        case proto_state_t::after_mail:
             m_current_rcpt = m_envelope->m_rcpt_list.begin();
+            // TODO: move this check to the start()?
             if (m_current_rcpt == m_envelope->m_rcpt_list.end()) {
                 fault("ERROR: invalid recipient list", line_buffer);
-
-                // TODO just pass through???? no break?
+                return false;
             }
 
             if (!m_use_pipelining) {
-                answer_stream << "RCPT TO: <" << m_current_rcpt->m_name  << ">\r\n";
+                answer_stream << "RCPT TO: <" << m_current_rcpt->m_name << ">\r\n";
             }
 
-            m_proto_state = STATE_AFTER_RCPT;
+            m_proto_state = proto_state_t::after_rcpt;
             break;
 
-        case STATE_AFTER_RCPT:
+        case proto_state_t::after_rcpt:
             if (++m_current_rcpt == m_envelope->m_rcpt_list.end()) {
                 if (!m_use_pipelining) {
                     answer_stream << "DATA\r\n";
                 }
-                m_proto_state = STATE_AFTER_DATA;
+                m_proto_state = proto_state_t::after_data;
             } else {
                 if (!m_use_pipelining) {
-                    answer_stream << "RCPT TO: <" << m_current_rcpt->m_name  << ">\r\n";
+                    answer_stream << "RCPT TO: <" << m_current_rcpt->m_name << ">\r\n";
                 }
             }
             break;
 
-        case STATE_AFTER_DATA:
+        case proto_state_t::after_data:
             if (m_lmtp) {
                 m_current_rcpt = m_envelope->m_rcpt_list.begin();
             }
@@ -615,14 +612,18 @@ bool smtp_client::process_answer(std::istream &_stream) {
             m_timer_value = g_config.backend_data_timeout;
             restart_timeout();
 
-            m_proto_state = STATE_AFTER_DOT;
-            ba::async_write(m_socket, m_envelope->altered_message_,
-                    strand_.wrap(boost::bind(&smtp_client::handle_write_data_request,
-                                    shared_from_this(), _1, _2)));
+            m_proto_state = proto_state_t::after_dot;
+            ba::async_write(m_socket,
+                            m_envelope->altered_message_,
+                            strand_.wrap(boost::bind(
+                                             &smtp_client::handle_write_data_request,
+                                             shared_from_this(),
+                                             _1,
+                                             _2)));
             return false;
             break;
 
-        case STATE_AFTER_DOT:
+        case proto_state_t::after_dot:
             m_timer_value = g_config.backend_cmd_timeout;
             restart_timeout();
 
@@ -632,7 +633,7 @@ bool smtp_client::process_answer(std::istream &_stream) {
 
                 if (++m_current_rcpt == m_envelope->m_rcpt_list.end()) {
                     answer_stream << "QUIT\r\n";
-                    m_proto_state = STATE_AFTER_QUIT;
+                    m_proto_state = proto_state_t::after_quit;
                 }
             } else {
                 for(m_current_rcpt = m_envelope->m_rcpt_list.begin();
@@ -642,19 +643,17 @@ bool smtp_client::process_answer(std::istream &_stream) {
                     m_current_rcpt->m_remote_answer = line_buffer;
                 }
                 answer_stream << "QUIT\r\n";
-                m_proto_state = STATE_AFTER_QUIT;
+                m_proto_state = proto_state_t::after_quit;
             }
-
             break;
 
-        case STATE_AFTER_QUIT:
+        case proto_state_t::after_quit:
             success();
             return false;
             break;
 
-        case STATE_ERROR:
         default:
-            break;
+            assert(false && "debug the code!!!");
         }
 
         line_buffer.clear();
@@ -706,7 +705,7 @@ void smtp_client::fault(string log_msg, string remote_answer)
 {
     if (!cb_complete) return;
 
-    m_proto_state = STATE_ERROR;
+    m_proto_state = proto_state_t::error;
 
     m_data.m_result = report_rcpt(false, log_msg, remote_answer);
 
@@ -727,7 +726,7 @@ void smtp_client::fault(string log_msg, string remote_answer)
 
 void smtp_client::fault_backend()
 {
-    m_proto_state = STATE_ERROR;
+    m_proto_state = proto_state_t::error;
 
     m_timer.cancel();
     m_resolver.cancel();
@@ -744,7 +743,7 @@ void smtp_client::fault_all_backends()
 {
     if (!cb_complete) return;
 
-    m_proto_state = STATE_ERROR;
+    m_proto_state = proto_state_t::error;
 
     g_log.msg(MSG_CRITICAL,
               str(boost::format("%1%-%2%-SEND-%3%: ALL BACKEND HOSTS ARE UNAVAILABLE")
@@ -796,8 +795,8 @@ void smtp_client::do_stop() {
 void smtp_client::stop()
 {
     m_socket.get_io_service().post(
-        strand_.wrap(
-            boost::bind(&smtp_client::do_stop, shared_from_this())));
+        strand_.wrap(boost::bind(&smtp_client::do_stop,
+                                 shared_from_this())));
 }
 
 
@@ -806,48 +805,13 @@ void smtp_client::handle_timer(const bs::error_code &ec) {
         return;
     }
 
-    const char *state = "";
-    switch (m_proto_state) {
-    case STATE_START:
-        state = "STATE_START";
-        break;
-    case STATE_START_XCLIENT:
-        state = "STATE_START_XCLIENT";
-        break;
-    case STATE_HELLO:
-        state = "STATE_HELLO";
-        break;
-    case STATE_HELLO_XCLIENT:
-        state = "STATE_HELLO_XCLIENT";
-        break;
-    case STATE_AFTER_MAIL:
-        state = "STATE_AFTER_MAIL";
-        break;
-    case STATE_AFTER_RCPT:
-        state = "STATE_AFTER_RCPT";
-        break;
-    case STATE_AFTER_DATA:
-        state = "STATE_AFTER_DATA";
-        break;
-    case STATE_AFTER_DOT:
-        state = "STATE_AFTER_DOT";
-        break;
-    case STATE_AFTER_QUIT:
-        state = "STATE_AFTER_QUIT";
-        break;
-    case STATE_ERROR:
-        state = "STATE_ERROR";
-        break;
-    }
-
-    // TODO make a separate state: before connection is established
-    if (m_proto_state == STATE_START) {
+    if (m_proto_state == proto_state_t::start) {
         g_log.msg(MSG_CRITICAL,
-                  str(boost::format("%1%-%2%-SEND-%3%: ERROR: timeout expired connecting to backend host %4%")
+                  str(boost::format("%1%-%2%-SEND-%3%: ERROR: backend resolve timeout %4%")
                       % m_data.m_session_id
                       % m_envelope->m_id
                       % m_proto_name
-                      % backend_host.host_name));\
+                      % backend_host.host_name));
 
         PDBG("call on_host_fail()");
         backend_mgr.on_host_fail(backend_host,
@@ -858,15 +822,52 @@ void smtp_client::handle_timer(const bs::error_code &ec) {
         PDBG("call on_host_fail()");
         backend_mgr.on_host_fail(backend_host,
                                  smtp_backend_manager::host_status::fail_connect);
-        fault(string("ERROR: SMTP client timeout: ") + state, "");
+        fault(str(boost::format("ERROR: backend connection timeout (%1%)")
+                  % get_state_name(m_proto_state)), "");
     }
+}
+
+
+const char * smtp_client::get_state_name(proto_state_t st)
+{
+    switch (st) {
+    case proto_state_t::start:
+        return "start";
+    case proto_state_t::resolved:
+        return "resolved";
+    case proto_state_t::connected:
+        return "connected";
+    case proto_state_t::after_hello:
+        return "after_hello";
+    case proto_state_t::after_xclient:
+        return "after_xclient";
+    case proto_state_t::after_hello_xclient:
+        return "after_hello_xclient";
+    case proto_state_t::after_mail:
+        return "after_mail";
+    case proto_state_t::after_rcpt:
+        return "after_rcpt";
+    case proto_state_t::after_data:
+        return "after_data";
+    case proto_state_t::after_dot:
+        return "after_dot";
+    case proto_state_t::after_quit:
+        return "after_quit";
+    case proto_state_t::error:
+        return "error";
+        // no default: to allow gcc with -Wall produce a warning
+    }
+    assert(false && "update the switch() above");
+    return nullptr;
 }
 
 
 void smtp_client::restart_timeout()
 {
     m_timer.expires_from_now(boost::posix_time::seconds(m_timer_value));
-    m_timer.async_wait(strand_.wrap(boost::bind(&smtp_client::handle_timer, shared_from_this(), ba::placeholders::error)));
+    m_timer.async_wait(strand_.wrap(boost::bind(&smtp_client::handle_timer,
+                                                shared_from_this(),
+                                                ba::placeholders::error)));
 }
 
 

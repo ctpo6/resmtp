@@ -64,26 +64,31 @@ protected:
     bool m_use_xclient;
     bool m_use_pipelining;
 
-    std::string m_read_buffer;
+    string m_read_buffer;
 
     complete_cb_t cb_complete;
 
     envelope_ptr m_envelope;
 
-    typedef enum {
-        STATE_START = 0,
-        STATE_HELLO,
-        STATE_START_XCLIENT,
-        STATE_HELLO_XCLIENT,
-        STATE_AFTER_MAIL,
-        STATE_AFTER_RCPT,
-        STATE_AFTER_DATA,
-        STATE_AFTER_DOT,
-        STATE_AFTER_QUIT,
-        STATE_ERROR
-    } proto_state_t;
+    enum class proto_state_t {
+        start = 0,
+        resolved,
+        connected,
+        after_hello,
+        after_xclient,
+        after_hello_xclient,
+        after_mail,
+        after_rcpt,
+        after_data,
+        after_dot,
+        after_quit,
+        error
+    };
+    // !!! update this function together with enum
+    static const char * get_state_name(proto_state_t st);
 
     proto_state_t m_proto_state;
+
     check_data_t m_data;
 
     string m_proto_name;
