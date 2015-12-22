@@ -823,12 +823,12 @@ void smtp_client::handle_timer(const bs::error_code &ec) {
         backend_mgr.on_host_fail(backend_host,
                                  smtp_backend_manager::host_status::fail_connect);
         fault(str(boost::format("ERROR: backend connection timeout (%1%)")
-                  % get_state_name(m_proto_state)), "");
+                  % get_proto_state_name(m_proto_state)), "");
     }
 }
 
 
-const char * smtp_client::get_state_name(proto_state_t st)
+const char * smtp_client::get_proto_state_name(proto_state_t st)
 {
     switch (st) {
     case proto_state_t::start:
@@ -855,7 +855,7 @@ const char * smtp_client::get_state_name(proto_state_t st)
         return "after_quit";
     case proto_state_t::error:
         return "error";
-        // no default: to allow gcc with -Wall produce a warning
+        // no default: to allow gcc with -Wall produce a warning if some case: missed
     }
     assert(false && "update the switch() above");
     return nullptr;

@@ -65,7 +65,9 @@ protected:
 
     uint32_t m_timer_value = 0;
     boost::asio::deadline_timer m_timer;
+
     boost::asio::deadline_timer m_timer_spfdkim;
+
     boost::asio::deadline_timer m_tarpit_timer;
 
     boost::asio::streambuf m_response;
@@ -218,8 +220,8 @@ protected:
 
     bool tarpit = false;
 
-    using status_t = resmtp::monitor::status;
-    status_t conn_close_status = status_t::ok;
+    using close_status_t = resmtp::monitor::conn_close_status_t;
+    close_status_t close_status = close_status_t::ok;
 
 
     void handle_timer(const boost::system::error_code &ec);

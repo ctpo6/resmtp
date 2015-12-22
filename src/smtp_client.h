@@ -85,7 +85,7 @@ protected:
         error
     };
     // !!! update this function together with enum
-    static const char * get_state_name(proto_state_t st);
+    static const char * get_proto_state_name(proto_state_t st);
 
     proto_state_t m_proto_state;
 

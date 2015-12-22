@@ -17,7 +17,7 @@ namespace resmtp {
 
 struct monitor::impl_conn_t
 {
-    using status = monitor::status;
+    using status_t = monitor::conn_close_status_t;
 
     struct counters
     {
@@ -58,7 +58,7 @@ struct monitor::impl_conn_t
         ++c.n_active_conn_tarpit;
     }
 
-    void conn_closed(status st, bool tarpit) noexcept
+    void conn_closed(status_t st, bool tarpit) noexcept
     {
         lock_guard<mutex> lock(mtx);
 
@@ -67,7 +67,7 @@ struct monitor::impl_conn_t
         else
             --c.n_active_conn_fast;
 
-        if (st == status::ok) {
+        if (st == status_t::ok) {
             if (tarpit)
                 ++c.n_closed_conn_ok_tarpit;
             else
@@ -79,7 +79,7 @@ struct monitor::impl_conn_t
             else
                 ++c.n_closed_conn_fail_fast;
             // update specific fail reason counters
-            if (st == status::fail_client_early_write)
+            if (st == status_t::fail_client_early_write)
                 ++c.n_closed_conn_fail_client_early_write;
         }
     }
@@ -261,6 +261,21 @@ struct monitor::impl_backend_t
 };
 
 
+const char * monitor::get_conn_close_status_name(conn_close_status_t st)
+{
+    switch (st) {
+    case conn_close_status_t::ok:
+        return "ok";
+    case conn_close_status_t::fail:
+        return "fail";
+    case conn_close_status_t::fail_client_early_write:
+        return "fail_client_early_write";
+        // no default: to allow gcc with -Wall produce a warning if some case: missed
+    }
+    assert(false && "update the switch() above");
+    return nullptr;
+}
+
 
 monitor::monitor()
     : impl_conn(new impl_conn_t)
@@ -297,7 +312,7 @@ void monitor::conn_tarpitted() noexcept
 }
 
 
-void monitor::conn_closed(status st, bool tarpit) noexcept
+void monitor::conn_closed(conn_close_status_t st, bool tarpit) noexcept
 {
     impl_conn->conn_closed(st, tarpit);
 }

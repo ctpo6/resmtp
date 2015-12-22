@@ -1,4 +1,6 @@
 # resmtp
 CMakeLists.txt.user
 build
-.vscode
+build-qtcreator
+
+

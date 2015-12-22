@@ -106,7 +106,7 @@ void smtp_connection::handle_back_resolve(
     }
 
     g_log.msg(MSG_NORMAL,
-              str(boost::format("%1%-RECV: ******** connected from %2%[%3%] ********")
+              str(boost::format("%1%-RECV: ******** CONNECT %2%[%3%]")
                   % m_session_id
                   % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
                   % m_connected_ip.to_string()));
@@ -281,7 +281,14 @@ void smtp_connection::on_connection_tarpitted()
 
 void smtp_connection::on_connection_close()
 {
-    g::mon().conn_closed(conn_close_status, tarpit);
+    g::mon().conn_closed(close_status, tarpit);
+    g_log.msg(MSG_NORMAL,
+              str(boost::format("%1%-RECV: ******** DISCONNECT %2%[%3%] status=%4% tarpit=%5%")
+                  % m_session_id
+                  % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
+                  % m_connected_ip.to_string()
+                  % resmtp::monitor::get_conn_close_status_name(close_status)
+                  % (tarpit ? "1" : "0")));
 }
 
 
@@ -468,13 +475,13 @@ void smtp_connection::handle_read_helper(std::size_t size)
 }
 
 
-void smtp_connection::handle_read(const boost::system::error_code& ec,
+void smtp_connection::handle_read(const boost::system::error_code &ec,
                                   size_t size)
 {
     m_read_pending_ = false;
 
     if (size == 0) {
-        conn_close_status = status_t::fail;
+        close_status = close_status_t::fail;
         m_manager.stop(shared_from_this());
         return;
     }
@@ -484,7 +491,7 @@ void smtp_connection::handle_read(const boost::system::error_code& ec,
         handle_read_helper(buffers_.size());
     } else {
         if (ec != boost::asio::error::operation_aborted) {
-            conn_close_status = status_t::fail;
+            close_status = close_status_t::fail;
             m_manager.stop(shared_from_this());
         }
     }
@@ -885,7 +892,7 @@ void smtp_connection::send_response2(
         g_log.msg(MSG_NORMAL,
                   str(boost::format("%1%: ABORT SESSION (bad client behavior)")
                       % m_session_id));
-        conn_close_status = status_t::fail_client_early_write;
+        close_status = close_status_t::fail_client_early_write;
         m_manager.stop(shared_from_this());
         return;
     }
@@ -926,7 +933,7 @@ void smtp_connection::handle_write_request(const boost::system::error_code &ec)
         start_read();
     } else {
         if (ec != boost::asio::error::operation_aborted) {
-            conn_close_status = status_t::fail;
+            close_status = close_status_t::fail;
             m_manager.stop(shared_from_this());
         }
     }
@@ -946,7 +953,7 @@ void smtp_connection::handle_last_write_request(
 #endif
     if (ec != boost::asio::error::operation_aborted) {
         if (ec) {
-            conn_close_status = status_t::fail;
+            close_status = close_status_t::fail;
         }
         m_manager.stop(shared_from_this());
     }
@@ -962,7 +969,7 @@ void smtp_connection::handle_ssl_handshake(const boost::system::error_code& ec)
                                 boost::asio::placeholders::error)));
     } else {
         if (ec != boost::asio::error::operation_aborted) {
-            conn_close_status = status_t::fail;
+            close_status = close_status_t::fail;
             m_manager.stop(shared_from_this());
         }
     }
@@ -1378,6 +1385,9 @@ bool smtp_connection::smtp_data( const std::string& _cmd, std::ostream &_respons
 void smtp_connection::stop()
 {
 	m_timer.cancel();
+	m_timer_spfdkim.cancel();
+	m_tarpit_timer.cancel();
+
 	m_resolver.cancel();
 
     m_proto_state = STATE_START;
@@ -1403,12 +1413,6 @@ void smtp_connection::stop()
     }
 
     on_connection_close();
-
-    g_log.msg(MSG_NORMAL,
-              str(boost::format("%1%-RECV: ******** disconnected from %2%[%3%] ********")
-                  % m_session_id
-                  % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
-                  % m_connected_ip.to_string()));
 }
 
 
@@ -1417,6 +1421,8 @@ void smtp_connection::handle_timer(const boost::system::error_code &ec)
     if (ec) {
         return;
     }
+
+    close_status = close_status_t::fail;
 
     std::ostream response_stream(&m_response);
     response_stream << "421 4.4.2 "
@@ -1462,6 +1468,7 @@ void smtp_connection::handle_timer(const boost::system::error_code &ec)
         boost::asio::placeholders::error));
 }
 
+
 void smtp_connection::restart_timeout()
 {
     m_timer.expires_from_now(boost::posix_time::seconds(m_timer_value));
@@ -1469,6 +1476,7 @@ void smtp_connection::restart_timeout()
         strand_.wrap(boost::bind(&smtp_connection::handle_timer,
                         shared_from_this(), boost::asio::placeholders::error)));
 }
+
 
 void smtp_connection::end_mail_from_command(bool _start_spf,
                                             bool _start_async,

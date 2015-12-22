@@ -17,7 +17,7 @@ namespace resmtp {
 class monitor : private boost::noncopyable
 {
 public:
-    enum class status
+    enum class conn_close_status_t
     {
         ok = 0,
         fail,
@@ -25,6 +25,8 @@ public:
         // socket before receiving a greeting message
         fail_client_early_write
     };
+    static const char * get_conn_close_status_name(conn_close_status_t st);
+
 
     monitor();
     ~monitor();
@@ -33,7 +35,7 @@ public:
 
     void conn() noexcept;
     void conn_tarpitted() noexcept;
-    void conn_closed(status st, bool tarpit) noexcept;
+    void conn_closed(conn_close_status_t st, bool tarpit) noexcept;
 
     // backend initialization
     void set_number_of_backends(uint32_t n) noexcept;
