@@ -297,6 +297,7 @@ void monitor::print(std::ostream &os) const noexcept
     os << "uptime " << time(NULL) - tp_start << '\n';
     impl_conn->print(os);
     impl_backend->print(os);
+    os.flush();
 }
 
 

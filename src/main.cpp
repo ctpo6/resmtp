@@ -17,6 +17,7 @@
 #include <boost/format.hpp>
 #include <boost/thread.hpp>
 
+#include "global.h"
 #include "ip_options.h"
 #include "log.h"
 #include "options.h"
@@ -24,24 +25,49 @@
 #include "server.h"
 
 
+using namespace std;
+
 namespace {
-void log_err(int prio, std::string s, bool copy_to_stderr) {
+void log_err(int prio, string s, bool copy_to_stderr)
+{
     g_log.msg(prio, s);
     if (copy_to_stderr)
-        std::cerr << s << std::endl;
+        cerr << s << endl;
 }
 }
 
 void cxx_exception_handler() __attribute__((noreturn));
-void cxx_exception_handler() {
+void cxx_exception_handler()
+{
+    // TODO it seems using cerr isn't safe here
+    // TODO rewrite using raw file IO ???
+
+    // print state
+    g::mon().print(cerr);
+
+    // print call stack backtrace
     void * array[20];
     int size = backtrace(array, 20);
+
+#if 0
+    // it's get messed with cerr output
     backtrace_symbols_fd(array, size, STDERR_FILENO);
+#endif
+
+    if (size > 0) {
+        char **s = backtrace_symbols(array, size);
+        for (int i = 0; i < size; ++i) {
+            cerr << s[i] << endl;
+        }
+        free(s);
+    }
+
     exit(1);
 }
 
 
-int main(int argc, char* argv[]) {
+int main(int argc, char* argv[])
+{
     std::set_terminate(cxx_exception_handler);
 
     // used to randomize timeouts
