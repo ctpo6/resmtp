@@ -116,17 +116,17 @@ void smtp_backend_manager::on_host_fail(
     switch (st) {
     case host_status::fail_resolve:
         fail_expiration_tp[h.index] +=
-                static_cast<time_t>(10 * g_config.backend_connect_timeout);
+                static_cast<time_t>(10 * g::cfg().backend_connect_timeout);
         break;
     case host_status::fail_connect:
         fail_expiration_tp[h.index] +=
-                static_cast<time_t>((1 + std::rand() % 10) * g_config.backend_connect_timeout);
+                static_cast<time_t>((1 + std::rand() % 10) * g::cfg().backend_connect_timeout);
         break;
 #if 0
         // this status code is not used now
     case host_status::fail:
         fail_expiration_tp[h.index] +=
-                static_cast<time_t>((1 + std::rand() % 10) * g_config.backend_connect_timeout);
+                static_cast<time_t>((1 + std::rand() % 10) * g::cfg().backend_connect_timeout);
         break;
 #endif
     default:

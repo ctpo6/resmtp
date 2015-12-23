@@ -31,12 +31,6 @@ using namespace std;
 namespace ba = boost::asio;
 namespace bpo = boost::program_options;
 
-const char *temp_error = "451 4.7.1 Service unavailable - try again later";
-const char *temp_user_error = "451 4.7.1 Requested action aborted: error in processing";
-const char *perm_user_error = "550 Requested action not taken: mailbox unavailable";
-
-server_parameters g_config;
-
 template <typename T>
 struct get_first : public std::unary_function<T, typename T::first_type&>
 {

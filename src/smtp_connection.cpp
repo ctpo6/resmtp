@@ -66,7 +66,7 @@ void smtp_connection::start(bool force_ssl) {
 
     m_connected_ip = socket().remote_endpoint().address();
 
-    m_max_rcpt_count = g_config.m_max_rcpt_count;
+    m_max_rcpt_count = g::cfg().m_max_rcpt_count;
 
     // if specified, get the number of recipients for specific IP
     ip_options_config::ip_options_t opt;
@@ -76,9 +76,9 @@ void smtp_connection::start(bool force_ssl) {
 
     m_session_id = envelope::generate_new_id();
 
-    m_timer_value = g_config.frontend_cmd_timeout;
+    m_timer_value = g::cfg().frontend_cmd_timeout;
 
-    for (auto &s: g_config.m_dns_servers) {
+    for (auto &s: g::cfg().m_dns_servers) {
         m_resolver.add_nameserver(ba::ip::address::from_string(s));
     }
 
@@ -112,7 +112,7 @@ void smtp_connection::handle_back_resolve(
                   % m_connected_ip.to_string()));
     
     // blacklist check is OFF
-    if (!g_config.m_rbl_active) {
+    if (!g::cfg().m_rbl_active) {
         handle_dnsbl_check();
         return;
     }
@@ -121,10 +121,10 @@ void smtp_connection::handle_back_resolve(
     // start blacklist check
     //--------------------------------------------------------------------------
     m_dnsbl_check.reset(new rbl_check(io_service_));
-    for (auto &s: g_config.m_dns_servers) {
+    for (auto &s: g::cfg().m_dns_servers) {
         m_dnsbl_check->add_nameserver(ba::ip::address::from_string(s));
     }
-    std::istringstream is(g_config.m_rbl_hosts);
+    std::istringstream is(g::cfg().m_rbl_hosts);
     for (std::istream_iterator<std::string> it(is);
          it != std::istream_iterator<std::string>();
          ++it) {
@@ -184,10 +184,10 @@ void smtp_connection::handle_dnsbl_check() {
     // start whitelist check
     //--------------------------------------------------------------------------
     m_dnswl_check.reset(new rbl_check(io_service_));
-    for (auto &s: g_config.m_dns_servers) {
+    for (auto &s: g::cfg().m_dns_servers) {
         m_dnswl_check->add_nameserver(ba::ip::address::from_string(s));
     }
-    m_dnswl_check->add_rbl_source(g_config.m_dnswl_host);
+    m_dnswl_check->add_rbl_source(g::cfg().m_dnswl_host);
     m_dnswl_check->start(
                 m_connected_ip.to_v4(),
                 bind(&smtp_connection::start_proto, shared_from_this()));
@@ -209,7 +209,7 @@ void smtp_connection::start_proto() {
     add_new_command("rset", &smtp_connection::smtp_rset);
     add_new_command("noop", &smtp_connection::smtp_noop);
     // "starttls" is available only for initially unencrypted connections if TLS support is enabled in config
-    if (g_config.m_use_tls && !m_force_ssl) {
+    if (g::cfg().m_use_tls && !m_force_ssl) {
         add_new_command("starttls", &smtp_connection::smtp_starttls);
     }
 
@@ -219,7 +219,7 @@ void smtp_connection::start_proto() {
     m_dnswl_check->stop();
     m_dnswl_check.reset();
     PDBG("m_dnswl_status:%d  m_dnswl_status_str:%s", m_dnswl_status, m_dnswl_status_str.c_str());
-    if (!m_dnswl_status && g_config.m_tarpit_delay_seconds) {
+    if (!m_dnswl_status && g::cfg().m_tarpit_delay_seconds) {
         on_connection_tarpitted();
         g_log.msg(MSG_NORMAL,
                   str(boost::format("%1%-RECV: TARPIT %2%[%3%]")
@@ -236,7 +236,7 @@ void smtp_connection::start_proto() {
     if (m_manager.start(shared_from_this(), error)) {
 
         response_stream << "220 " << boost::asio::ip::host_name() << " "
-                        << (g_config.m_smtp_banner.empty() ? "Ok" : g_config.m_smtp_banner) << "\r\n";
+                        << (g::cfg().m_smtp_banner.empty() ? "Ok" : g::cfg().m_smtp_banner) << "\r\n";
 
         if (m_force_ssl) {
             ssl_state_ = ssl_active;
@@ -366,7 +366,7 @@ bool smtp_connection::handle_read_data_helper(
     yconst_buffers_iterator eom;
     bool eom_found = eom_parser_.parse(b, e, eom, read);
 
-    if (g_config.m_remove_extra_cr) {
+    if (g::cfg().m_remove_extra_cr) {
         yconst_buffers_iterator p = b;
         yconst_buffers_iterator crlf_b, crlf_e;
         bool crlf_found = false;
@@ -480,17 +480,19 @@ void smtp_connection::handle_read(const boost::system::error_code &ec,
 {
     m_read_pending_ = false;
 
-    if (size == 0) {
-        close_status = close_status_t::fail;
-        m_manager.stop(shared_from_this());
-        return;
-    }
-
     if (!ec) {
+        if (size == 0) {
+            PDBG("close_status_t::fail");
+            close_status = close_status_t::fail;
+            m_manager.stop(shared_from_this());
+            return;
+        }
+
         buffers_.commit(size);
         handle_read_helper(buffers_.size());
     } else {
         if (ec != boost::asio::error::operation_aborted) {
+            PDBG("close_status_t::fail");
             close_status = close_status_t::fail;
             m_manager.stop(shared_from_this());
         }
@@ -510,7 +512,7 @@ void smtp_connection::start_check_data()
 
     m_timer.cancel();
 
-    if (m_envelope->orig_message_size_ > g_config.m_message_size_limit)
+    if (m_envelope->orig_message_size_ > g::cfg().m_message_size_limit)
     {
         m_error_count++;
 
@@ -690,7 +692,7 @@ void smtp_connection::smtp_delivery_start()
             m_smtp_delivery_pending = true;
 
             m_timer_spfdkim.expires_from_now(
-                boost::posix_time::seconds(g_config.m_dkim_timeout));
+                boost::posix_time::seconds(g::cfg().m_dkim_timeout));
             m_timer_spfdkim.async_wait(
                 strand_.wrap(boost::bind(&smtp_connection::handle_dkim_timeout,
                                 shared_from_this(), boost::asio::placeholders::error)));
@@ -744,7 +746,7 @@ void smtp_connection::smtp_delivery_start()
         append(m_envelope->orig_message_body_beg_, ybuffers_end(orig_m), alt_m);
 
 #if 0   // LMTP support is turned off for now
-        if (g_config.m_use_local_relay) {
+        if (g::cfg().m_use_local_relay) {
             if (m_smtp_client)
                 m_smtp_client->stop();
             m_smtp_client.reset(new smtp_client(io_service_, backend_mgr));
@@ -753,9 +755,9 @@ void smtp_connection::smtp_delivery_start()
                 m_check_data,
                 strand_.wrap(bind(&smtp_connection::end_lmtp_proto, shared_from_this())),
                 m_envelope,
-                g_config.m_local_relay_host,
+                g::cfg().m_local_relay_host,
                 "LOCAL",
-                g_config.m_dns_servers);
+                g::cfg().m_dns_servers);
         } else {
             smtp_delivery();
         }
@@ -788,7 +790,7 @@ void smtp_connection::smtp_delivery() {
         m_check_data,
         strand_.wrap(bind(&smtp_connection::end_check_data, shared_from_this())),
         m_envelope,
-        g_config.m_dns_servers);
+        g::cfg().m_dns_servers);
 }
 
 
@@ -803,57 +805,40 @@ void smtp_connection::end_check_data() {
 
     std::ostream response_stream(&m_response);
 
-    switch (m_check_data.m_result)
-    {
+    switch (m_check_data.m_result) {
         case check::CHK_ACCEPT:
         case check::CHK_DISCARD:
+            PDBG("close_status_t::ok");
+            close_status = close_status_t::ok;
             response_stream << "250 2.0.0 Ok: queued on " << boost::asio::ip::host_name() << " as";
             break;
 
         case check::CHK_REJECT:
-            if (!m_check_data.m_answer.empty())
-            {
+            PDBG("close_status_t::fail");
+            close_status = close_status_t::fail;
+            if (!m_check_data.m_answer.empty()) {
                 response_stream << m_check_data.m_answer;
-            }
-            else
-            {
+            } else {
                 response_stream << "550 " << boost::asio::ip::host_name();
             }
-
             break;
 
         case check::CHK_TEMPFAIL:
-            if (!m_check_data.m_answer.empty())
-            {
+            PDBG("close_status_t::fail");
+            close_status = close_status_t::fail;
+            if (!m_check_data.m_answer.empty()) {
                 response_stream << m_check_data.m_answer;
+            } else {
+                response_stream << "451 4.7.1 Service unavailable - try again later";
             }
-            else
-            {
-                response_stream << temp_error;
-            }
-
             break;
     }
 
-    response_stream << " " << m_session_id << "-" <<  m_envelope->m_id << "\r\n";
+    response_stream << ' ' << m_session_id << '-' << m_envelope->m_id << "\r\n";
 
     send_response(boost::bind(&smtp_connection::handle_write_request,
                               shared_from_this(),
                               boost::asio::placeholders::error));
-#if 0
-    if (ssl_state_ == ssl_active)
-    {
-        boost::asio::async_write(m_ssl_socket, m_response,
-                strand_.wrap(boost::bind(&smtp_connection::handle_write_request, shared_from_this(),
-                                boost::asio::placeholders::error)));
-    }
-    else
-    {
-        boost::asio::async_write(socket(), m_response,
-                strand_.wrap(boost::bind(&smtp_connection::handle_write_request, shared_from_this(),
-                                boost::asio::placeholders::error)));
-    }
-#endif
 }
 
 
@@ -864,7 +849,7 @@ void smtp_connection::send_response(
         return;
     }
 
-    if (m_dnswl_status || g_config.m_tarpit_delay_seconds == 0) {
+    if (m_dnswl_status || g::cfg().m_tarpit_delay_seconds == 0) {
         // send immediately
         send_response2(handler);
         return;
@@ -873,9 +858,9 @@ void smtp_connection::send_response(
     // send with tarpit timeout
     g_log.msg(MSG_DEBUG,
               str(boost::format("TARPIT: delay %1% seconds")
-                  % g_config.m_tarpit_delay_seconds));
+                  % g::cfg().m_tarpit_delay_seconds));
     m_tarpit_timer.expires_from_now(
-        boost::posix_time::seconds(g_config.m_tarpit_delay_seconds));
+        boost::posix_time::seconds(g::cfg().m_tarpit_delay_seconds));
     m_tarpit_timer.async_wait(strand_.wrap(
         boost::bind(&smtp_connection::send_response2,
                     shared_from_this(),
@@ -886,12 +871,13 @@ void smtp_connection::send_response(
 void smtp_connection::send_response2(
         boost::function<void(const boost::system::error_code &)> handler) {
     // check that the client hasn't sent something before receiving greeting msg
-    if (g_config.m_socket_check &&
+    if (g::cfg().m_socket_check &&
             m_proto_state == STATE_START &&
             !check_socket_read_buffer_is_empty()) {
         g_log.msg(MSG_NORMAL,
                   str(boost::format("%1%: ABORT SESSION (bad client behavior)")
                       % m_session_id));
+        PDBG("close_status_t::fail_client_early_write");
         close_status = close_status_t::fail_client_early_write;
         m_manager.stop(shared_from_this());
         return;
@@ -918,7 +904,7 @@ void smtp_connection::send_response2(
 void smtp_connection::handle_write_request(const boost::system::error_code &ec)
 {
     if (!ec) {
-        if (m_error_count > g_config.m_hard_error_limit) {
+        if (m_error_count > g::cfg().m_hard_error_limit) {
             g_log.msg(MSG_NORMAL,
                       str(boost::format("%1%: too many errors")
                           % m_session_id));
@@ -933,6 +919,7 @@ void smtp_connection::handle_write_request(const boost::system::error_code &ec)
         start_read();
     } else {
         if (ec != boost::asio::error::operation_aborted) {
+            PDBG("close_status_t::fail");
             close_status = close_status_t::fail;
             m_manager.stop(shared_from_this());
         }
@@ -953,6 +940,7 @@ void smtp_connection::handle_last_write_request(
 #endif
     if (ec != boost::asio::error::operation_aborted) {
         if (ec) {
+            PDBG("close_status_t::fail");
             close_status = close_status_t::fail;
         }
         m_manager.stop(shared_from_this());
@@ -969,6 +957,7 @@ void smtp_connection::handle_ssl_handshake(const boost::system::error_code& ec)
                                 boost::asio::placeholders::error)));
     } else {
         if (ec != boost::asio::error::operation_aborted) {
+            PDBG("close_status_t::fail");
             close_status = close_status_t::fail;
             m_manager.stop(shared_from_this());
         }
@@ -1088,12 +1077,12 @@ bool smtp_connection::smtp_ehlo( const std::string& _cmd, std::ostream &_respons
 {
     std::string esmtp_flags("250-8BITMIME\r\n250-PIPELINING\r\n" );
 
-    if (g_config.m_message_size_limit > 0) {
+    if (g::cfg().m_message_size_limit > 0) {
         esmtp_flags += str(boost::format("250-SIZE %1%\r\n")
-                           % g_config.m_message_size_limit);
+                           % g::cfg().m_message_size_limit);
     }
 
-    if (g_config.m_use_tls && !m_force_ssl) {
+    if (g::cfg().m_use_tls && !m_force_ssl) {
         esmtp_flags += "250-STARTTLS\r\n";
     }
 
@@ -1320,9 +1309,9 @@ bool smtp_connection::smtp_mail(const std::string& _cmd,
         return true;
     }
 
-    if (g_config.m_message_size_limit > 0) {
+    if (g::cfg().m_message_size_limit > 0) {
         unsigned int msize = atoi(pmap["size"].c_str());
-        if (msize > g_config.m_message_size_limit) {
+        if (msize > g::cfg().m_message_size_limit) {
             ++m_error_count;
             _response << "552 5.3.4 Message size exceeds fixed limit.\r\n";
             return true;
@@ -1354,7 +1343,7 @@ bool smtp_connection::smtp_data( const std::string& _cmd, std::ostream &_respons
     _response << "354 Enter mail, end with \".\" on a line by itself\r\n";
 
     m_proto_state = STATE_BLAST_FILE;
-    m_timer_value = g_config.frontend_data_timeout;
+    m_timer_value = g::cfg().frontend_data_timeout;
     m_envelope->orig_message_size_ = 0;
 
     time_t now;
@@ -1422,6 +1411,7 @@ void smtp_connection::handle_timer(const boost::system::error_code &ec)
         return;
     }
 
+    PDBG("close_status_t::fail");
     close_status = close_status_t::fail;
 
     std::ostream response_stream(&m_response);
@@ -1499,7 +1489,7 @@ void smtp_connection::end_mail_from_command(bool _start_spf,
                                         shared_from_this(), _1, _2)))
                           );
 
-        m_timer_spfdkim.expires_from_now(boost::posix_time::seconds(g_config.m_spf_timeout));
+        m_timer_spfdkim.expires_from_now(boost::posix_time::seconds(g::cfg().m_spf_timeout));
         m_timer_spfdkim.async_wait(
             strand_.wrap(boost::bind(&smtp_connection::handle_spf_timeout,
                             shared_from_this(), boost::asio::placeholders::error)));

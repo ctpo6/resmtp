@@ -59,6 +59,24 @@ protected:
     typedef std::function<bool (smtp_connection *, const string &, std::ostream&)> proto_func_t;
     typedef std::unordered_map<string, proto_func_t> proto_map_t;
 
+    typedef enum {
+        STATE_START = 0,
+        STATE_HELLO,
+        STATE_AFTER_MAIL,
+        STATE_RCPT_OK,
+        STATE_BLAST_FILE,
+        STATE_CHECK_RCPT,
+        STATE_CHECK_DATA,
+        STATE_CHECK_MAILFROM
+    } proto_state_t;
+
+    typedef enum {
+        ssl_none = 0,
+        ssl_hand_shake,
+        ssl_active
+    } ssl_state_t;
+
+
     boost::asio::io_service &io_service_;
     boost::asio::io_service::strand strand_;
     ssl_socket_t m_ssl_socket;
@@ -75,26 +93,7 @@ protected:
     // map: smtp command name -> command handler ptr
     proto_map_t m_proto_map;
 
-    //---
-    typedef enum {
-        STATE_START = 0,
-        STATE_HELLO,
-        STATE_AFTER_MAIL,
-        STATE_RCPT_OK,
-        STATE_BLAST_FILE,
-        STATE_CHECK_RCPT,
-        STATE_CHECK_DATA,
-        STATE_CHECK_MAILFROM
-    } proto_state_t;
-
     proto_state_t m_proto_state;
-
-    typedef enum {
-        ssl_none = 0,
-        ssl_hand_shake,
-        ssl_active
-    } ssl_state_t;
-
     ssl_state_t ssl_state_;
 
 
@@ -222,7 +221,6 @@ protected:
 
     using close_status_t = resmtp::monitor::conn_close_status_t;
     close_status_t close_status = close_status_t::ok;
-
 
     void handle_timer(const boost::system::error_code &ec);
     void restart_timeout();

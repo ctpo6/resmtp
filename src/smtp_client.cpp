@@ -78,7 +78,7 @@ void smtp_client::start(const check_data_t& _data,
     m_lmtp = _remote.m_proto == "lmtp";
     m_proto_name = _proto_name;
 
-    m_timer_value = g_config.backend_connect_timeout;
+    m_timer_value = g::cfg().backend_connect_timeout;
 
     m_proto_state = proto_state_t::start;
 
@@ -159,7 +159,7 @@ void smtp_client::start_with_next_backend()
         return;
     }
 
-    m_timer_value = g_config.backend_connect_timeout;
+    m_timer_value = g::cfg().backend_connect_timeout;
     restart_timeout();
 
     bs::error_code ec;
@@ -241,7 +241,7 @@ void smtp_client::handle_simple_connect(const bs::error_code &ec) {
     if (!ec) {
         on_backend_conn();
         m_proto_state = proto_state_t::connected;
-        m_timer_value = g_config.backend_connect_timeout;
+        m_timer_value = g::cfg().backend_connect_timeout;
         start_read_line();
     } else {
         if (ec != ba::error::operation_aborted) {
@@ -270,7 +270,7 @@ void smtp_client::handle_connect(const bs::error_code &ec,
     if (!ec) {
         on_backend_conn();
         m_proto_state = proto_state_t::connected;
-        m_timer_value = g_config.backend_connect_timeout;
+        m_timer_value = g::cfg().backend_connect_timeout;
         start_read_line();
         return;
     } else if (ec == ba::error::operation_aborted) {
@@ -521,7 +521,7 @@ bool smtp_client::process_answer(std::istream &_stream) {
             // send:
             // EHLO client.example.com
 
-            m_timer_value = g_config.backend_cmd_timeout;
+            m_timer_value = g::cfg().backend_cmd_timeout;
 
             answer_stream << (m_lmtp ? "LHLO " : "EHLO ")
                           << ba::ip::host_name()
@@ -609,7 +609,7 @@ bool smtp_client::process_answer(std::istream &_stream) {
                 m_current_rcpt = m_envelope->m_rcpt_list.begin();
             }
 
-            m_timer_value = g_config.backend_data_timeout;
+            m_timer_value = g::cfg().backend_data_timeout;
             restart_timeout();
 
             m_proto_state = proto_state_t::after_dot;
@@ -624,7 +624,7 @@ bool smtp_client::process_answer(std::istream &_stream) {
             break;
 
         case proto_state_t::after_dot:
-            m_timer_value = g_config.backend_cmd_timeout;
+            m_timer_value = g::cfg().backend_cmd_timeout;
             restart_timeout();
 
             if (m_lmtp) {

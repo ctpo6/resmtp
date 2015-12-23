@@ -8,4 +8,10 @@ resmtp::monitor & mon() noexcept
     return m;
 }
 
+server_parameters & cfg() noexcept
+{
+    static server_parameters c;
+    return c;
+}
+
 }

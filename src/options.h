@@ -140,10 +140,4 @@ struct server_parameters {
     bool init_backend_hosts_settings() noexcept;
 };
 
-extern server_parameters g_config;
-
-extern const char *temp_error;
-extern const char *temp_user_error;
-extern const char *perm_user__error;
-
 #endif
