@@ -6,7 +6,7 @@ do_send_mail()
 }
 
 if [ $# != 1 ]; then
-    echo "Usage: test.sh <n_mails>"
+    echo "Usage: tmailx.sh <n_mails>"
     exit 1
 fi
 
@@ -15,10 +15,9 @@ N_MAILS=$1
 echo "Sending $N_MAILS mails"
 
 # start N jobs in parallel
-for i in `seq 1 $N_MAILS`; do
+for i in $(seq $N_MAILS); do
 	do_send_mail &
 done
 
-echo "Waiting for finishing sending emails"
 wait
 

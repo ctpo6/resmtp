@@ -1,0 +1,342 @@
+Received: from SRV-MBX5.rambler.ramblermedia.com ([fe80::cd0:9fbf:4b91:f1c9])
+ by srv-cas2.rambler.ramblermedia.com ([81.19.73.75]) with mapi id
+ 14.03.0235.001; Wed, 23 Dec 2015 18:18:55 +0300
+From: HR Team <HR_Department@rambler-co.ru>
+To: Abasova Nataliya <NAbasova@price-team.ru>, Abramova Oksana
+	<o.abramova@gazeta.ru>, Avakyan Samvel <Samvel.Avakyan@rambler-co.ru>,
+	Alekseev Matvey <m.alekseev@rambler-co.ru>, Alieva Svetlana
+	<SAlieva@price-team.ru>, Alferova Anastasiya <a.alferova@price.ru>,
+	"Antonova Vladlena (Urbanovskaya)" <v.antonova@rambler-co.ru>, Antonova Irina
+	<i.antonova@afisha.ru>, Artemeva Anastasiya <a.artemeva@lenta-co.ru>, Babutin
+ Alexey <a.babutin@rambler-co.ru>, Bagdasarova Olga
+	<Olga.Bagdasarova@gazeta.ru>, Bagdinova Zhanna <z.bagdinova@gazeta.ru>,
+	Bagreev Semyon <s.bagreev@rambler-co.ru>, Baidin Vitaly
+	<v.baidin@rambler-co.ru>, Baykov Nail <n.baykov@rambler-co.ru>, Baranova
+ Marina <marina.baranova@rambler-co.ru>, Batiashvili Georgy
+	<g.batiashvili@rambler-co.ru>, Bakhtin Filipp <f.bakhtin@afisha.ru>,
+	Belitskiy Anton <a.belitskiy@moslenta.ru>, Belonovskiy Aleksandr
+	<a.belonovsky@lenta-co.ru>, Beri Svetlana <s.beri@rambler-co.ru>, Birman
+ Aleksandr <a.birman@lenta-co.ru>, Bogdanov Konstantin
+	<k.bogdanov@lenta-co.ru>, Boyev Aleksey <a.boyev@rambler-co.ru>, Boiko Dmitry
+	<DBoiko@rambler-co.ru>, Braterskiy Aleksandr
+	<Aleksandr.Braterskiy@gazeta.ru>, Boulaeva Natalia
+	<natalia.boulaeva@rambler-co.ru>, Burmakin Igor <i.burmakin@lenta-co.ru>,
+	Buslov Ruslan <r.buslov@rambler-co.ru>, Bykanova Irina
+	<i.bykanova@lenta-co.ru>, Varshavskiy Aleksandr
+	<a.varshavskiy@rambler-co.ru>, Vatrak Valentina <v.vatrak@rambler-co.ru>,
+	Vladimirova Evgeniya <e.vladimirova@rambler-co.ru>, Volobuev Aleksandr
+	<a.volobuev@lenta-co.ru>, Volokh Elena <e.volokh@rambler-co.ru>, Vorontsov
+ Yuri <Yuri.Vorontsov@gazeta.ru>, Gavrilova Ekaterina
+	<Ekaterina.Gavrilova@rambler-co.ru>, Galdina Vasilya
+	<v.galdina@rambler-co.ru>, Genich Konstantin <k.genich@rambler-co.ru>,
+	Geranin Dmitry <d.geranin@rambler-co.ru>, Gerasimov Igor
+	<i.gerasimov@lenta-co.ru>, Golubtsov Oleg <o.golubtsov@rambler-co.ru>,
+	Goncharova Anastasia <agoncharova@afisha.ru>, Goreslavskiy Aleksey
+	<a.goreslavskiy@lenta-co.ru>, Gorstkina Evgeniya <e.gorstkina@rambler-co.ru>,
+	Goryunov Roman <r.goryunov@rambler-co.ru>, Goryainov Dmitry
+	<d.goryainov@gazeta.ru>, Granina Natalia <n.granina@lenta-co.ru>, Grechishkin
+ Aleksey <a.grechishkin@rambler-co.ru>, Grigorev Viktor
+	<v.grigorev@rambler-co.ru>, Grishin Aleksandr
+	<Aleksandr.Grishin@rambler-co.ru>, Gudkova Veronika <v.gudkova@lenta-co.ru>,
+	Gusenkov Andrey <a.gusenkov@rambler-co.ru>, Demidov Aleksandr
+	<Alexandr.Demidov@rambler-co.ru>, Dmitriev Ivan <i.dmitriev@rambler-co.ru>,
+	Dobroserdova Mariya <m.dobroserdova@moslenta.ru>, Dubovitsky Roman
+	<r.dubovitsky@rambler-co.ru>, Dunayev Mikhail <m.dunayev@rambler-co.ru>,
+	Dunaeva Mariya <MDunaeva@price-team.ru>, Elsukova Alevtina
+	<a.elsukova@rambler-co.ru>, Ereschenko Mikhail <MEreschenko@rambler-co.ru>,
+	Efimov Vyacheslav <v.efimov@rambler-co.ru>, Efimov Evgeny
+	<e.efimov@rambler-co.ru>, Zhiltsov Dmitriy <d.zhiltsov@rambler-co.ru>, Zhlobo
+ Sergey <s.zhlobo@ferra.ru>, Zhukova Maria <MZhukova@begun.ru>, Zaborskaya
+ Irina <i.zaborskaya@gazeta.ru>, Zagudaev Andrey <a.zagudaev@rambler-co.ru>,
+	Zagumennov Artem <az@lenta-co.ru>, Zalogin Dmitry <dmitry@afisha.ru>,
+	Zaretskaya Darya <d.zaretskaya@rambler-co.ru>, Zaretskiy Sergey
+	<s.zaretskiy@rambler-co.ru>, Zateev Artem <Artem.Zateev@sup.com>, Zakharov
+ Vladimir <v.zakharov@rambler-co.ru>, Zakharov Yuriy
+	<y.zakharov@rambler-co.ru>, Zatsepin Vladimir <v.zatsepin@rambler-co.ru>,
+	Zimin Alexey <azimin@afisha.ru>, Zudenkov Andrey <a.zudenkov@rambler-co.ru>,
+	Zyubenko Andrey <a.zyubenko@rambler-co.ru>, Ibragimova Gulshat
+	<Gulshat.Ibragimova@rambler-co.ru>, Ivanov Andrey
+	<Andrey.Ivanov@rambler-co.ru>, Ivanova Sofya <s.ivanova@rambler-co.ru>,
+	Ivanova Tatyana <t.ivanova@rambler-co.ru>, Ignatov Kirill
+	<KIgnatov@rambler-co.ru>, Ilyash Svetlana <s.ilyash@afisha.ru>, Ilyushin
+ Vasiliy <v.ilyushin@rambler-co.ru>, Iogansen Denis
+	<d.iogansen@rambler-co.ru>, Kazakov Artem <AKazakov@rambler-co.ru>,
+	Kazachkina Evgeniya <EKazachkina@price-team.ru>, Kalashnik Vitaliy
+	<v.kalashnik@gazeta.ru>, Kaliteevskaya Elizaveta
+	<e.kaliteevskaya@rambler-co.ru>, Kamayev Pavel <p.kamayev@rambler-co.ru>,
+	Kamenchenko Petr <p.kamenchenko@lenta-co.ru>, Kanaev Petr
+	<p.kanaev@rambler-co.ru>, Kanunnikova Elena <e.kanunnikova@rambler-co.ru>,
+	Kapatsina Alina <alina@afisha.ru>, Kardapoltsev Andrey
+	<a.kardapoltsev@rambler-co.ru>, Karev Igor <Igor.Karev@gazeta.ru>, Karpov
+ Mikhail <m.karpov@lenta-co.ru>, Karpovich Sergey <s.karpovich@rambler-co.ru>,
+	Kart Natalia <n.kart@rambler-co.ru>, Kvasha Semen <s.kvasha@moslenta.ru>,
+	Kirillova Albina <a.kirillova@rambler-co.ru>, Kiryushina Tatiana
+	<t.kiryushina@lenta-co.ru>, Klyukin Pavel <k206i@afisha.ru>, Klyatetskaya
+ Svetlana <s.klyatetskaya@rambler-co.ru>, Kovalenkov Sergey
+	<s.kovalenkov@rambler-co.ru>, Kogan Grigoriy <g.kogan@lenta-co.ru>, Kozlova
+ Alexandra <Alexandra.Kozlova@rambler-co.ru>, Kozyrev Stanislav
+	<s.kozyrev@gazeta.ru>, Kolosov Pavel <p.kolosov@rambler-co.ru>, Kononov
+ Nikolay <n.kononov@rambler-co.ru>, Konstantinov Vladimir
+	<v.konstantinov@rambler-co.ru>, Konstantinov Mikhail
+	<m.konstantinov@rambler-co.ru>, Konstantinova Elena
+	<Elena.Konstantinova@rambler-co.ru>, Konyshkin Andrey
+	<AKonyshkin@rambler-co.ru>, Kopylov Anrdey <a.kopylov@rambler-co.ru>,
+	Korableva Natalya <NKorableva@price-team.ru>, Korzinov Nikolay
+	<n.korzinov@rambler-co.ru>, Korolkov Igor <i.korolkov@rambler-co.ru>,
+	Koryakina Alena <a.koryakina@rambler-co.ru>, Kosmarskiy Artem
+	<a.kosmarskiy@lenta-co.ru>, Kosyak Nikolay <n.kosyak@rambler-co.ru>,
+	Kochanova Victoriya <v.kochanova@rambler-co.ru>, Kochetkova Natalia
+	<n.kochetkova@lenta-co.ru>, Kravchenko Stepan <s.kravchenko@rambler-co.ru>,
+	Kramnik Ilya <i.kramnik@lenta-co.ru>, Krasilshchikov Anton
+	<a.krasilshchikov@rambler-co.ru>, Krivosheev Vladimir
+	<Vladimir.Krivosheev@rambler-co.ru>, Krug Vladimir <v.krug@rambler-co.ru>,
+	Krylov Vladislav <v.krylov@lenta-co.ru>, Ksenofontov Sergey
+	<s.ksenofontov@sup.com>, Kuznetsov Dmitry <dm.kuznetsov@rambler-co.ru>,
+	Kulakov Vladislav <v.kulakov@lenta-co.ru>, Kulianov Andrey
+	<a.kulianov@gazeta.ru>, Kupriyanov Aleksey <a.kupriyanov@lenta-co.ru>,
+	"Kutdusova Mariya (Shnurova)" <m.kutdusova@rambler-co.ru>, Kutuyev Eduard
+	<e.kutuyev@rambler-co.ru>, Lavrukhina Tatiana <t.lavrukhina@rambler-co.ru>,
+	Lantseva Ekaterina <Ekaterina.Lantseva@rambler-co.ru>, Lanugova Svetlana
+	<Svetlana.Lanugova@rambler-co.ru>, Levochkina Elena
+	<e.levochkina@rambler-co.ru>, Lipova Maria <m.lipova@rambler-co.ru>,
+	Litvinenko Dmitry <d.litvinenko@rambler-co.ru>, Logachev Aleksandr
+	<a.logachev@rambler-co.ru>, Lopusova Anna <ALopusova@begun.ru>, Los Svetlana
+	<s.los@moslenta.ru>, Loshmanov Roman <rloshmanov@rambler-co.ru>, Lukyanova
+ Ekaterina <Ekaterina.Loukianova@rambler-co.ru>, Lysenko Oleg
+	<Oleg.Lysenko@rambler-co.ru>, Lysenok Irina <i.lysenok@rambler-co.ru>,
+	Lyutykh Sergey <s.lyutykh@lenta-co.ru>, Akimova Ekaterina
+	<eakimova@afisha.ru>, Magonova Aleksandra <a.magonova@rambler-co.ru>,
+	Maetnaya Elizaveta <e.maetnaya@gazeta.ru>, Makarevich Mariya
+	<Mariya.Makarevich@rambler-co.ru>, Makrushina Ekaterina
+	<e.makrushina@rambler-co.ru>, Malakhova Elena <e.malakhova@rambler-co.ru>,
+	Malysheva Elena <e.malysheva@gazeta.ru>, Matveev Andrey
+	<a.matveev@rambler-co.ru>, Matrosova Ekaterina <e.matrosova@rambler-co.ru>,
+	Medved Ruslan <Ruslan.Medved@rambler-co.ru>, Melik-Zade Alexey
+	<a.melik-zade@rambler-co.ru>, Melnikova Varvara <v.melnikova@afisha.ru>,
+	Melsitdinova Victoria <Victoria.Melsitdinova@gazeta.ru>, Mertsalova Yana
+	<y.mertsalova@moslenta.ru>, Milanova Lyubov <l.milanova@lenta-co.ru>, Mironov
+ Filipp <f.mironov@afisha.ru>, Miroshkin Alexander <a.miroshkin@motor.ru>,
+	Mishenkov Konstantin <k.mishenkov@rambler-co.ru>, Mozzherin Dmitry
+	<d.mozzherin@rambler-co.ru>, Mostepanov Gennadiy
+	<g.mostepanov@rambler-co.ru>, Muravyov Igor <IMuravyov@rambler-co.ru>,
+	Naryshkin Vladimir <v.naryshkin@rambler-co.ru>, Nenaglyadkin Ilya
+	<INenaglyadkin@rambler-co.ru>, Nikolaev Dmitry <Dmitry.Nikolaev@sup.com>,
+	Nikolsky Evgeny <e.nikolsky@rambler-co.ru>, Novikov Alexey
+	<anovikov@afisha.ru>, Obolensky Oleg <o.obolensky@rambler-co.ru>, Ovodov
+ Vasily <v.ovodov@rambler-co.ru>, Olerinskaya Daria
+	<d.olerinskaya@moslenta.ru>, Orekhin Petr <p.orekhin@gazeta.ru>, Pak Mihail
+	<m.pak@lenta-co.ru>, Papernaya Inessa <i.papernaya@lenta-co.ru>, Parashy
+ Denis <d.parashy@rambler-co.ru>, Pichurin Alexander
+	<APichurin@price-team.ru>, Platov Artem <a.platov@rambler-co.ru>, Platonova
+ Elena <e.platonova@gazeta.ru>, Plotnikov Sergey <splotnikov@ferra.ru>,
+	Pobazheev Mikhail <maverick@afisha.ru>, Pogoreltsev Aleksey
+	<a.pogoreltsev@rambler-co.ru>, Podvigailo Natalia <npodvigailo@afisha.ru>,
+	Podshivalin Sergey <s.podshivalin@rambler-co.ru>, Polozov Leonid
+	<l.polozov@lenta-co.ru>, Polunin Konstantin <kp@rambler-co.ru>, Polukhina
+ Tatyana <t.polukhina@rambler-co.ru>, Popov Valery <v.popov@rambler-co.ru>,
+	Popov Victor <vp@rambler-co.ru>, Popova Elena <Elena.Popova@rambler-co.ru>,
+	Poretskiy Vitaliy <v.poretskiy@rambler-co.ru>, Postnikov Alexander
+	<apostnik@rambler-co.ru>, Prokofiev Nikolay <n.prokofiev@rambler-co.ru>,
+	Prokudin Filipp <f.prokudin@lenta-co.ru>, Proskurovskiy Dmitriy
+	<Dmitriy.Proskurovskiy@gazeta.ru>, Proschaev Gennady
+	<Gennady.Proschaev@sup.com>, Ratnikova Nadezhda <n.ratnikova@afisha.ru>,
+	Reshetova Mayya <m.reshetova@rambler-co.ru>, Rogozhin Vasily
+	<v.rogozhin@rambler-co.ru>, Rozhkov Aleksandr
+	<Aleksandr.Rozhkov@rambler-co.ru>, Rozhkova Natalia <n.rozhkova@lenta-co.ru>,
+	Rossinskaya Marina <m.rossinskaya@rambler-co.ru>, Ryabova Anastasia
+	<ARyabova@price-team.ru>, Ryazantsev Artem <a.ryazantsev@lenta-co.ru>, Savary
+ Lev <lev.savary@rambler-co.ru>, Savosin Artem <Artem.Savosin@rambler-co.ru>,
+	Salnikov Daniil <daniil.salnikov@rambler-co.ru>, Samokhvalov Aleksandr
+	<a.samokhvalov@rambler-co.ru>, Saprykin German <g.saprykin@rambler-co.ru>,
+	Selkin Roman <r.selkin@rambler-co.ru>, Sergeev Dmitry
+	<sergeev@rambler-co.ru>, Sigova Irina <Irina.Sigova@gazeta.ru>, Sidorov
+ Aleksandr Ivanovich <al.sidorov@lenta-co.ru>, Silukova Olga
+	<o.silukova@rambler-co.ru>, Skvortsova Stefanida
+	<s.skvortsova@rambler-co.ru>, Skipidarov Sergey <s.skipidarov@gazeta.ru>,
+	Sladkova Anna <ASladkova@begun.ru>, Slyusarenko Evgeniy
+	<e.slyusarenko@rambler-co.ru>, Smolin Anton <a.smolin@rambler-co.ru>,
+	Soldatov Yuri <y.soldatov@rambler-co.ru>, Solomennik Andrey
+	<a.solomennik@rambler-co.ru>, Starikova Olesya <olesya@price.ru>, Klimanskaya
+ Elena <EKlimanskaya@price-team.ru>, Surina Ekaterina
+	<e.surina@rambler-co.ru>, Surinov Aleksey <a.surinov@rambler-co.ru>,
+	Tadevosyan Maksim <m.tadevosyan@rambler-co.ru>, Tatarenkova Kristina
+	<k.tatarenkova@rambler-co.ru>, Tekunova Ekaterina <e.tekunova@rambler-co.ru>,
+	Terehina Olga <Olga.Terehina@rambler-co.ru>, Tkachev Ivan
+	<itkachev@rambler-co.ru>, Tokareva Viktoriya <v.tokareva@lenta-co.ru>,
+	Tregubov Vadim <v.tregubov@rambler-co.ru>, Trufanov Konstantin
+	<KTrufanov@rambler-co.ru>, Tyulyakov Roman <r.tyulyakov@rambler-co.ru>,
+	Tyunina Elena <e.tyunina@rambler-co.ru>, Tyutyunikov Vladislav
+	<v.tyutyunikov@rambler-co.ru>, Tyapkov Mikhail
+	<Mikhail.Tyapkov@rambler-co.ru>, Ulianova Aleksandra
+	<a.ulianova@rambler-co.ru>, Uspenskiy Pavel <p.uspenskiy@rambler-co.ru>,
+	Ustinovich Natalia <n.ustinovich@rambler-co.ru>, Fateeva Anna
+	<a.fateeva@rambler-co.ru>, Fedorov Roman <r.fedorov@rambler-co.ru>, Fenichev
+ Vladimir <vfenichev@afisha.ru>, Filev Dmitry <d.filev@rambler-co.ru>,
+	Filipenina Anastasiya <a.filipenina@rambler-co.ru>, Fionova Olga
+	<o.fionova@afisha.ru>, Khazagaeva Yuliya <y.khazagaeva@rambler-co.ru>,
+	Khatskevich Konstantin <KKhatskevich@rambler-co.ru>, Khodyrev Aleksey
+	<a.khodyrev@rambler-co.ru>, Khromova Galina <gkhromova@afisha.ru>, Tsarkov
+ Ilia <i.tsarkov@rambler-co.ru>, Tselykh Denis <Denis.Tselykh@rambler-co.ru>,
+	Tsymbal Mikhail <mt@motor.ru>, Tsyper Andrey <a.tsyper@rambler-co.ru>,
+	Tsyruleva Irina <i.tsyruleva@rambler-co.ru>, Chekryzhov Vadim
+	<v.chekryzhov@rambler-co.ru>, Chernodarov Andrey
+	<a.chernodarov@rambler-co.ru>, Chekh Dmitriy <d.chekh@rambler-co.ru>,
+	Chistyakova Vera <VChistyakova@price-team.ru>, Shanaev Sergey
+	<s.shanaev@rambler-co.ru>, Shardakov Mikhail
+	<Michail.Shardakov@rambler-co.ru>, Shebordaev Dmitry
+	<d.shebordaev@rambler-co.ru>, Shenshteyn Mikhail
+	<m.shenshteyn@rambler-co.ru>, Shirinskiy Andrey <a.shirinskiy@rambler-co.ru>,
+	Shiryaev Ruslan <r.shiryaev@rambler-co.ru>, Shiryaeva Natalya
+	<alotostanka@price.ru>, Shishov Kirill <k.shishov@lenta-co.ru>, Shurutov
+ Mikhail <MShurutov@rambler-co.ru>, Scherbakov Andrey
+	<AScherbakov@rambler-co.ru>, Shchetinina Mariya <m.shchetinina@gazeta.ru>,
+	Epstein Yury <y.epstein@rambler-co.ru>, Yurishchev Maksim
+	<m.yurishchev@rambler-co.ru>, Yakovlev Sergey <s.yakovlev@rambler-co.ru>
+Subject: =?koi8-r?B?8M/EwdLLySDEzNEgxMXUxcog1sTV1CDXwdMg1yBIUg==?=
+Thread-Topic: =?koi8-r?B?8M/EwdLLySDEzNEgxMXUxcog1sTV1CDXwdMg1yBIUg==?=
+Thread-Index: AdE9lO21dKD4cB74RnqmvlsWT4NUBw==
+Date: Wed, 23 Dec 2015 18:18:52 +0300
+Message-ID:
+ <0F641A525CD4EC4D9706FB9B789216A4743F30A9@srv-mbx5.rambler.ramblermedia.com>
+Accept-Language: ru-RU, en-US
+Content-Language: ru-RU
+X-MS-Exchange-Organization-AuthAs: Internal
+X-MS-Exchange-Organization-AuthMechanism: 04
+X-MS-Exchange-Organization-AuthSource: srv-cas2.rambler.ramblermedia.com
+X-MS-Has-Attach:
+X-MS-Exchange-Organization-SCL: -1
+X-MS-TNEF-Correlator:
+Content-Type: text/html; charset="koi8-r"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html xmlns:v=3D"urn:schemas-microsoft-com:vml" xmlns:o=3D"urn:schemas-micr=
+osoft-com:office:office" xmlns:w=3D"urn:schemas-microsoft-com:office:word" =
+xmlns:m=3D"http://schemas.microsoft.com/office/2004/12/omml" xmlns=3D"http:=
+//www.w3.org/TR/REC-html40">
+<head>
+<meta http-equiv=3D"Content-Type" content=3D"text/html; charset=3Dkoi8-r">
+<meta name=3D"Generator" content=3D"Microsoft Word 15 (filtered medium)">
+<style><!--
+/* Font Definitions */
+@font-face
+	{font-family:Wingdings;
+	panose-1:5 0 0 0 0 0 0 0 0 0;}
+@font-face
+	{font-family:"Cambria Math";
+	panose-1:2 4 5 3 5 4 6 3 2 4;}
+@font-face
+	{font-family:Calibri;
+	panose-1:2 15 5 2 2 2 4 3 2 4;}
+/* Style Definitions */
+p.MsoNormal, li.MsoNormal, div.MsoNormal
+	{margin:0cm;
+	margin-bottom:.0001pt;
+	font-size:11.0pt;
+	font-family:"Calibri",sans-serif;
+	mso-fareast-language:EN-US;}
+a:link, span.MsoHyperlink
+	{mso-style-priority:99;
+	color:blue;
+	text-decoration:underline;}
+a:visited, span.MsoHyperlinkFollowed
+	{mso-style-priority:99;
+	color:purple;
+	text-decoration:underline;}
+p.msonormal0, li.msonormal0, div.msonormal0
+	{mso-style-name:msonormal;
+	mso-margin-top-alt:auto;
+	margin-right:0cm;
+	mso-margin-bottom-alt:auto;
+	margin-left:0cm;
+	font-size:12.0pt;
+	font-family:"Times New Roman",serif;}
+span.EmailStyle18
+	{mso-style-type:personal;
+	font-family:"Calibri",sans-serif;
+	color:windowtext;}
+span.EmailStyle19
+	{mso-style-type:personal-reply;
+	font-family:"Calibri",sans-serif;
+	color:#1F497D;}
+.MsoChpDefault
+	{mso-style-type:export-only;
+	font-size:10.0pt;}
+@page WordSection1
+	{size:612.0pt 792.0pt;
+	margin:2.0cm 42.5pt 2.0cm 3.0cm;}
+div.WordSection1
+	{page:WordSection1;}
+--></style><!--[if gte mso 9]><xml>
+<o:shapedefaults v:ext=3D"edit" spidmax=3D"1026" />
+</xml><![endif]--><!--[if gte mso 9]><xml>
+<o:shapelayout v:ext=3D"edit">
+<o:idmap v:ext=3D"edit" data=3D"1" />
+</o:shapelayout></xml><![endif]-->
+</head>
+<body lang=3D"RU" link=3D"blue" vlink=3D"purple">
+<div class=3D"WordSection1">
+<p class=3D"MsoNormal"><span style=3D"color:#1F4E79;mso-style-textfill-fill=
+-color:#1F4E79;mso-style-textfill-fill-alpha:100.0%">=E4=CF=D2=CF=C7=C9=C5 =
+=C4=D2=D5=DA=D8=D1,
+<o:p></o:p></span></p>
+<p class=3D"MsoNormal"><span style=3D"color:#1F4E79;mso-style-textfill-fill=
+-color:#1F4E79;mso-style-textfill-fill-alpha:100.0%">=D7 =D0=D2=C5=C4=C4=D7=
+=C5=D2=C9=C9 =EE=CF=D7=CF=C7=CF =E7=CF=C4=C1 =CD=D9 =CE=C1=D0=C9=D3=C1=CC=
+=C9 =E4=C5=C4=D5 =ED=CF=D2=CF=DA=D5 =D0=C9=D3=D8=CD=CF =D3 =D0=D2=CF=D3=D8=
+=C2=CF=CA =D0=CF=DA=C4=D2=C1=D7=C9=D4=D8 =C4=C5=D4=C5=CA =D3=CF=D4=D2=D5=C4=
+=CE=C9=CB=CF=D7
+</span><span lang=3D"EN-US" style=3D"color:#1F4E79;mso-style-textfill-fill-=
+color:#1F4E79;mso-style-textfill-fill-alpha:100.0%">Rambler</span><span sty=
+le=3D"color:#1F4E79;mso-style-textfill-fill-color:#1F4E79;mso-style-textfil=
+l-fill-alpha:100.0%">&amp;</span><span lang=3D"EN-US" style=3D"color:#1F4E7=
+9;mso-style-textfill-fill-color:#1F4E79;mso-style-textfill-fill-alpha:100.0=
+%">Co</span><span style=3D"color:#1F4E79;mso-style-textfill-fill-color:#1F4=
+E79;mso-style-textfill-fill-alpha:100.0%">.<o:p></o:p></span></p>
+<p class=3D"MsoNormal"><span style=3D"color:#1F4E79;mso-style-textfill-fill=
+-color:#1F4E79;mso-style-textfill-fill-alpha:100.0%">=E4=C5=C4 =ED=CF=D2=CF=
+=DA =CF=D4=CB=CC=C9=CB=CE=D5=CC=D3=D1 =C9 =D0=D2=C9=D7=C5=DA =D0=CF=C4=C1=
+=D2=CB=C9
+</span><span style=3D"font-family:Wingdings;color:#1F4E79;mso-style-textfil=
+l-fill-color:#1F4E79;mso-style-textfill-fill-alpha:100.0%">J</span><span st=
+yle=3D"color:#1F4E79;mso-style-textfill-fill-color:#1F4E79;mso-style-textfi=
+ll-fill-alpha:100.0%">.<o:p></o:p></span></p>
+<p class=3D"MsoNormal"><span style=3D"color:#1F4E79;mso-style-textfill-fill=
+-color:#1F4E79;mso-style-textfill-fill-alpha:100.0%">=EE=CF=D7=CF=C7=CF=C4=
+=CE=C9=C5 =E6=C5=C9 =D2=C1=DA=C4=C1=C0=D4 =C9=C8 =D7
+</span><span lang=3D"EN-US" style=3D"color:#1F4E79;mso-style-textfill-fill-=
+color:#1F4E79;mso-style-textfill-fill-alpha:100.0%">HR</span><span lang=3D"=
+EN-US" style=3D"color:#1F4E79;mso-style-textfill-fill-color:#1F4E79;mso-sty=
+le-textfill-fill-alpha:100.0%">
+</span><span style=3D"color:#1F4E79;mso-style-textfill-fill-color:#1F4E79;m=
+so-style-textfill-fill-alpha:100.0%">(=F2=D1=C4=D9 =F3=CF=CC=C4=C1=D4=C5=CE=
+=CB=CF=D7=C1, 1 =D0=CF=C4=DF=C5=DA=C4</span><span style=3D"color:#10253F;ms=
+o-style-textfill-fill-color:#10253F;mso-style-textfill-fill-alpha:100.0%">,=
+</span><span style=3D"color:#1F4E79;mso-style-textfill-fill-color:#1F4E79;m=
+so-style-textfill-fill-alpha:100.0%">
+ 2 =DC=D4=C1=D6 (4.2)) =D3 =D3=C5=C7=CF=C4=CE=D1=DB=CE=C5=C7=CF =C4=CE=D1 =
+=C9 =C4=CF 30 =C4=C5=CB=C1=C2=D2=D1.<o:p></o:p></span></p>
+<p class=3D"MsoNormal"><span style=3D"color:#1F4E79;mso-style-textfill-fill=
+-color:#1F4E79;mso-style-textfill-fill-alpha:100.0%">=F3=D0=C5=DB=C9=D4=C5 =
+=D0=CF=CC=D5=DE=C9=D4=D8 =D0=CF=C4=C1=D2=CB=C9 =C9 =D3 =CE=C1=D3=D4=D5=D0=
+=C1=C0=DD=C9=CD =EE=CF=D7=D9=CD =E7=CF=C4=CF=CD!<o:p></o:p></span></p>
+<p class=3D"MsoNormal"><span style=3D"color:#1F4E79;mso-style-textfill-fill=
+-color:#1F4E79;mso-style-textfill-fill-alpha:100.0%"><o:p>&nbsp;</o:p></spa=
+n></p>
+<p class=3D"MsoNormal"><span style=3D"font-size:10.0pt;font-family:&quot;Ar=
+ial&quot;,sans-serif;color:#1F4E79;mso-style-textfill-fill-color:#1F4E79;ms=
+o-style-textfill-fill-alpha:100.0%;mso-fareast-language:RU">=F3 =D5=D7=C1=
+=D6=C5=CE=C9=C5=CD,<o:p></o:p></span></p>
+<p class=3D"MsoNormal"><span style=3D"color:#1F4E79;mso-style-textfill-fill=
+-color:#1F4E79;mso-style-textfill-fill-alpha:100.0%">=EB=CF=CD=C1=CE=C4=C1<=
+/span><span style=3D"color:#1F4E79;mso-style-textfill-fill-color:#1F4E79;ms=
+o-style-textfill-fill-alpha:100.0%">
+</span><span style=3D"color:#1F4E79;mso-style-textfill-fill-color:#1F4E79;m=
+so-style-textfill-fill-alpha:100.0%">HR<o:p></o:p></span></p>
+<p class=3D"MsoNormal"><span style=3D"color:#1F4E79;mso-style-textfill-fill=
+-color:#1F4E79;mso-style-textfill-fill-alpha:100.0%">RAMBLER&amp;Co</span><=
+span lang=3D"EN-US" style=3D"color:#1F4E79;mso-style-textfill-fill-color:#1=
+F4E79;mso-style-textfill-fill-alpha:100.0%"><o:p></o:p></span></p>
+</div>
+</body>
+</html>
