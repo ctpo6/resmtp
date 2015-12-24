@@ -238,6 +238,8 @@ protected:
 
     void on_connection_tarpitted();
     void on_connection_close();
+
+    void log(uint32_t prio, string msg) noexcept;
 };
 
 typedef std::shared_ptr<smtp_connection> smtp_connection_ptr;

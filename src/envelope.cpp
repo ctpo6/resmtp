@@ -8,9 +8,10 @@
 
 using namespace std;
 
-envelope::envelope()
+
+envelope::envelope(bool generate_msg_id)
 {
-    m_id = generate_new_id();
+    m_id = generate_msg_id ? generate_new_id() : string("********");
 }
 
 

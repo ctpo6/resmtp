@@ -5,6 +5,7 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <memory>
 #include <sstream>
 #include <unordered_set>
 #include <vector>
@@ -37,20 +38,20 @@ namespace ba = boost::asio;
 
 
 smtp_connection::smtp_connection(boost::asio::io_service &_io_service,
-        smtp_connection_manager &_manager,
-        smtp_backend_manager &bmgr,
-        boost::asio::ssl::context& _context) :
-    io_service_(_io_service),
-    strand_(_io_service),
-    m_ssl_socket(_io_service, _context),
-    m_timer(_io_service),
-    m_timer_spfdkim(_io_service),
-    m_tarpit_timer(_io_service),
-    m_manager(_manager),
-    backend_mgr(bmgr),
-    m_resolver(_io_service),
-    m_dkim_status(dkim_check::DKIM_NONE),
-    m_envelope(new envelope())
+                                 smtp_connection_manager &_manager,
+                                 smtp_backend_manager &bmgr,
+                                 boost::asio::ssl::context& _context)
+    : io_service_(_io_service)
+    , strand_(_io_service)
+    , m_ssl_socket(_io_service, _context)
+    , m_timer(_io_service)
+    , m_timer_spfdkim(_io_service)
+    , m_tarpit_timer(_io_service)
+    , m_manager(_manager)
+    , backend_mgr(bmgr)
+    , m_resolver(_io_service)
+    , m_dkim_status(dkim_check::DKIM_NONE)
+    , m_envelope(std::make_shared<envelope>(false))
 {
 }
 
@@ -67,10 +68,8 @@ void smtp_connection::start(bool force_ssl) {
     m_session_id = envelope::generate_new_id();
 
     m_connected_ip = socket().remote_endpoint().address();
-    g_log.msg(MSG_NORMAL,
-              str(boost::format("%1%: **** CONNECT %2%")
-                  % m_session_id
-                  % m_connected_ip.to_string()));
+    log(MSG_NORMAL,
+        str(boost::format("**** CONNECT %1%") % m_connected_ip.to_string()));
 
     m_max_rcpt_count = g::cfg().m_max_rcpt_count;
 
@@ -109,12 +108,11 @@ void smtp_connection::handle_back_resolve(
         return;
     }
 
-    g_log.msg(MSG_NORMAL,
-              str(boost::format("%1%: resolve %2%: %3%")
-                  % m_session_id
-                  % m_connected_ip.to_string()
-                  % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())));
-    
+    log(MSG_NORMAL,
+        str(boost::format("resolved %1%[%2%]")
+            % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
+            % m_connected_ip.to_string()));
+
     // blacklist check is OFF
     if (!g::cfg().m_rbl_active) {
         handle_dnsbl_check();
@@ -140,8 +138,6 @@ void smtp_connection::handle_back_resolve(
 
 
 void smtp_connection::handle_dnsbl_check() {
-//    PDBG("ENTER");
-
     if(m_dnsbl_check) {
         m_dnsbl_status = m_dnsbl_check->get_status(m_dnsbl_status_str);
         m_dnsbl_check->stop();
@@ -155,9 +151,8 @@ void smtp_connection::handle_dnsbl_check() {
     // is IP blacklisted ?
     //--------------------------------------------------------------------------
     if (m_dnsbl_status) {
-        g_log.msg(MSG_NORMAL,
-            str(boost::format("%1%-RECV: REJECT connection from blacklisted host %2%[%3%]: %4%")
-                % m_session_id
+        log(MSG_NORMAL,
+            str(boost::format("reject connection from blacklisted host %1%[%2%]: %3%")
                 % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
                 % m_connected_ip.to_v4().to_string()
                 % m_dnsbl_status_str));
@@ -225,11 +220,10 @@ void smtp_connection::start_proto() {
     PDBG("m_dnswl_status:%d  m_dnswl_status_str:%s", m_dnswl_status, m_dnswl_status_str.c_str());
     if (!m_dnswl_status && g::cfg().m_tarpit_delay_seconds) {
         on_connection_tarpitted();
-        g_log.msg(MSG_NORMAL,
-                  str(boost::format("%1%-RECV: TARPIT %2%[%3%]")
-                      % m_session_id
-                      % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
-                      % m_connected_ip.to_v4().to_string()));
+        log(MSG_NORMAL,
+            str(boost::format("TARPIT %1%[%2%]")
+                % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
+                % m_connected_ip.to_v4().to_string()));
     }
 
     //--------------------------------------------------------------------------
@@ -254,11 +248,11 @@ void smtp_connection::start_proto() {
 				boost::asio::placeholders::error));
 		}
 	} else {
-		g_log.msg(MSG_NORMAL,
-				  str(boost::format("%1%-RECV: REJECT connection from host %2%[%3%]: %4%")
-					  % m_session_id % m_remote_host_name
-					  % m_connected_ip.to_v4().to_string()
-					  % error));
+		log(MSG_NORMAL,
+			str(boost::format("reject connection %1%[%2%]: %3%")
+				% m_remote_host_name
+				% m_connected_ip.to_v4().to_string()
+				% error));
         response_stream << error;
 
         if (m_force_ssl) {
@@ -286,13 +280,12 @@ void smtp_connection::on_connection_tarpitted()
 void smtp_connection::on_connection_close()
 {
     g::mon().conn_closed(close_status, tarpit);
-    g_log.msg(MSG_NORMAL,
-              str(boost::format("%1%-RECV: **** DISCONNECT %2%[%3%] status=%4% tarpit=%5%")
-                  % m_session_id
-                  % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
-                  % m_connected_ip.to_string()
-                  % resmtp::monitor::get_conn_close_status_name(close_status)
-                  % (tarpit ? "1" : "0")));
+    log(MSG_NORMAL,
+        str(boost::format("**** DISCONNECT %1%[%2%] status=%3% tarpit=%4%")
+            % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
+            % m_connected_ip.to_string()
+            % resmtp::monitor::get_conn_close_status_name(close_status)
+            % (tarpit ? "1" : "0")));
 }
 
 
@@ -341,13 +334,17 @@ void smtp_connection::start_read() {
     else if (!m_read_pending_) {
         if (ssl_state_ == ssl_active) {
             m_ssl_socket.async_read_some(buffers_.prepare(512),
-                    strand_.wrap(boost::bind(&smtp_connection::handle_read, shared_from_this(),
-                                    boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred)));
+                    strand_.wrap(boost::bind(&smtp_connection::handle_read,
+                                             shared_from_this(),
+                                             boost::asio::placeholders::error,
+                                             boost::asio::placeholders::bytes_transferred)));
         }
         else {
             socket().async_read_some(buffers_.prepare(512),
-                    strand_.wrap(boost::bind(&smtp_connection::handle_read, shared_from_this(),
-                                    boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred)));
+                    strand_.wrap(boost::bind(&smtp_connection::handle_read,
+                                             shared_from_this(),
+                                             boost::asio::placeholders::error,
+                                             boost::asio::placeholders::bytes_transferred)));
         }
         m_read_pending_ = true;
     }
@@ -460,6 +457,10 @@ void smtp_connection::handle_read_helper(std::size_t size)
     yconst_buffers bufs = buffers_.data();
     yconst_buffers_iterator b = ybuffers_begin(bufs);
     yconst_buffers_iterator e = b + size;
+
+    log(MSG_DEBUG,
+        str(boost::format(">>> %1%") % util::str_cleanup_crlf(string(b, e))));
+
     yconst_buffers_iterator bb = b + m_envelope->orig_message_token_marker_size_;
     assert (bb < e);
 
@@ -516,19 +517,16 @@ void smtp_connection::start_check_data()
 
     m_timer.cancel();
 
-    if (m_envelope->orig_message_size_ > g::cfg().m_message_size_limit)
-    {
-        m_error_count++;
+    if (m_envelope->orig_message_size_ > g::cfg().m_message_size_limit) {
+        ++m_error_count;
 
         m_check_data.m_result = check::CHK_REJECT;
         m_check_data.m_answer =  "552 5.3.4 Error: message file too big;";
 
-        g_log.msg(MSG_NORMAL, str(boost::format("%1%-%2%-RECV: warning: queue file size limit exceeded") % m_check_data.m_session_id %  m_envelope->m_id ));
+        log(MSG_NORMAL, "warning: queue file size limit exceeded");
 
         end_check_data();
-    }
-    else
-    {
+    } else {
 //        PDBG("call smtp_delivery_start()");
         smtp_delivery_start();
     }
@@ -562,11 +560,15 @@ void smtp_connection::handle_dkim_timeout(const boost::system::error_code& ec)
 }
 
 namespace {
-template <class Range>
-void log_message_id(Range message_id, const string& session_id, const string& envelope_id)
+void log_message_id(const string &message_id,
+                    const string &session_id,
+                    const string &envelope_id)
 {
     g_log.msg(MSG_NORMAL,
-            str(boost::format("%1%-%2%-RECV: message-id=%3%") % session_id % envelope_id % message_id));
+              str(boost::format("%1%-%2%-RECV: message-id=%3%")
+                  % session_id
+                  % envelope_id
+                  % message_id));
 }
 
 
@@ -661,9 +663,13 @@ void smtp_connection::smtp_delivery_start()
 
             append(str(boost::format("Message-Id: %1%\r\n") % message_id_str), added_h);
 
-            log_message_id(message_id_str, m_check_data.m_session_id, m_envelope->m_id); // log composed message-id
+            log(MSG_NORMAL,
+                str(boost::format("message-id=%1%") % message_id_str));
+//            log_message_id(message_id_str, m_check_data.m_session_id, m_envelope->m_id); // log composed message-id
         } else {
-            log_message_id(message_id, m_check_data.m_session_id, m_envelope->m_id); // log original message-id
+            log(MSG_NORMAL,
+                str(boost::format("message-id=%1%") % message_id));
+//            log_message_id(message_id, m_check_data.m_session_id, m_envelope->m_id); // log original message-id
         }
 
         if (unique_h.find("date") == unique_h.end()) {
@@ -849,7 +855,7 @@ void smtp_connection::end_check_data() {
 void smtp_connection::send_response(
         boost::function<void(const boost::system::error_code &)> handler) {
     if (m_response.size() == 0) {
-        PDBG("nothing to send");
+//        PDBG("nothing to send");
         return;
     }
 
@@ -860,9 +866,9 @@ void smtp_connection::send_response(
     }
 
     // send with tarpit timeout
-    g_log.msg(MSG_DEBUG,
-              str(boost::format("TARPIT: delay %1% seconds")
-                  % g::cfg().m_tarpit_delay_seconds));
+    log(MSG_DEBUG,
+        str(boost::format("TARPIT: delay %1% seconds")
+            % g::cfg().m_tarpit_delay_seconds));
     m_tarpit_timer.expires_from_now(
         boost::posix_time::seconds(g::cfg().m_tarpit_delay_seconds));
     m_tarpit_timer.async_wait(strand_.wrap(
@@ -878,19 +884,16 @@ void smtp_connection::send_response2(
     if (g::cfg().m_socket_check &&
             m_proto_state == STATE_START &&
             !check_socket_read_buffer_is_empty()) {
-        g_log.msg(MSG_NORMAL,
-                  str(boost::format("%1%: ABORT SESSION (bad client behavior)")
-                      % m_session_id));
+        log(MSG_NORMAL, "abort session (bad client behavior)");
         PDBG("close_status_t::fail_client_early_write");
         close_status = close_status_t::fail_client_early_write;
         m_manager.stop(shared_from_this());
         return;
     }
 
-	g_log.msg(MSG_DEBUG,
-			  str(boost::format("%1%-SEND: %2%")
-				  % m_session_id
-				  % util::str_cleanup_crlf(util::str_from_buf(m_response))));
+	log(MSG_DEBUG,
+		str(boost::format("<<< %1%")
+			% util::str_cleanup_crlf(util::str_from_buf(m_response))));
 	if(ssl_state_ == ssl_active) {
         ba::async_write(
             m_ssl_socket,
@@ -909,9 +912,7 @@ void smtp_connection::handle_write_request(const boost::system::error_code &ec)
 {
     if (!ec) {
         if (m_error_count > g::cfg().m_hard_error_limit) {
-            g_log.msg(MSG_NORMAL,
-                      str(boost::format("%1%: too many errors")
-                          % m_session_id));
+            log(MSG_CRITICAL, "too many errors");
 
             std::ostream response_stream(&m_response);
             response_stream << "421 4.7.0 " << boost::asio::ip::host_name() << " Error: too many errors\r\n";
@@ -971,10 +972,9 @@ void smtp_connection::handle_ssl_handshake(const boost::system::error_code& ec)
 
 bool smtp_connection::execute_command(string cmd, std::ostream &os)
 {
-    g_log.msg(MSG_DEBUG,
-              str(boost::format("%1%-RECV: exec cmd='%2%'")
-                  % m_session_id
-                  % util::str_cleanup_crlf(cmd)));
+    log(MSG_DEBUG,
+        str(boost::format("execute command: '%1%'")
+            % util::str_cleanup_crlf(cmd)));
 
     // trim starting whitespace
     string::size_type pos = cmd.find_first_not_of( " \t" );
@@ -1027,7 +1027,7 @@ bool smtp_connection::smtp_noop ( const std::string& _cmd, std::ostream &_respon
     return true;
 }
 
-bool smtp_connection::smtp_starttls ( const std::string& _cmd, std::ostream &_response )
+bool smtp_connection::smtp_starttls( const std::string& _cmd, std::ostream &_response )
 {
     ssl_state_ = ssl_hand_shake;
     _response << "220 Go ahead\r\n";
@@ -1036,9 +1036,10 @@ bool smtp_connection::smtp_starttls ( const std::string& _cmd, std::ostream &_re
 
 bool smtp_connection::smtp_rset( const std::string& _cmd, std::ostream &_response )
 {
-    if ( m_proto_state > STATE_START )
+    if (m_proto_state > STATE_START) {
         m_proto_state = STATE_HELLO;
-    m_envelope.reset(new envelope());
+    }
+    m_envelope.reset(new envelope(false));
     _response << "250 2.0.0 Ok\r\n";
     return true;
 }
@@ -1077,7 +1078,7 @@ bool smtp_connection::smtp_helo( const std::string& _cmd, std::ostream &_respons
     return true;
 }
 
-bool smtp_connection::smtp_ehlo( const std::string& _cmd, std::ostream &_response )
+bool smtp_connection::smtp_ehlo(const std::string& _cmd, std::ostream &_response )
 {
     std::string esmtp_flags("250-8BITMIME\r\n250-PIPELINING\r\n" );
 
@@ -1424,12 +1425,11 @@ void smtp_connection::handle_timer(const boost::system::error_code &ec)
                     << " Error: timeout exceeded\r\n";
 
     if (m_proto_state == STATE_BLAST_FILE) {
-        g_log.msg(MSG_NORMAL,
-                  str(boost::format("%1%-RECV: timeout after DATA (%2% bytes) from %3%[%4%]")
-                      % m_session_id
-                      % buffers_.size()
-                      % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
-                      % m_connected_ip.to_string()));
+        log(MSG_NORMAL,
+            str(boost::format("timeout after DATA (%1% bytes) from %2%[%3%]")
+                % buffers_.size()
+                % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
+                % m_connected_ip.to_string()));
     } else {
         const char *state_desc = "";
         switch (m_proto_state)
@@ -1448,12 +1448,11 @@ void smtp_connection::handle_timer(const boost::system::error_code &ec)
             state_desc = "HELO";
             break;
         }
-        g_log.msg(MSG_NORMAL,
-                  str(boost::format("%1%-RECV: timeout after %2% from %3%[%4%]")
-                      % m_session_id
-                      % state_desc
-                      % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
-                      % m_connected_ip.to_string()));
+        log(MSG_NORMAL,
+            str(boost::format("timeout after %1% from %2%[%3%]")
+                % state_desc
+                % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
+                % m_connected_ip.to_string()));
     }
 
     send_response(boost::bind(
@@ -1477,8 +1476,7 @@ void smtp_connection::end_mail_from_command(bool _start_spf,
                                             std::string _addr,
                                             const std::string &_response)
 {
-    if (_start_spf)
-    {
+    if (_start_spf) {
         // start SPF check
         spf_parameters p;
         p.domain = m_helo_host;
@@ -1499,31 +1497,32 @@ void smtp_connection::end_mail_from_command(bool _start_spf,
                             shared_from_this(), boost::asio::placeholders::error)));
     }
 
-    m_envelope.reset(new envelope());
+    m_envelope.reset(new envelope(true));
 
     m_smtp_from = _addr;
 
     m_envelope->m_sender = _addr.empty() ? "<>" : _addr;
 
-    g_log.msg(MSG_NORMAL, str(boost::format("%1%-%2%-RECV: from=<%3%>") % m_session_id % m_envelope->m_id % m_envelope->m_sender));
+    log(MSG_NORMAL,
+        str(boost::format("from=<%1%>") % m_envelope->m_sender));
 
     std::ostream response_stream(&m_response);
 
-    if (_response.empty())
-    {
+	if (_response.empty()) {
 		m_proto_state = STATE_AFTER_MAIL;
-		response_stream << "250 2.1.0 <" <<  _addr << "> ok\r\n";
-    }
-    else
-    {
+		response_stream << "250 2.1.0 <" << _addr << "> ok\r\n";
+	} else {
 		response_stream << _response << "\r\n";
     }
 
-    m_message_count++;
+    ++m_message_count;
 
-    if (_start_async)
-    {
-
+    if (_start_async) {
+        send_response(boost::bind(
+            &smtp_connection::handle_write_request,
+            shared_from_this(),
+            boost::asio::placeholders::error));
+#if 0
     	if (ssl_state_ == ssl_active)
 		{
     	    boost::asio::async_write(m_ssl_socket, m_response,
@@ -1537,5 +1536,16 @@ void smtp_connection::end_mail_from_command(bool _start_spf,
                 strand_.wrap(boost::bind(&smtp_connection::handle_write_request, shared_from_this(),
                                 boost::asio::placeholders::error)));
 		}
+#endif
     }
+}
+
+
+void smtp_connection::log(uint32_t prio, string msg) noexcept
+{
+    g_log.msg(prio,
+              str(boost::format("%1%-%2%-FRONT: %3%")
+                  % m_session_id
+                  % (m_envelope ? m_envelope->m_id.c_str() : "********")
+                  % msg));
 }

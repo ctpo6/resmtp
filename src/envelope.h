@@ -44,7 +44,7 @@ struct envelope :
     };
     typedef list<rcpt> rcpt_list_t;
 
-    envelope();
+    envelope(bool generate_msg_id);
 
     rcpt_list_t::iterator add_recipient(std::string name,
                                         uint64_t suid,
