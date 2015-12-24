@@ -2,6 +2,7 @@
 
 #include <unistd.h>
 
+#include <algorithm>
 #include <cassert>
 #include <cstring>
 #include <mutex>
@@ -32,8 +33,10 @@ struct monitor::impl_conn_t
         // counters of specific fail reasons
         uint64_t n_closed_conn_fail_client_early_write;
 
+        uint32_t n_active_conn_max;
         uint32_t n_active_conn_fast;
         uint32_t n_active_conn_tarpit;
+
     };
     counters c;
 
@@ -49,6 +52,8 @@ struct monitor::impl_conn_t
         lock_guard<mutex> lock(mtx);
         ++c.n_conn;
         ++c.n_active_conn_fast;
+        c.n_active_conn_max = std::max(c.n_active_conn_max,
+                                       c.n_active_conn_fast + c.n_active_conn_tarpit);
     }
 
     void conn_tarpitted() noexcept
@@ -94,8 +99,10 @@ struct monitor::impl_conn_t
         }
 
         // now can slowly print to the stream
+
         os << "conn " << cc.n_conn << '\n';
 
+        os << "active_conn_max " << cc.n_active_conn_max << '\n';
         os << "active_conn " << cc.n_active_conn_fast + cc.n_active_conn_tarpit << '\n';
         os << "active_conn_fast " << cc.n_active_conn_fast << '\n';
         os << "active_conn_tarpit " << cc.n_active_conn_tarpit << '\n';
