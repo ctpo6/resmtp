@@ -64,7 +64,13 @@ boost::asio::ip::tcp::socket& smtp_connection::socket()
 void smtp_connection::start(bool force_ssl) {
     m_force_ssl = force_ssl;
 
+    m_session_id = envelope::generate_new_id();
+
     m_connected_ip = socket().remote_endpoint().address();
+    g_log.msg(MSG_NORMAL,
+              str(boost::format("%1%: **** CONNECT %2%")
+                  % m_session_id
+                  % m_connected_ip.to_string()));
 
     m_max_rcpt_count = g::cfg().m_max_rcpt_count;
 
@@ -73,8 +79,6 @@ void smtp_connection::start(bool force_ssl) {
     if (g_ip_config.check(m_connected_ip.to_v4(), opt)) {
         m_max_rcpt_count = opt.m_rcpt_count;
     }
-
-    m_session_id = envelope::generate_new_id();
 
     m_timer_value = g::cfg().frontend_cmd_timeout;
 
@@ -106,10 +110,10 @@ void smtp_connection::handle_back_resolve(
     }
 
     g_log.msg(MSG_NORMAL,
-              str(boost::format("%1%-RECV: ******** CONNECT %2%[%3%]")
+              str(boost::format("%1%: resolve %2%: %3%")
                   % m_session_id
-                  % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
-                  % m_connected_ip.to_string()));
+                  % m_connected_ip.to_string()
+                  % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())));
     
     // blacklist check is OFF
     if (!g::cfg().m_rbl_active) {
@@ -283,7 +287,7 @@ void smtp_connection::on_connection_close()
 {
     g::mon().conn_closed(close_status, tarpit);
     g_log.msg(MSG_NORMAL,
-              str(boost::format("%1%-RECV: ******** DISCONNECT %2%[%3%] status=%4% tarpit=%5%")
+              str(boost::format("%1%-RECV: **** DISCONNECT %2%[%3%] status=%4% tarpit=%5%")
                   % m_session_id
                   % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
                   % m_connected_ip.to_string()
@@ -492,7 +496,7 @@ void smtp_connection::handle_read(const boost::system::error_code &ec,
         handle_read_helper(buffers_.size());
     } else {
         if (ec != boost::asio::error::operation_aborted) {
-            PDBG("close_status_t::fail");
+            PDBG("close_status_t::fail message=%s size=%zu", ec.message().c_str(), size);
             close_status = close_status_t::fail;
             m_manager.stop(shared_from_this());
         }

@@ -2,8 +2,7 @@
 
 do_send_mail()
 {
-	sendmail 25volt@25volt.ru < 1.eml
-	echo $?
+	sendmail 25volt@25volt.ru < 2.eml
 }
 
 if [ $# != 1 ]; then

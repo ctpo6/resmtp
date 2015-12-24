@@ -1,0 +1,59 @@
+Received: from mailrelay1.rambler.ru (81.19.66.239) by mail.rambler-co.ru
+ (81.19.73.74) with Microsoft SMTP Server (TLS) id 14.3.235.1; Thu, 24 Dec
+ 2015 12:39:46 +0300
+Received: from f120.i.mail.ru (f120.i.mail.ru [94.100.178.186])	by
+ mailrelay1.rambler.ru (Postfix) with ESMTP id 3pR5wK5tDPzJYK	for
+ <y.epstein@rambler-co.ru>; Thu, 24 Dec 2015 12:39:45 +0300 (MSK)
+DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=relaxed/relaxed; d=mail.ru; s=mail2;
+	h=Content-Type:Message-ID:Reply-To:Date:MIME-Version:Subject:To:From; bh=kwp4yqWXYznSBfd10AClkizCq8GfnBc9yAgr+7u52R4=;
+	b=BqjlSvcEt5u9PJODw7NBhxyBN8BUXl/hd09IQHOAh2/qiZBkeGS23wcCaeeLwW9r+2+Nl+uTkUQZvCAo82q3JK4a/yyDPx9xOUUZ1v9q95a2Bg226pj9ZAPBjwkA58KRtD1CphgTrrLKSDqVE+KCYvO1eg7SwoK5IMp+C558YG8=;
+Received: from [81.19.73.103] (ident=mail)	by f120.i.mail.ru with local
+ (envelope-from <ctpo6@mail.ru>)	id 1aC2N7-0002na-Jh	for
+ y.epstein@rambler-co.ru; Thu, 24 Dec 2015 12:39:45 +0300
+Received: from [81.19.73.103] by e.mail.ru with HTTP;	Thu, 24 Dec 2015
+ 12:39:45 +0300
+From: =?UTF-8?B?WXVyaSBF?= <ctpo6@mail.ru>
+To: =?UTF-8?B?eS5lcHN0ZWlu?= <y.epstein@rambler-co.ru>
+Subject: =?UTF-8?B?dGVzdA==?=
+X-Mailer: Mail.Ru Mailer 1.0
+X-Originating-IP: [81.19.73.103]
+Date: Thu, 24 Dec 2015 12:39:45 +0300
+Reply-To: =?UTF-8?B?WXVyaSBF?= <ctpo6@mail.ru>
+Message-ID: <1450949985.612124180@f120.i.mail.ru>
+Content-Type: multipart/alternative;
+	boundary="--ALT--AYmUZjlMnVvZZw6kyuaHllpYX1smyB2d1450949985"
+X-Mras: Ok
+X-Spam: undefined
+X-Spamd-Result: default: False [-1.14 / 30.00]
+ R_TO_SEEMS_AUTO(0.50)
+ TO_EXCESS_BASE64(0.52)
+ R_PRIORITY_3(0.00)
+ R_SPF_ALLOW(-2.00)
+ R_DKIM_ALLOW(-1.00)
+ FROM_EXCESS_BASE64(0.55)
+ R_ONE_RCPT(-0.30)
+ HFILTER_HOSTNAME_UNKNOWN(0.57)
+X-Spamd-Server: spam101.rambler.ru
+X-Spamd-Scan-Time: 0.08
+X-Spamd-Queue-ID: 3pR5wK5tDPzJYK
+X-Rcpt-To: <y.epstein@rambler-co.ru>
+Return-Path: ctpo6@mail.ru
+X-MS-Exchange-Organization-AuthSource: srv-cas2.rambler.ramblermedia.com
+X-MS-Exchange-Organization-AuthAs: Anonymous
+MIME-Version: 1.0
+
+----ALT--AYmUZjlMnVvZZw6kyuaHllpYX1smyB2d1450949985
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: base64
+
+CgoKLS0gCll1cmkgRQ==
+
+----ALT--AYmUZjlMnVvZZw6kyuaHllpYX1smyB2d1450949985
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: base64
+
+PGh0bWw+DQo8aGVhZD4NCjxtZXRhIGh0dHAtZXF1aXY9IkNvbnRlbnQtVHlwZSIgY29udGVudD0i
+dGV4dC9odG1sOyBjaGFyc2V0PXV0Zi04Ij48L2hlYWQ+DQo8Ym9keT48YnI+PGJyPjxicj4tLSA8
+YnI+WXVyaSBFPC9ib2R5PjwvaHRtbD4K
+
+----ALT--AYmUZjlMnVvZZw6kyuaHllpYX1smyB2d1450949985--

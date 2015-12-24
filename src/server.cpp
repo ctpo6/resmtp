@@ -138,6 +138,7 @@ bool server::setup_acceptor(const std::string& address, bool ssl)
 
     acceptor->open(endpoint.protocol());
     acceptor->set_option(ba::ip::tcp::acceptor::reuse_address(true));
+//    acceptor->set_option(ba::ip::tcp::acceptor::enable_connection_aborted(true));
     acceptor->bind(endpoint);
     acceptor->listen();
 
@@ -206,10 +207,14 @@ void server::handle_accept(acceptor_t *acceptor,
                            bool force_ssl,
                            const boost::system::error_code &ec)
 {
+//    PDBG("ENTER");
+
     if (ec == ba::error::operation_aborted)
         return;
 
+    // TODO really need this lock??? why???
     boost::mutex::scoped_lock lock(m_mutex);
+
     if (!ec) {
         on_connection();
         try {
