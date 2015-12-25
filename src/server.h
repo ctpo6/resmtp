@@ -61,8 +61,6 @@ private:
     vector<acceptor_t> m_acceptors;
 
     boost::thread_group m_threads_pool;
-
-    boost::mutex m_mutex;
 };
 }
 

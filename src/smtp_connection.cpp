@@ -232,12 +232,12 @@ void smtp_connection::start_proto() {
                 % m_connected_ip.to_v4().to_string()));
     }
 
-    //--------------------------------------------------------------------------
-    // send greeting msg
-    //--------------------------------------------------------------------------
+
     std::ostream response_stream(&m_response);
     string error;
+    // returns false on connections number exceeding limits
     if (m_manager.start(shared_from_this(), error)) {
+        // send greeting msg
 
         response_stream << "220 " << boost::asio::ip::host_name() << " "
                         << (g::cfg().m_smtp_banner.empty() ? "Ok" : g::cfg().m_smtp_banner) << "\r\n";
@@ -1300,7 +1300,7 @@ void smtp_connection::handle_bb_result_helper() {
 
 void smtp_connection::handle_spf_check(boost::optional<std::string> result,
                                        boost::optional<std::string> expl) {
-    PDBG("ENTER");
+//    PDBG("ENTER");
     m_spf_result = result;
     m_spf_expl = expl;
     spf_check_.reset();
@@ -1316,7 +1316,7 @@ void smtp_connection::handle_dkim_check(dkim_check::DKIM_STATUS status, const st
     dkim_check_.reset();
     m_timer_spfdkim.cancel();
     if (m_smtp_delivery_pending) {
-        PDBG("call smtp_delivery_start()");
+//        PDBG("call smtp_delivery_start()");
         smtp_delivery_start();
     }
 }
@@ -1369,7 +1369,7 @@ bool smtp_connection::smtp_mail(const std::string& _cmd,
 bool smtp_connection::smtp_data( const std::string& _cmd, std::ostream &_response )
 {
     if (m_proto_state != STATE_RCPT_OK) {
-        PDBG("m_proto_state = %d", m_proto_state);
+//        PDBG("m_proto_state = %d", m_proto_state);
         ++m_error_count;
         _response << "503 5.5.4 Bad sequence of commands.\r\n";
         return true;

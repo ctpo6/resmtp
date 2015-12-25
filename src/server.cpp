@@ -83,12 +83,10 @@ void server::run() {
 
 
 void server::stop() {
-    boost::mutex::scoped_lock lock(m_mutex);
     mon_acceptor->close();
     for (auto &a: m_acceptors) {
         a.close();
     }
-    lock.unlock();
 
     m_threads_pool.join_all();
     m_acceptors.clear();
@@ -209,11 +207,9 @@ void server::handle_accept(acceptor_t *acceptor,
 {
 //    PDBG("ENTER");
 
-    if (ec == ba::error::operation_aborted)
+    if (ec == ba::error::operation_aborted) {
         return;
-
-    // TODO really need this lock??? why???
-    boost::mutex::scoped_lock lock(m_mutex);
+    }
 
     if (!ec) {
         on_connection();
