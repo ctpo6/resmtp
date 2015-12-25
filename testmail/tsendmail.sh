@@ -14,7 +14,7 @@ N_MAILS=$1
 echo "Sending $N_MAILS mails"
 
 for i in $(seq $N_MAILS); do
-	do_send_mail
+	do_send_mail &
 done
 
 wait

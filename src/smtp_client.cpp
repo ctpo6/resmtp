@@ -341,16 +341,16 @@ void smtp_client::handle_write_data_request(const bs::error_code &ec,
         return;
     }
 
-    std::ostream answer_stream(&m_response);
+    std::ostream answer_stream(&client_request);
     answer_stream << ".\r\n";
 
     ba::async_write(m_socket,
-                    m_response,
+                    client_request,
                     strand_.wrap(boost::bind(&smtp_client::handle_write_request,
                                              shared_from_this(),
                                              _1,
                                              _2,
-                                             log_request_helper(m_response))));
+                                             log_request_helper(client_request))));
 }
 
 
@@ -376,7 +376,7 @@ void smtp_client::start_read_line()
 {
     restart_timeout();
     ba::async_read_until(m_socket,
-            m_request,
+            backend_response,
             "\n",
             strand_.wrap(boost::bind(&smtp_client::handle_read_smtp_line,
                                      shared_from_this(),
@@ -395,8 +395,8 @@ void smtp_client::handle_read_smtp_line(const bs::error_code &ec) {
         return;
     }
 
-    std::istream response_stream(&m_request);
-    if (!process_answer(response_stream)) {
+    std::istream is(&backend_response);
+    if (!process_answer(is)) {
         return;
     }
 
@@ -405,15 +405,15 @@ void smtp_client::handle_read_smtp_line(const bs::error_code &ec) {
                   % m_data.m_session_id
                   % m_envelope->m_id
                   % m_proto_name
-                  % util::str_cleanup_crlf(util::str_from_buf(m_response))));
+                  % util::str_cleanup_crlf(util::str_from_buf(client_request))));
     ba::async_write(
         m_socket,
-        m_response,
+        client_request,
         strand_.wrap(boost::bind(&smtp_client::handle_write_request,
                                  shared_from_this(),
                                  _1,
                                  _2,
-                                 log_request_helper(m_response))));
+                                 log_request_helper(client_request))));
 }
 
 
@@ -514,7 +514,7 @@ bool smtp_client::process_answer(std::istream &_stream) {
         }
 
 
-        std::ostream answer_stream(&m_response);
+        std::ostream answer_stream(&client_request);
 
         switch (m_proto_state) {
         case proto_state_t::connected:

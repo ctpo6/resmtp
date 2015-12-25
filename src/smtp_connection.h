@@ -69,6 +69,7 @@ protected:
         STATE_CHECK_DATA,
         STATE_CHECK_MAILFROM
     } proto_state_t;
+    static const char * get_proto_state_name(proto_state_t st);
 
     typedef enum {
         ssl_none = 0,
@@ -131,7 +132,8 @@ protected:
     string m_helo_host;
 
     //---
-    uint32_t m_message_count;
+    uint32_t msg_count_mail_from = 0;
+    uint32_t msg_count_sent = 0;
 
     //---
     smtp_connection_manager &m_manager;
@@ -204,8 +206,7 @@ protected:
     //---
     envelope_ptr m_envelope;
 
-    ystreambuf buffers_;
-    boost::mutex buffers_mutex_;
+    ystreambuf buffers;
 
     eom_parser eom_parser_;
     crlf_parser crlf_parser_;
@@ -213,7 +214,7 @@ protected:
 
     // ---
     uint32_t m_max_rcpt_count;
-    bool m_read_pending_ = false;
+    bool read_pending = false;
 
     uint32_t m_error_count = 0;
 

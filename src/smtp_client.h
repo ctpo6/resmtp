@@ -98,8 +98,10 @@ protected:
 
     string m_line_buffer;
 
-    boost::asio::streambuf m_request;
-    boost::asio::streambuf m_response;
+    // our request to backend
+    boost::asio::streambuf client_request;
+
+    boost::asio::streambuf backend_response;
 
     envelope::rcpt_list_t::iterator m_current_rcpt;
 

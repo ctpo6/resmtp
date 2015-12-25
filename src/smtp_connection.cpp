@@ -29,8 +29,14 @@
 #include "rfc_date.h"
 #include "rfc822date.h"
 
-// must be included the last
-//#include "coroutine/yield.hpp"
+
+#undef PDBG
+#ifdef _DEBUG
+#define PDBG(fmt, args...) log(MSG_DEBUG, util::strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
+#else
+#define PDBG(fmt, args...)
+#endif
+
 
 using namespace std;
 using namespace y::net;
@@ -328,25 +334,33 @@ void smtp_connection::start_read() {
 
     restart_timeout();
 
-    if (size_t unread_size = buffers_.size() - m_envelope->orig_message_token_marker_size_) {
+    size_t unread_size = buffers.size() - m_envelope->orig_message_token_marker_size_;
+
+    PDBG("read_pending=%d unread_size=%zu buffers.size()=%zu orig_message_token_marker_size=%zu",
+         read_pending,
+         unread_size,
+         buffers.size(),
+         m_envelope->orig_message_token_marker_size_);
+
+    if (unread_size) {
         handle_read_helper(unread_size);
     }
-    else if (!m_read_pending_) {
+    else if (!read_pending) {
         if (ssl_state_ == ssl_active) {
-            m_ssl_socket.async_read_some(buffers_.prepare(512),
+            m_ssl_socket.async_read_some(buffers.prepare(512),
                     strand_.wrap(boost::bind(&smtp_connection::handle_read,
                                              shared_from_this(),
                                              boost::asio::placeholders::error,
                                              boost::asio::placeholders::bytes_transferred)));
         }
         else {
-            socket().async_read_some(buffers_.prepare(512),
+            socket().async_read_some(buffers.prepare(512),
                     strand_.wrap(boost::bind(&smtp_connection::handle_read,
                                              shared_from_this(),
                                              boost::asio::placeholders::error,
                                              boost::asio::placeholders::bytes_transferred)));
         }
-        m_read_pending_ = true;
+        read_pending = true;
     }
 }
 
@@ -451,10 +465,10 @@ bool smtp_connection::handle_read_command_helper(
     return false;
 }
 
-// Parses the first size characters of buffers_.data().
+// Parses the first size characters of buffers.data().
 void smtp_connection::handle_read_helper(std::size_t size)
 {
-    yconst_buffers bufs = buffers_.data();
+    yconst_buffers bufs = buffers.data();
     yconst_buffers_iterator b = ybuffers_begin(bufs);
     yconst_buffers_iterator e = b + size;
 
@@ -473,7 +487,7 @@ void smtp_connection::handle_read_helper(std::size_t size)
     std::ptrdiff_t parsed_len = parsed - b;
     m_envelope->orig_message_token_marker_size_ = read - parsed;
 
-    buffers_.consume(parsed_len);
+    buffers.consume(parsed_len);
 
     if (cont)
         start_read();
@@ -483,7 +497,7 @@ void smtp_connection::handle_read_helper(std::size_t size)
 void smtp_connection::handle_read(const boost::system::error_code &ec,
                                   size_t size)
 {
-    m_read_pending_ = false;
+    read_pending = false;
 
     if (!ec) {
         if (size == 0) {
@@ -493,12 +507,30 @@ void smtp_connection::handle_read(const boost::system::error_code &ec,
             return;
         }
 
-        buffers_.commit(size);
-        handle_read_helper(buffers_.size());
+//        PDBG("size=%zu buffers.size()=%zu", size, buffers.size());
+        buffers.commit(size);
+//        PDBG("buffers.size()=%zu", buffers.size());
+        handle_read_helper(buffers.size());
     } else {
         if (ec != boost::asio::error::operation_aborted) {
-            PDBG("close_status_t::fail message=%s size=%zu", ec.message().c_str(), size);
-            close_status = close_status_t::fail;
+            PDBG("ec.message()='%s' size=%zu", ec.message().c_str(), size);
+            PDBG("state=%s msg_count_mail_from=%u msg_count_sent=%u",
+                 get_proto_state_name(m_proto_state),
+                 msg_count_mail_from,
+                 msg_count_sent);
+
+            // TODO investigate & rework???
+            // this is a workaround for the case when connection is closed before
+            // we receive the QUIT command
+            // seems that io scheme must be (heavily!!!) reworked
+            // use async_read_until() instead of async_read_some() for commands?
+            // now don't have a time for this
+            if (!(m_proto_state == STATE_HELLO
+                  && msg_count_mail_from == msg_count_sent)) {
+                PDBG("close_status_t::fail");
+                close_status = close_status_t::fail;
+            }
+
             m_manager.stop(shared_from_this());
         }
     }
@@ -785,13 +817,13 @@ void smtp_connection::end_lmtp_proto()
     if (m_envelope->m_rcpt_list.empty()) {
         end_check_data();
     } else {
-        PDBG("call smtp_delivery()");
         smtp_delivery();
     }
 }
 
-void smtp_connection::smtp_delivery() {
-    PDBG("ENTER");
+
+void smtp_connection::smtp_delivery()
+{
     if (m_smtp_client) {
         m_smtp_client->stop();
     }
@@ -819,6 +851,7 @@ void smtp_connection::end_check_data() {
         case check::CHK_ACCEPT:
         case check::CHK_DISCARD:
             PDBG("close_status_t::ok");
+            ++msg_count_sent;
             close_status = close_status_t::ok;
             response_stream << "250 2.0.0 Ok: queued on " << boost::asio::ip::host_name() << " as";
             break;
@@ -972,9 +1005,9 @@ void smtp_connection::handle_ssl_handshake(const boost::system::error_code& ec)
 
 bool smtp_connection::execute_command(string cmd, std::ostream &os)
 {
-    log(MSG_DEBUG,
-        str(boost::format("execute command: '%1%'")
-            % util::str_cleanup_crlf(cmd)));
+//    log(MSG_DEBUG,
+//        str(boost::format("execute command: '%1%'")
+//            % util::str_cleanup_crlf(cmd)));
 
     // trim starting whitespace
     string::size_type pos = cmd.find_first_not_of( " \t" );
@@ -1267,6 +1300,7 @@ void smtp_connection::handle_bb_result_helper() {
 
 void smtp_connection::handle_spf_check(boost::optional<std::string> result,
                                        boost::optional<std::string> expl) {
+    PDBG("ENTER");
     m_spf_result = result;
     m_spf_expl = expl;
     spf_check_.reset();
@@ -1325,10 +1359,12 @@ bool smtp_connection::smtp_mail(const std::string& _cmd,
 
     m_proto_state = STATE_CHECK_MAILFROM;
 
-    end_mail_from_command(true, false, addr, "");
+//    end_mail_from_command(true, false, addr, "");
+    end_mail_from_command(false, false, addr, "");
 
     return true;
 }
+
 
 bool smtp_connection::smtp_data( const std::string& _cmd, std::ostream &_response )
 {
@@ -1427,7 +1463,7 @@ void smtp_connection::handle_timer(const boost::system::error_code &ec)
     if (m_proto_state == STATE_BLAST_FILE) {
         log(MSG_NORMAL,
             str(boost::format("timeout after DATA (%1% bytes) from %2%[%3%]")
-                % buffers_.size()
+                % buffers.size()
                 % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
                 % m_connected_ip.to_string()));
     } else {
@@ -1477,6 +1513,7 @@ void smtp_connection::end_mail_from_command(bool _start_spf,
                                             const std::string &_response)
 {
     if (_start_spf) {
+        PDBG("_start_spf");
         // start SPF check
         spf_parameters p;
         p.domain = m_helo_host;
@@ -1515,28 +1552,13 @@ void smtp_connection::end_mail_from_command(bool _start_spf,
 		response_stream << _response << "\r\n";
     }
 
-    ++m_message_count;
+    ++msg_count_mail_from;
 
     if (_start_async) {
         send_response(boost::bind(
             &smtp_connection::handle_write_request,
             shared_from_this(),
             boost::asio::placeholders::error));
-#if 0
-    	if (ssl_state_ == ssl_active)
-		{
-    	    boost::asio::async_write(m_ssl_socket, m_response,
-                strand_.wrap(boost::bind(&smtp_connection::handle_write_request, shared_from_this(),
-                                boost::asio::placeholders::error)));
-
-		}
-		else
-		{
-    	    boost::asio::async_write(socket(), m_response,
-                strand_.wrap(boost::bind(&smtp_connection::handle_write_request, shared_from_this(),
-                                boost::asio::placeholders::error)));
-		}
-#endif
     }
 }
 
@@ -1548,4 +1570,29 @@ void smtp_connection::log(uint32_t prio, string msg) noexcept
                   % m_session_id
                   % (m_envelope ? m_envelope->m_id.c_str() : "********")
                   % msg));
+}
+
+
+const char * smtp_connection::get_proto_state_name(proto_state_t st)
+{
+    switch (st) {
+    case STATE_START:
+        return "START";
+    case STATE_HELLO:
+        return "HELLO";
+    case STATE_AFTER_MAIL:
+        return "AFTER_MAIL";
+    case STATE_RCPT_OK:
+        return "RCPT_OK";
+    case STATE_BLAST_FILE:
+        return "BLAST_FILE";
+    case STATE_CHECK_RCPT:
+        return "CHECK_RCPT";
+    case STATE_CHECK_DATA:
+        return "CHECK_DATA";
+    case STATE_CHECK_MAILFROM:
+        return "CHECK_MAILFROM";
+    }
+    assert(false && "update the switch() above");
+    return nullptr;
 }
