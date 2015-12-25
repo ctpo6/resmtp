@@ -1,3 +1,12 @@
+resmtp (0.2.1) unstable; urgency=low
+
+  * State monitoring extension and bugfix
+  * Implemented workaround for the case when QUIT command isn't received before
+    client closed the connection
+  * Logs extended, DEBUG logs now contain session and message id
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Mon, 25 Dec 2015 13:04:00 +0300
+ 
 resmtp (0.2.0) unstable; urgency=low
 
   * Implemented state monitoring.
