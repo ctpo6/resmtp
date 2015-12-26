@@ -316,7 +316,7 @@ bool server_parameters::parse_config(int _argc,
                 ("foreground,f", "run at foreground (don't daemonize)")
                 ("config,c", bpo::value<std::string>(&config_file)->default_value(def_config_file), "path to configuration file")
                 ("pid-file,p", bpo::value<std::string>(&m_pid_file)->default_value(def_pid_file), "path to pid file")
-                ("log-level,l", bpo::value<uint32_t>(&m_log_level)->default_value(1), "log output level (0 - critical, 1 - informational, 2 - debug)")
+                ("log-level,l", bpo::value<uint32_t>(&m_log_level)->default_value(1), "log output level (0 - critical, 1 - informational, 2 - debug, 3 - debug with i/o buffers)")
                 ;
 
         bpo::options_description config_options("Configuration");

@@ -47,13 +47,19 @@ struct server_parameters {
         uint32_t weight;            // 0..100; 0 - off, 100 - max
     };
 
-    bool m_foreground;
+    //
+    // command line options
+    //
 
+    bool m_foreground;
     uint32_t m_log_level;
+    string m_pid_file;
+
+    //
+    // config parameters
+    //
 
     uint32_t m_worker_count;
-
-    string m_pid_file;
 
     uid_value m_uid;
     gid_value m_gid;

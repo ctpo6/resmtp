@@ -14,9 +14,10 @@
 #include "util.h"
 
 const uint32_t MSG_VERY_CRITICAL = 1;
-const uint32_t MSG_CRITICAL      = 10;
-const uint32_t MSG_NORMAL        = 20;
-const uint32_t MSG_DEBUG         = 100;
+const uint32_t MSG_CRITICAL = 10;
+const uint32_t MSG_NORMAL = 20;
+const uint32_t MSG_DEBUG = 50;
+const uint32_t MSG_DEBUG_BUFFERS = 100;
 
 #ifdef _DEBUG
 #define PDBG(fmt, args...) g_log.msg(MSG_DEBUG, util::strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
@@ -30,10 +31,11 @@ class logger {
 public:
     void init(const char *ident, int log_prio);
 
-    void msg(uint32_t prio, std::string msg_) noexcept;
+    void msg(uint32_t prio, std::string s) noexcept;
 
-    void msg(uint32_t prio, const char *msg_) noexcept {
-        msg(prio, std::string(msg_));
+    void msg(uint32_t prio, const char *s) noexcept
+    {
+        msg(prio, std::string(s));
     }
 
     void run();

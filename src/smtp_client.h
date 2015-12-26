@@ -56,7 +56,7 @@ protected:
     boost::asio::ip::tcp::socket m_socket;
     boost::asio::io_service::strand strand_;
 
-    // used to resolve upstream server
+    // used to resolve backend server
     y::net::dns::resolver m_resolver;
 
     bool m_lmtp;
@@ -90,8 +90,6 @@ protected:
     proto_state_t m_proto_state;
 
     check_data_t m_data;
-
-    string m_proto_name;
 
     smtp_backend_manager::backend_host backend_host;
     string backend_host_ip;
@@ -148,6 +146,8 @@ protected:
     void on_backend_ip_address();
     void on_backend_conn();
     void on_backend_conn_closed();
+
+    void log(uint32_t prio, string msg) noexcept;
 };
 
 typedef std::shared_ptr<smtp_client> smtp_client_ptr;

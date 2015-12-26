@@ -472,7 +472,7 @@ void smtp_connection::handle_read_helper(std::size_t size)
     yconst_buffers_iterator b = ybuffers_begin(bufs);
     yconst_buffers_iterator e = b + size;
 
-    log(MSG_DEBUG,
+    log(MSG_DEBUG_BUFFERS,
         str(boost::format(">>> %1%") % util::str_cleanup_crlf(string(b, e))));
 
     yconst_buffers_iterator bb = b + m_envelope->orig_message_token_marker_size_;
@@ -917,14 +917,14 @@ void smtp_connection::send_response2(
     if (g::cfg().m_socket_check &&
             m_proto_state == STATE_START &&
             !check_socket_read_buffer_is_empty()) {
-        log(MSG_NORMAL, "abort session (bad client behavior)");
+        log(MSG_CRITICAL, "abort session (client wrote to socket before receiving a greeting)");
         PDBG("close_status_t::fail_client_early_write");
         close_status = close_status_t::fail_client_early_write;
         m_manager.stop(shared_from_this());
         return;
     }
 
-	log(MSG_DEBUG,
+	log(MSG_DEBUG_BUFFERS,
 		str(boost::format("<<< %1%")
 			% util::str_cleanup_crlf(util::str_from_buf(m_response))));
 	if(ssl_state_ == ssl_active) {

@@ -81,7 +81,8 @@ int main(int argc, char* argv[])
 
     uint32_t log_level =
             g::cfg().m_log_level == 0 ? MSG_CRITICAL :
-            g::cfg().m_log_level == 1 ? MSG_NORMAL : MSG_DEBUG;
+            g::cfg().m_log_level == 1 ? MSG_NORMAL :
+            g::cfg().m_log_level == 2 ? MSG_DEBUG : MSG_DEBUG_BUFFERS;
     g_log.init("resmtp", log_level);
 
     // initialize DNS servers settings
