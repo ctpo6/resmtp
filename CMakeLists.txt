@@ -1,16 +1,9 @@
-#
-# resmtp - SMTP frontend relay
-#
+# cmake -DCMAKE_BUILD_TYPE=Debug ..
+# cmake -DCMAKE_BUILD_TYPE=Release ..
+
 project(resmtp)
 
 cmake_minimum_required(VERSION 2.8.5 FATAL_ERROR)
-
-
-################################################################################
-# Defaults
-################################################################################
-OPTION(DEBUG_MODE          "Enable debug output [default: OFF]" OFF)
-OPTION(ENABLE_OPTIMIZATION "Enable optimization [default: ON]" ON)
 
 
 ################################################################################
@@ -68,28 +61,34 @@ message(STATUS "")
 
 
 ################################################################################
-# Print options
-################################################################################
-message(STATUS ----------------------------------------------------------------)
-message(STATUS "ENABLE_OPTIMIZATION is " ${ENABLE_OPTIMIZATION})
-message(STATUS "DEBUG_MODE is " ${DEBUG_MODE})
-message(STATUS ----------------------------------------------------------------)
-message(STATUS "")                  
-
-
-################################################################################
 # Compiler flags
 ################################################################################
-add_definitions(-std=c++11 -Wall -Wno-parentheses -DBOOST_THREAD_USE_LIB)
-IF (ENABLE_OPTIMIZATION MATCHES "ON")
-	add_definitions(-O2)
-ENDIF(ENABLE_OPTIMIZATION MATCHES "ON")
+set(MY_C_FLAGS "-Wall -Wno-parentheses")
+set(MY_CXX_FLAGS "-std=c++11")
 
-IF (DEBUG_MODE MATCHES "ON")
-	add_definitions(-g -D_DEBUG)
-ENDIF(DEBUG_MODE MATCHES "ON")
+add_definitions(-DBOOST_THREAD_USE_LIB)
 
+IF (CMAKE_BUILD_TYPE MATCHES "Debug")
+  add_definitions(-D_DEBUG)
+ENDIF(CMAKE_BUILD_TYPE MATCHES "Debug")
+
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${MY_C_FLAGS}")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${MY_C_FLAGS} ${MY_CXX_FLAGS}")
+
+# for static linking
 #set(CMAKE_EXE_LINKER_FLAGS "-static -static-libstdc++ -static-libgcc")
+
+
+################################################################################
+# Print options
+################################################################################
+message(STATUS "CMAKE_BUILD_TYPE: '${CMAKE_BUILD_TYPE}'")
+message(STATUS "C flags:${CMAKE_C_FLAGS}")
+message(STATUS "CXX flags:${CMAKE_CXX_FLAGS}")
+message(STATUS "")
+
+#message("CXX Debug flags:${CMAKE_CXX_FLAGS_DEBUG}")
+#message("CXX Release flags:${CMAKE_CXX_FLAGS_RELEASE}")
 
 
 ################################################################################
@@ -114,7 +113,8 @@ file(GLOB CONFIGS
     etc/*.conf
 )
 
-add_executable(resmtp ${HEADERS} ${SOURCES} ${CONFIGS})
+#add_executable(resmtp ${HEADERS} ${SOURCES} ${CONFIGS})
+add_executable(resmtp ${SOURCES})
 target_link_libraries(resmtp ${Boost_LIBRARIES} ${OPENSSL_LIBRARIES} ${HAVE_spf2} ${HAVE_opendkim})
 
 ################################################################################

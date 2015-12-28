@@ -12,6 +12,9 @@
 using namespace std;
 
 
+const uint32_t smtp_connection_manager::RESERVE_SIZE = 100000;
+
+
 smtp_connection_manager::smtp_connection_manager(
         uint32_t max_sess,
         uint32_t max_sess_per_ip)

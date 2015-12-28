@@ -4,6 +4,8 @@
 #include <cassert>
 #include <cstdlib>
 
+#include <boost/format.hpp>
+
 #include "global.h"
 #include "log.h"
 #include "options.h"
