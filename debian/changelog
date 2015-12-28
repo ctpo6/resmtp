@@ -1,3 +1,13 @@
+resmtp (0.2.2) unstable; urgency=low
+
+  * Removed global mutex lock in connection acceptor
+  * Added log level for buffers dump
+  * Unified backend and frontend components logs
+  * CMakeLists.txt reworked, app version is now taken from changelog (no need
+    to manually update the code)
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Mon, 28 Dec 2015 10:26:00 +0300
+ 
 resmtp (0.2.1) unstable; urgency=low
 
   * State monitoring extension and bugfix
@@ -5,7 +15,7 @@ resmtp (0.2.1) unstable; urgency=low
     client closed the connection
   * Logs extended, DEBUG logs now contain session and message id
 
- -- Yuri Epstein <yuri.epstein@gmail.com>  Mon, 25 Dec 2015 13:04:00 +0300
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Fri, 25 Dec 2015 13:04:00 +0300
  
 resmtp (0.2.0) unstable; urgency=low
 
