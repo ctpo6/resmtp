@@ -1,9 +1,14 @@
 
+// should be defined in CMakeLists.txt
+#ifndef RESMTP_VERSION
+#define RESMTP_VERSION "unknown"
+#endif
+
 namespace g {
 
 const char * app_version() noexcept
 {
-    return "0.2.1";
+    return RESMTP_VERSION;
 }
 
 }

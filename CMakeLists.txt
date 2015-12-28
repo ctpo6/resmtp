@@ -1,10 +1,15 @@
-# cmake -DCMAKE_BUILD_TYPE=Debug ..
+# cmake .. (same as 'cmake -DCMAKE_BUILD_TYPE=Release ..')
 # cmake -DCMAKE_BUILD_TYPE=Release ..
+# cmake -DCMAKE_BUILD_TYPE=Debug ..
 
 project(resmtp)
 
 cmake_minimum_required(VERSION 2.8.5 FATAL_ERROR)
 
+# if CMAKE_BUILD_TYPE wasn't specified, make it equal to "Release"
+IF (CMAKE_BUILD_TYPE STREQUAL "")
+  set(CMAKE_BUILD_TYPE "Release")
+ENDIF(CMAKE_BUILD_TYPE STREQUAL "")
 
 ################################################################################
 # Macroses
@@ -19,7 +24,7 @@ INCLUDE(CheckLibraryExists)
 # User-defined macroses
 INCLUDE(cmake/ParseDebVersion.cmake)
 #INCLUDE(cmake/RenameModule.cmake)
-INCLUDE(cmake/ConfigurePackage.cmake)
+#INCLUDE(cmake/ConfigurePackage.cmake)
 INCLUDE(cmake/ConfigureLibrary.cmake)
 INCLUDE(CheckCXXCompilerFlag)
 
@@ -31,14 +36,6 @@ check_cxx_compiler_flag("-std=c++11" CXX11_SUPPORTED)
 if (NOT CXX11_SUPPORTED)
 	MESSAGE(FATAL_ERROR "C++11 isn't supported!")
 endif (NOT CXX11_SUPPORTED)
-
-
-################################################################################
-# Version
-################################################################################
-#PARSE_DEB_VERSION(DEB)
-#SET(MAILCORE_VERSION         "${MAILCORE_VERSION_MAJOR}.${MAILCORE_VERSION_MINOR}.${MAILCORE_VERSION_PATCH}")
-#MESSAGE(STATUS "#### Version is: ${MAILCORE_VERSION}")
 
 
 ################################################################################
@@ -78,17 +75,25 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${MY_C_FLAGS} ${MY_CXX_FLAGS}")
 # for static linking
 #set(CMAKE_EXE_LINKER_FLAGS "-static -static-libstdc++ -static-libgcc")
 
-
-################################################################################
-# Print options
-################################################################################
 message(STATUS "CMAKE_BUILD_TYPE: '${CMAKE_BUILD_TYPE}'")
+message(STATUS "")
+
 message(STATUS "C flags:${CMAKE_C_FLAGS}")
 message(STATUS "CXX flags:${CMAKE_CXX_FLAGS}")
 message(STATUS "")
 
 #message("CXX Debug flags:${CMAKE_CXX_FLAGS_DEBUG}")
 #message("CXX Release flags:${CMAKE_CXX_FLAGS_RELEASE}")
+
+
+################################################################################
+# Version
+################################################################################
+PARSE_DEB_VERSION(DEB)
+SET(RESMTP_VERSION "${DEB_VERSION_MAJOR}.${DEB_VERSION_MINOR}.${DEB_VERSION_PATCH}")
+add_definitions(-DRESMTP_VERSION="${RESMTP_VERSION}")
+message(STATUS "resmtp version: ${RESMTP_VERSION}")
+message(STATUS "")
 
 
 ################################################################################
@@ -113,8 +118,8 @@ file(GLOB CONFIGS
     etc/*.conf
 )
 
-#add_executable(resmtp ${HEADERS} ${SOURCES} ${CONFIGS})
-add_executable(resmtp ${SOURCES})
+# include ${HEADERS} ${CONFIGS} to make them visible in the QtCreator project tree
+add_executable(resmtp ${SOURCES} ${HEADERS} ${CONFIGS})
 target_link_libraries(resmtp ${Boost_LIBRARIES} ${OPENSSL_LIBRARIES} ${HAVE_spf2} ${HAVE_opendkim})
 
 ################################################################################
