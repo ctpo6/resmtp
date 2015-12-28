@@ -141,7 +141,10 @@ struct server_parameters {
     // max number of errors an SMTP client allowed to make
     uint32_t m_hard_error_limit;
 
-    bool parse_config(int _argc, char* _argv[], std::ostream& _out) noexcept;
+    // return: false - program must correctly exit, true - proceed
+    // on error throws exception
+    bool parse_config(int argc, char* argv[]);
+
     bool init_dns_settings() noexcept;
     bool init_backend_hosts_settings() noexcept;
 };

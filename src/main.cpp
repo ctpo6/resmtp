@@ -70,13 +70,18 @@ int main(int argc, char* argv[])
 {
     std::set_terminate(cxx_exception_handler);
 
-    // used to randomize timeouts
     std::srand(std::time(0));
 
     bool daemonized = false;
-    if (!g::cfg().parse_config(argc, argv, std::cout)) {
-        log_err(MSG_VERY_CRITICAL, "Exit (200)", true);
-        return 200;
+    try {
+        if (!g::cfg().parse_config(argc, argv)) {
+            return 0;
+        }
+    } catch (const std::exception &e) {
+        log_err(MSG_VERY_CRITICAL,
+                str(boost::format("Error: %1%") % e.what()),
+                true);
+        return 1;
     }
 
     uint32_t log_level =
@@ -87,13 +92,12 @@ int main(int argc, char* argv[])
 
     // initialize DNS servers settings
     if (!g::cfg().init_dns_settings()) {
-        log_err(MSG_CRITICAL, str(boost::format(
-            "can't obtain DNS settings (cfg: use_system_dns_servers=%1% custom_dns_servers=%2%")
+        log_err(MSG_VERY_CRITICAL, str(boost::format(
+            "Error: can't obtain DNS settings (cfg: use_system_dns_servers=%1% custom_dns_servers=%2%")
                 % (g::cfg().m_use_system_dns_servers ? "yes" : "no")
                 % g::cfg().m_custom_dns_servers),
                 true);
-        log_err(MSG_VERY_CRITICAL, "Exit (201)", true);
-        return 201;
+        return 1;
     }
     for (auto &s: g::cfg().m_dns_servers) {
         g_log.msg(MSG_DEBUG,
@@ -102,11 +106,10 @@ int main(int argc, char* argv[])
 
     // initialize backend hosts settings
     if (!g::cfg().init_backend_hosts_settings()) {
-        log_err(MSG_CRITICAL,
-                string("can't obtain backend hosts settings"),
+        log_err(MSG_VERY_CRITICAL,
+                "Error: can't obtain backend hosts settings",
                 true);
-        log_err(MSG_VERY_CRITICAL, "Exit (201)", true);
-        return 201;
+        return 1;
     }
     for (auto &b: g::cfg().backend_hosts) {
         g_log.msg(MSG_DEBUG,
@@ -120,7 +123,7 @@ int main(int argc, char* argv[])
     try {
         if (!g::cfg().m_ip_config_file.empty()) {
             if (!g_ip_config.load(g::cfg().m_ip_config_file)) {
-                throw std::logic_error(
+                throw std::runtime_error(
                             str(boost::format("can't load IP restriction file: %1%")
                                 % g::cfg().m_ip_config_file));
             }
@@ -149,7 +152,7 @@ int main(int argc, char* argv[])
 
         if (!g_pid_file.create(g::cfg().m_pid_file)) {
             log_err(MSG_CRITICAL,
-                    str(boost::format("can't create PID file: %1% (%2%)")
+                    str(boost::format("Warning: can't create PID file: %1% (%2%)")
                         % g::cfg().m_pid_file
                         % strerror(errno)),
                     !daemonized);
@@ -194,10 +197,10 @@ int main(int argc, char* argv[])
 
         server.stop();
     } catch (const std::exception &e) {
-        log_err(MSG_CRITICAL,
-                str(boost::format("ERROR: %1%") % e.what()),
+        log_err(MSG_VERY_CRITICAL,
+                str(boost::format("Error: %1%") % e.what()),
                 !daemonized);
-        rval = 202;
+        rval = 1;
     }
 
     g_pid_file.unlink();
@@ -206,10 +209,6 @@ int main(int argc, char* argv[])
     if (log.get_id() == boost::thread::id()) {
         log = boost::thread( [](){ g_log.run(); } );
     }
-
-    log_err(rval ? MSG_VERY_CRITICAL : MSG_NORMAL,
-            str(boost::format("Exit (%1%)") % rval),
-            !daemonized);
 
     g_log.stop();
     log.join();

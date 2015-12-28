@@ -7,9 +7,10 @@
 #include <sys/types.h>
 
 #include <algorithm>
+#include <exception>
 #include <fstream>
 #include <functional>
-#include <exception>
+#include <iostream>
 #include <memory>
 
 #include <boost/algorithm/string/trim.hpp>
@@ -168,7 +169,7 @@ void validate(boost::any &v,
     boost::program_options::validators::check_first_occurrence(v);
     std::string const& s = boost::program_options::validators::get_single_string(values);
 
-    PDBG0("s = %s", s.c_str());
+//    PDBG0("s = %s", s.c_str());
 
     server_parameters::remote_point rp;
 
@@ -304,131 +305,122 @@ bool server_parameters::init_backend_hosts_settings() noexcept
 }
 
 
-bool server_parameters::parse_config(int _argc,
-                                     char* _argv[],
-                                     std::ostream &os) noexcept {
-    try {
-        std::string config_file;
-        bpo::options_description command_line_opt("Command line options");
-        command_line_opt.add_options()
-                ("version,v", "print version")
-                ("help,h", "print help")
-                ("foreground,f", "run at foreground (don't daemonize)")
-                ("config,c", bpo::value<std::string>(&config_file)->default_value(def_config_file), "path to configuration file")
-                ("pid-file,p", bpo::value<std::string>(&m_pid_file)->default_value(def_pid_file), "path to pid file")
-                ("log-level,l", bpo::value<uint32_t>(&m_log_level)->default_value(1), "log output level (0 - critical, 1 - informational, 2 - debug, 3 - debug with i/o buffers)")
-                ;
+bool server_parameters::parse_config(int argc,
+                                     char * argv[]) {
+    std::string config_file;
+    bpo::options_description command_line_opt("Command line options");
+    command_line_opt.add_options()
+            ("version,v", "print version")
+            ("help,h", "print help")
+            ("foreground,f", "run at foreground (don't daemonize)")
+            ("config,c", bpo::value<std::string>(&config_file)->default_value(def_config_file), "path to configuration file")
+            ("pid-file,p", bpo::value<std::string>(&m_pid_file)->default_value(def_pid_file), "path to pid file")
+            ("log-level,l", bpo::value<uint32_t>(&m_log_level)->default_value(1), "log output level (0 - critical, 1 - informational, 2 - debug, 3 - debug with i/o buffers)")
+            ;
 
-        bpo::options_description config_options("Configuration");
+    bpo::options_description config_options("Configuration");
 
-        config_options.add_options()
-                ("listen", bpo::value<vector<string>>(&m_listen_points), "listen on host:port")
-                ("ssl_listen", bpo::value<vector<string>>(&m_ssl_listen_points), "SSL listen on host:port")
+    config_options.add_options()
+            ("listen", bpo::value<vector<string>>(&m_listen_points), "listen on host:port")
+            ("ssl_listen", bpo::value<vector<string>>(&m_ssl_listen_points), "SSL listen on host:port")
 
-                ("monitoring_listen", bpo::value<string>(&mon_listen_point)->default_value("localhost:11311"), "monitoring listen on host:port")
+            ("monitoring_listen", bpo::value<string>(&mon_listen_point)->default_value("localhost:11311"), "monitoring listen on host:port")
 
-                ("user", bpo::value<uid_value>(&m_uid), "set uid after port bindings")
-                ("group", bpo::value<gid_value>(&m_gid), "set gid after port bindings")
+            ("user", bpo::value<uid_value>(&m_uid), "set uid after port bindings")
+            ("group", bpo::value<gid_value>(&m_gid), "set gid after port bindings")
 
-                ("use_system_dns_servers", bpo::value<bool>(&m_use_system_dns_servers)->default_value(true), "use host's DNS servers settings?")
-                ("custom_dns_servers", bpo::value<string>(&m_custom_dns_servers), "custom DNS servers IP addresses list")
+            ("use_system_dns_servers", bpo::value<bool>(&m_use_system_dns_servers)->default_value(true), "use host's DNS servers settings?")
+            ("custom_dns_servers", bpo::value<string>(&m_custom_dns_servers), "custom DNS servers IP addresses list")
 
-                ("socket_check", bpo::value<bool>(&m_socket_check)->default_value(false), "check socket emptiness before sending greeting ?")
+            ("socket_check", bpo::value<bool>(&m_socket_check)->default_value(false), "check socket emptiness before sending greeting ?")
 
-                ("tarpit_delay_seconds", bpo::value<uint32_t>(&m_tarpit_delay_seconds)->default_value(0), "tarpit delay")
+            ("tarpit_delay_seconds", bpo::value<uint32_t>(&m_tarpit_delay_seconds)->default_value(0), "tarpit delay")
 
-                ("smtp_banner", bpo::value<string>(&m_smtp_banner), "smtp banner")
+            ("smtp_banner", bpo::value<string>(&m_smtp_banner), "smtp banner")
 
-                ("workers", bpo::value<uint32_t>(&m_worker_count), "workers count")
-                ("rbl_check", bpo::value<bool>(&m_rbl_active)->default_value(false), "RBL active ?")
-                ("rbl_hosts", bpo::value<string>(&m_rbl_hosts), "RBL hosts list")
-                ("dnswl_host", bpo::value<string>(&m_dnswl_host), "DNSWL host")
+            ("workers", bpo::value<uint32_t>(&m_worker_count), "workers count")
+            ("rbl_check", bpo::value<bool>(&m_rbl_active)->default_value(false), "RBL active ?")
+            ("rbl_hosts", bpo::value<string>(&m_rbl_hosts), "RBL hosts list")
+            ("dnswl_host", bpo::value<string>(&m_dnswl_host), "DNSWL host")
 
-                ("spf_timeout", bpo::value<time_t>(&m_spf_timeout)->default_value(15), "spf calculation timeout")
-                ("dkim_timeout", bpo::value<time_t>(&m_dkim_timeout)->default_value(15), "dkim calculation timeout")
+            ("spf_timeout", bpo::value<time_t>(&m_spf_timeout)->default_value(15), "spf calculation timeout")
+            ("dkim_timeout", bpo::value<time_t>(&m_dkim_timeout)->default_value(15), "dkim calculation timeout")
 
-                ("smtpd_recipient_limit", bpo::value<uint32_t>(&m_max_rcpt_count)->default_value(100), "maximum recipient per mail")
+            ("smtpd_recipient_limit", bpo::value<uint32_t>(&m_max_rcpt_count)->default_value(100), "maximum recipient per mail")
 
-                ("smtpd_client_connection_count_limit", bpo::value<uint32_t>(&m_client_connection_count_limit)->default_value(0), "max number of connections per IP (0 - unlimited)")
-                ("smtpd_connection_count_limit", bpo::value<uint32_t>(&m_connection_count_limit)->default_value(0), "total max number of connections (0 - unlimited)")
+            ("smtpd_client_connection_count_limit", bpo::value<uint32_t>(&m_client_connection_count_limit)->default_value(0), "max number of connections per IP (0 - unlimited)")
+            ("smtpd_connection_count_limit", bpo::value<uint32_t>(&m_connection_count_limit)->default_value(0), "total max number of connections (0 - unlimited)")
 
-                ("smtpd_hard_error_limit", bpo::value<uint32_t>(&m_hard_error_limit)->default_value(100), "maximum number of errors that a remote SMTP client is allowed to make")
+            ("smtpd_hard_error_limit", bpo::value<uint32_t>(&m_hard_error_limit)->default_value(100), "maximum number of errors that a remote SMTP client is allowed to make")
 
-                ("frontend_cmd_timeout", bpo::value<time_t>(&frontend_cmd_timeout)->default_value(600), "smtpd command timeout")
-                ("frontend_data_timeout", bpo::value<time_t>(&frontend_data_timeout)->default_value(600), "smtpd data timeout")
+            ("frontend_cmd_timeout", bpo::value<time_t>(&frontend_cmd_timeout)->default_value(600), "smtpd command timeout")
+            ("frontend_data_timeout", bpo::value<time_t>(&frontend_data_timeout)->default_value(600), "smtpd data timeout")
 
-                ("backend_connect_timeout", bpo::value<time_t>(&backend_connect_timeout)->default_value(60), "smtp relay connect timeout")
-                ("backend_cmd_timeout", bpo::value<time_t>(&backend_cmd_timeout)->default_value(120), "smtp relay command timeout")
-                ("backend_data_timeout", bpo::value<time_t>(&backend_data_timeout)->default_value(300), "smtp relay data send timeout")
+            ("backend_connect_timeout", bpo::value<time_t>(&backend_connect_timeout)->default_value(60), "smtp relay connect timeout")
+            ("backend_cmd_timeout", bpo::value<time_t>(&backend_cmd_timeout)->default_value(120), "smtp relay command timeout")
+            ("backend_data_timeout", bpo::value<time_t>(&backend_data_timeout)->default_value(300), "smtp relay data send timeout")
 
-                ("use_local_relay", bpo::value<bool>(&m_use_local_relay)->default_value(false), "use local (LMTP) relay ?")
-                ("local_relay_host", bpo::value<remote_point>(&m_local_relay_host), "local (LMTP) relay")
+            ("use_local_relay", bpo::value<bool>(&m_use_local_relay)->default_value(false), "use local (LMTP) relay ?")
+            ("local_relay_host", bpo::value<remote_point>(&m_local_relay_host), "local (LMTP) relay")
 
-                ("backend_host", bpo::value<vector<string>>(&backend_hosts_str), "backend host")
-                ("backend_port", bpo::value<uint16_t>(&backend_port), "backend hosts TCP port")
+            ("backend_host", bpo::value<vector<string>>(&backend_hosts_str), "backend host")
+            ("backend_port", bpo::value<uint16_t>(&backend_port), "backend hosts TCP port")
 
-                ("message_size_limit", bpo::value<uint32_t>(&m_message_size_limit)->default_value(10240000), "Message size limit")
+            ("message_size_limit", bpo::value<uint32_t>(&m_message_size_limit)->default_value(10240000), "Message size limit")
 
-                ("remove_extra_cr", bpo::value<bool>(&m_remove_extra_cr)->default_value(true), "Remove extra carriage returns on/off")
+            ("remove_extra_cr", bpo::value<bool>(&m_remove_extra_cr)->default_value(true), "Remove extra carriage returns on/off")
 
-                ("ip_config_file", bpo::value<string>(&m_ip_config_file), "IP address depended config params")
+            ("ip_config_file", bpo::value<string>(&m_ip_config_file), "IP address depended config params")
 
-                ("use_tls", bpo::value<bool>(&m_use_tls)->default_value(false), "support TLS ?")
-                ("tls_cert_file", bpo::value<string>(&m_tls_cert_file), "use a certificate from file")
-                ("tls_key_file", bpo::value<string>(&m_tls_key_file), "use a private key from file")
-                ;
+            ("use_tls", bpo::value<bool>(&m_use_tls)->default_value(false), "support TLS ?")
+            ("tls_cert_file", bpo::value<string>(&m_tls_cert_file), "use a certificate from file")
+            ("tls_key_file", bpo::value<string>(&m_tls_key_file), "use a private key from file")
+            ;
 
-        bpo::variables_map vm;
-        bpo::positional_options_description p;
+    bpo::variables_map vm;
 
-        bpo::store(bpo::command_line_parser(_argc, _argv).options(command_line_opt).run(), vm);
-        notify(vm);
+    bpo::store(bpo::command_line_parser(argc, argv).options(command_line_opt).run(), vm);
+    notify(vm);
 
-        if (vm.count("help")) {
-            os << command_line_opt << std::endl;
-            return false;
-        }
-
-        if (vm.count("version")) {
-            os << g::app_version() << std::endl;
-            return false;
-        }
-
-        m_foreground = (vm.count("foreground") != 0);
-
-        std::ifstream ifs(config_file.c_str());
-        if (!ifs) {
-            os << "Can not open config file: " << config_file << std::endl;
-            return false;
-        }
-        store(parse_config_file(ifs, config_options, true), vm);
-        notify(vm);
-
-#if 0
-        if (m_remove_headers) {
-            if (m_remove_headers_list.empty()) {
-                os << "Config file error: remove_headers_list param not specified" << std::endl;
-                return false;
-            }
-            std::ifstream ifs( m_remove_headers_list.c_str(), std::ios_base::in );
-            while (ifs && !ifs.eof()) {
-                std::string header;
-                ifs >> header;
-                if (!header.empty()) {
-                    m_remove_headers_set.insert( boost::trim_copy( boost::to_lower_copy(header) ) );
-                }
-            }
-            if (m_remove_headers_set.empty()) {
-                os << "Config file error: remove_headers_list: config file \"" << m_remove_headers_list << "\" invalid" << std::endl;
-                return false;
-            }
-        }
-#endif
-
-    } catch (const std::exception& e) {
-        os << "Config file error: " << e.what() << std::endl;
+    if (vm.count("help")) {
+        cout << command_line_opt << endl;
         return false;
     }
+
+    if (vm.count("version")) {
+        cout << g::app_version() << endl;
+        return false;
+    }
+
+    m_foreground = (vm.count("foreground") != 0);
+
+    std::ifstream ifs(config_file.c_str());
+    if (!ifs) {
+        throw std::runtime_error("can't open config file");
+    }
+    store(parse_config_file(ifs, config_options, true), vm);
+    notify(vm);
+
+#if 0
+    if (m_remove_headers) {
+        if (m_remove_headers_list.empty()) {
+            os << "Config file error: remove_headers_list param not specified" << std::endl;
+            return false;
+        }
+        std::ifstream ifs( m_remove_headers_list.c_str(), std::ios_base::in );
+        while (ifs && !ifs.eof()) {
+            std::string header;
+            ifs >> header;
+            if (!header.empty()) {
+                m_remove_headers_set.insert( boost::trim_copy( boost::to_lower_copy(header) ) );
+            }
+        }
+        if (m_remove_headers_set.empty()) {
+            os << "Config file error: remove_headers_list: config file \"" << m_remove_headers_list << "\" invalid" << std::endl;
+            return false;
+        }
+    }
+#endif
 
     return true;
 }
