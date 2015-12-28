@@ -279,13 +279,13 @@ void smtp_connection::start_proto() {
 void smtp_connection::on_connection_tarpitted()
 {
     tarpit = true;
-    g::mon().conn_tarpitted();
+    g::mon().on_conn_tarpitted();
 }
 
 
 void smtp_connection::on_connection_close()
 {
-    g::mon().conn_closed(close_status, tarpit);
+    g::mon().on_conn_closed(close_status, tarpit);
     log(MSG_NORMAL,
         str(boost::format("**** DISCONNECT %1%[%2%] status=%3% tarpit=%4%")
             % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
@@ -850,8 +850,9 @@ void smtp_connection::end_check_data() {
     switch (m_check_data.m_result) {
         case check::CHK_ACCEPT:
         case check::CHK_DISCARD:
-            PDBG("close_status_t::ok");
             ++msg_count_sent;
+            g::mon().on_mail_delivered();
+            PDBG("close_status_t::ok");
             close_status = close_status_t::ok;
             response_stream << "250 2.0.0 Ok: queued on " << boost::asio::ip::host_name() << " as";
             break;
@@ -1553,6 +1554,7 @@ void smtp_connection::end_mail_from_command(bool _start_spf,
     }
 
     ++msg_count_mail_from;
+    g::mon().on_mail_rcpt_to();
 
     if (_start_async) {
         send_response(boost::bind(

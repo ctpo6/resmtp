@@ -36,7 +36,6 @@ struct monitor::impl_conn_t
         uint32_t n_active_conn_max;
         uint32_t n_active_conn_fast;
         uint32_t n_active_conn_tarpit;
-
     };
     counters c;
 
@@ -123,6 +122,52 @@ struct monitor::impl_conn_t
         os << "closed_conn_fail_fast " << cc.n_closed_conn_fail_fast << '\n';
         os << "closed_conn_fail_tarpit " << cc.n_closed_conn_fail_tarpit << '\n';
         os << "closed_conn_fail_client_early_write " << cc.n_closed_conn_fail_client_early_write << '\n';
+    }
+};
+
+
+struct monitor::impl_mail_t
+{
+    struct counters
+    {
+        uint64_t n_mail_rcpt_to;
+        uint64_t n_mail_delivered;
+    };
+    counters c;
+
+    mutable mutex mtx;
+
+    impl_mail_t()
+    {
+        memset(&c, 0, sizeof(c));
+    }
+
+    void on_mail_rcpt_to() noexcept
+    {
+        lock_guard<mutex> lock(mtx);
+        ++c.n_mail_rcpt_to;
+    }
+
+    void on_mail_delivered() noexcept
+    {
+        lock_guard<mutex> lock(mtx);
+        ++c.n_mail_delivered;
+    }
+
+
+    void print(std::ostream &os) const noexcept
+    {
+        // first get a local copy to release the mutex as fast as possible
+        counters cc;
+        {
+            lock_guard<mutex> lock(mtx);
+            cc = c;
+        }
+
+        // now can slowly print to the stream
+
+        os << "mail_rcpt_to " << cc.n_mail_rcpt_to << '\n';
+        os << "mail_delivered " << cc.n_mail_delivered << '\n';
     }
 };
 
@@ -286,6 +331,7 @@ const char * monitor::get_conn_close_status_name(conn_close_status_t st)
 
 monitor::monitor()
     : impl_conn(new impl_conn_t)
+    , impl_mail(new impl_mail_t)
     , impl_backend(new impl_backend_t)
     , tp_start(time(NULL))
 {
@@ -303,26 +349,39 @@ void monitor::print(std::ostream &os) const noexcept
     os << "pid " << getpid() << '\n';
     os << "uptime " << time(NULL) - tp_start << '\n';
     impl_conn->print(os);
+    impl_mail->print(os);
     impl_backend->print(os);
     os.flush();
 }
 
 
-void monitor::conn() noexcept
+void monitor::on_conn() noexcept
 {
     impl_conn->conn();
 }
 
 
-void monitor::conn_tarpitted() noexcept
+void monitor::on_conn_tarpitted() noexcept
 {
     impl_conn->conn_tarpitted();
 }
 
 
-void monitor::conn_closed(conn_close_status_t st, bool tarpit) noexcept
+void monitor::on_conn_closed(conn_close_status_t st, bool tarpit) noexcept
 {
     impl_conn->conn_closed(st, tarpit);
+}
+
+
+void monitor::on_mail_rcpt_to() noexcept
+{
+    impl_mail->on_mail_rcpt_to();
+}
+
+
+void monitor::on_mail_delivered() noexcept
+{
+    impl_mail->on_mail_delivered();
 }
 
 

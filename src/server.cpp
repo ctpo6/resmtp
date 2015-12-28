@@ -248,7 +248,7 @@ void server::handle_accept(acceptor_t *acceptor,
 void server::on_connection()
 {
     // signal about inbound connection
-    g::mon().conn();
+    g::mon().on_conn();
 }
 
 }

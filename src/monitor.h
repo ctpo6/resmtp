@@ -33,9 +33,12 @@ public:
 
     void print(std::ostream &os) const noexcept;
 
-    void conn() noexcept;
-    void conn_tarpitted() noexcept;
-    void conn_closed(conn_close_status_t st, bool tarpit) noexcept;
+    void on_conn() noexcept;
+    void on_conn_tarpitted() noexcept;
+    void on_conn_closed(conn_close_status_t st, bool tarpit) noexcept;
+
+    void on_mail_rcpt_to() noexcept;
+    void on_mail_delivered() noexcept;
 
     // backend initialization
     void set_number_of_backends(uint32_t n) noexcept;
@@ -59,6 +62,9 @@ public:
 private:
     struct impl_conn_t;
     std::unique_ptr<impl_conn_t> impl_conn;
+
+    struct impl_mail_t;
+    std::unique_ptr<impl_mail_t> impl_mail;
 
     struct impl_backend_t;
     std::unique_ptr<impl_backend_t> impl_backend;
