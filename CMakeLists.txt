@@ -9,7 +9,7 @@ cmake_minimum_required(VERSION 2.8.5 FATAL_ERROR)
 # if CMAKE_BUILD_TYPE wasn't specified, make it equal to "Release"
 IF (CMAKE_BUILD_TYPE STREQUAL "")
   set(CMAKE_BUILD_TYPE "Release")
-ENDIF(CMAKE_BUILD_TYPE STREQUAL "")
+ENDIF ()
 
 ################################################################################
 # Macroses
@@ -20,13 +20,13 @@ INCLUDE(CheckIncludeFiles)
 INCLUDE(CheckCXXSourceCompiles)
 INCLUDE(CheckSymbolExists)
 INCLUDE(CheckLibraryExists)
+INCLUDE(CheckCXXCompilerFlag)
 
 # User-defined macroses
 INCLUDE(cmake/ParseDebVersion.cmake)
 #INCLUDE(cmake/RenameModule.cmake)
 #INCLUDE(cmake/ConfigurePackage.cmake)
 INCLUDE(cmake/ConfigureLibrary.cmake)
-INCLUDE(CheckCXXCompilerFlag)
 
 
 ################################################################################
@@ -35,7 +35,7 @@ INCLUDE(CheckCXXCompilerFlag)
 check_cxx_compiler_flag("-std=c++11" CXX11_SUPPORTED)
 if (NOT CXX11_SUPPORTED)
 	MESSAGE(FATAL_ERROR "C++11 isn't supported!")
-endif (NOT CXX11_SUPPORTED)
+endif ()
 
 
 ################################################################################
@@ -63,27 +63,34 @@ message(STATUS "")
 set(MY_C_FLAGS "-Wall -Wno-parentheses")
 set(MY_CXX_FLAGS "-std=c++11")
 
+set(CMAKE_C_FLAGS_RELEASE "-O2 -DNDEBUG")
+set(CMAKE_CXX_FLAGS_RELEASE "-O2 -DNDEBUG")
+
 add_definitions(-DBOOST_THREAD_USE_LIB)
 
 IF (CMAKE_BUILD_TYPE MATCHES "Debug")
   add_definitions(-D_DEBUG)
-ENDIF(CMAKE_BUILD_TYPE MATCHES "Debug")
+ENDIF ()
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${MY_C_FLAGS}")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${MY_C_FLAGS} ${MY_CXX_FLAGS}")
+set(CMAKE_C_FLAGS "${MY_C_FLAGS} ${CMAKE_C_FLAGS}")
+set(CMAKE_CXX_FLAGS "${MY_C_FLAGS} ${MY_CXX_FLAGS} ${CMAKE_CXX_FLAGS}")
 
 # for static linking
 #set(CMAKE_EXE_LINKER_FLAGS "-static -static-libstdc++ -static-libgcc")
 
-message(STATUS "CMAKE_BUILD_TYPE: '${CMAKE_BUILD_TYPE}'")
+message(STATUS "Build type: '${CMAKE_BUILD_TYPE}'")
 message(STATUS "")
 
-message(STATUS "C flags:${CMAKE_C_FLAGS}")
-message(STATUS "CXX flags:${CMAKE_CXX_FLAGS}")
+message(STATUS "C flags: ${CMAKE_C_FLAGS}")
+message(STATUS "CXX flags: ${CMAKE_CXX_FLAGS}")
+if (CMAKE_BUILD_TYPE MATCHES "Debug")
+  message(STATUS "C Debug flags: ${CMAKE_C_FLAGS_DEBUG}")
+  message(STATUS "CXX Debug flags: ${CMAKE_CXX_FLAGS_DEBUG}")
+elseif (CMAKE_BUILD_TYPE MATCHES "Release")
+  message(STATUS "C Release flags: ${CMAKE_C_FLAGS_RELEASE}")
+  message(STATUS "CXX Release flags: ${CMAKE_CXX_FLAGS_RELEASE}")
+endif ()
 message(STATUS "")
-
-#message("CXX Debug flags:${CMAKE_CXX_FLAGS_DEBUG}")
-#message("CXX Release flags:${CMAKE_CXX_FLAGS_RELEASE}")
 
 
 ################################################################################
@@ -126,13 +133,13 @@ target_link_libraries(resmtp ${Boost_LIBRARIES} ${OPENSSL_LIBRARIES} ${HAVE_spf2
 # Install
 ################################################################################
 
-IF(NOT SBINDIR)
+IF (NOT SBINDIR)
     SET(SBINDIR "/usr/sbin")
-ENDIF(NOT SBINDIR)
+ENDIF ()
 
-IF(NOT SYSCONFDIR)
+IF (NOT SYSCONFDIR)
     SET(SYSCONFDIR "/etc")
-ENDIF(NOT SYSCONFDIR)
+ENDIF ()
 
 install(TARGETS resmtp
         RUNTIME DESTINATION ${SBINDIR})
