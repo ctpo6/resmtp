@@ -16,14 +16,13 @@ from setproctitle import setproctitle
 
 resmtp_addr = ('localhost', 11311)
 graphite_addr = ('sherlock.mail.rambler.ru', 2003)
+poll_timeout = 30   # resmtp poll timeout, seconds
 
 # monitoring params which we have interest in
-mon_param_names = ('conn',)
+mon_param_names = ('conn', 'conn_bl', 'conn_wl')
 
 
 def send_to_graphite(msg):
-    print(msg)
-
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
     try:
@@ -33,7 +32,7 @@ def send_to_graphite(msg):
     except Exception as e:
         t = "ERROR: exception {0}:\n{1!r}"
         s = t.format(type(e).__name__, e.args)
-        print(s)
+        syslog.syslog(s)
 
     sock.close()
 
@@ -49,8 +48,9 @@ def get_stat():
 
         for line in sock.makefile('r', 1):
             line = line.rstrip()
+            first_word_in_line = line.partition(' ')[0]
             for param_name in mon_param_names:
-                if line.startswith(param_name):
+                if first_word_in_line == param_name:
                     msg += "resmtp.%s %d\n" % (line, timestamp)
 
     except Exception as e:
@@ -70,8 +70,12 @@ def do_main():
 
     while 1:
         msg = get_stat()
-        send_to_graphite(msg)
-        time.sleep(30)
+        if msg:
+            print(msg)
+            send_to_graphite(msg)
+        else:
+            print("*** can't get data from resmtp ***")
+        time.sleep(poll_timeout)
 
 
 def do_terminate(signum, frame):
