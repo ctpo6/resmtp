@@ -1,3 +1,15 @@
+resmtp (0.2.5) unstable; urgency=low
+
+  * DEB package build: set CMAKE_BUILD_TYPE to 'Release'
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Tue, 12 Jan 2016 12:37:00 +0300
+ 
+resmtp (0.2.4) unstable; urgency=low
+
+  * Turn off some excessive debug logging
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Tue, 12 Jan 2016 11:49:00 +0300
+ 
 resmtp (0.2.3) unstable; urgency=low
 
   * Monitoring of number of mails
