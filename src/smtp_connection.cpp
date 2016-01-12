@@ -143,8 +143,9 @@ void smtp_connection::handle_back_resolve(
 }
 
 
-void smtp_connection::handle_dnsbl_check() {
-    if(m_dnsbl_check) {
+void smtp_connection::handle_dnsbl_check()
+{
+    if (m_dnsbl_check) {
         m_dnsbl_status = m_dnsbl_check->get_status(m_dnsbl_status_str);
         m_dnsbl_check->stop();
         m_dnsbl_check.reset();
@@ -162,6 +163,8 @@ void smtp_connection::handle_dnsbl_check() {
                 % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
                 % m_connected_ip.to_v4().to_string()
                 % m_dnsbl_status_str));
+
+        g::mon().on_conn_bl();
 
         std::ostream response_stream(&m_response);
         response_stream << m_dnsbl_status_str;
@@ -224,6 +227,9 @@ void smtp_connection::start_proto() {
     m_dnswl_check->stop();
     m_dnswl_check.reset();
     PDBG("m_dnswl_status:%d  m_dnswl_status_str:%s", m_dnswl_status, m_dnswl_status_str.c_str());
+    if (m_dnswl_status) {
+        g::mon().on_conn_wl();
+    }
     if (!m_dnswl_status && g::cfg().m_tarpit_delay_seconds) {
         on_connection_tarpitted();
         log(MSG_NORMAL,

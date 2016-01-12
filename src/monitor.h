@@ -34,6 +34,8 @@ public:
     void print(std::ostream &os) const noexcept;
 
     void on_conn() noexcept;
+    void on_conn_bl() noexcept;
+    void on_conn_wl() noexcept;
     void on_conn_tarpitted() noexcept;
     void on_conn_closed(conn_close_status_t st, bool tarpit) noexcept;
 

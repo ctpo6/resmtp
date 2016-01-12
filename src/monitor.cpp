@@ -25,6 +25,9 @@ struct monitor::impl_conn_t
         // total number of accepted connections
         uint64_t n_conn;
 
+        uint64_t n_conn_bl;
+        uint64_t n_conn_wl;
+
         uint64_t n_closed_conn_ok_fast;
         uint64_t n_closed_conn_ok_tarpit;
 
@@ -53,6 +56,18 @@ struct monitor::impl_conn_t
         ++c.n_active_conn_fast;
         c.n_active_conn_max = std::max(c.n_active_conn_max,
                                        c.n_active_conn_fast + c.n_active_conn_tarpit);
+    }
+
+    void on_conn_bl() noexcept
+    {
+        lock_guard<mutex> lock(mtx);
+        ++c.n_conn_bl;
+    }
+
+    void on_conn_wl() noexcept
+    {
+        lock_guard<mutex> lock(mtx);
+        ++c.n_conn_wl;
     }
 
     void conn_tarpitted() noexcept
@@ -100,6 +115,8 @@ struct monitor::impl_conn_t
         // now can slowly print to the stream
 
         os << "conn " << cc.n_conn << '\n';
+        os << "conn_bl " << cc.n_conn_bl << '\n';
+        os << "conn_wl " << cc.n_conn_wl << '\n';
 
         os << "active_conn_max " << cc.n_active_conn_max << '\n';
         os << "active_conn " << cc.n_active_conn_fast + cc.n_active_conn_tarpit << '\n';
@@ -358,6 +375,18 @@ void monitor::print(std::ostream &os) const noexcept
 void monitor::on_conn() noexcept
 {
     impl_conn->conn();
+}
+
+
+void monitor::on_conn_bl() noexcept
+{
+    impl_conn->on_conn_bl();
+}
+
+
+void monitor::on_conn_wl() noexcept
+{
+    impl_conn->on_conn_wl();
 }
 
 
