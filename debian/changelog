@@ -1,3 +1,9 @@
+resmtp (0.2.3) unstable; urgency=low
+
+  * Monitoring of number of mails
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Tue, 12 Jan 2016 9:53:00 +0300
+ 
 resmtp (0.2.2) unstable; urgency=low
 
   * Removed global mutex lock in connection acceptor
