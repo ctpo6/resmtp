@@ -118,7 +118,7 @@ int main(int argc, char* argv[])
                       % b.weight));
     }
 
-    boost::thread log;
+    boost::thread t_log;
     int rval = 0;
     try {
         if (!g::cfg().m_ip_config_file.empty()) {
@@ -145,7 +145,7 @@ int main(int argc, char* argv[])
         }
 
         // start logging thread
-        log = boost::thread( [](){ g_log.run(); } );
+        t_log = boost::thread( [](){ g_log.run(); } );
 
         // start server
         server.run();
@@ -206,12 +206,12 @@ int main(int argc, char* argv[])
     g_pid_file.unlink();
 
     // If an exception occured before the creation of the logging thread we need to create it here to log pending errors
-    if (log.get_id() == boost::thread::id()) {
-        log = boost::thread( [](){ g_log.run(); } );
+    if (t_log.get_id() == boost::thread::id()) {
+        t_log = boost::thread( [](){ g_log.run(); } );
     }
 
     g_log.stop();
-    log.join();
+    t_log.join();
 
     return rval;
 }

@@ -319,7 +319,6 @@ bool server_parameters::parse_config(int argc,
             ;
 
     bpo::options_description config_options("Configuration");
-
     config_options.add_options()
             ("listen", bpo::value<vector<string>>(&m_listen_points), "listen on host:port")
             ("ssl_listen", bpo::value<vector<string>>(&m_ssl_listen_points), "SSL listen on host:port")
