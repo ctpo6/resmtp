@@ -1,6 +1,12 @@
-# resmtp
 CMakeLists.txt.user
 build
 build-qtcreator
-
-
+.vscode
+obj-x86_64-linux-gnu
+debian/files
+debian/resmtp.debhelper.log
+debian/resmtp.postinst.debhelper
+debian/resmtp.postrm.debhelper
+debian/resmtp.prerm.debhelper
+debian/resmtp.substvars
+debian/resmtp
