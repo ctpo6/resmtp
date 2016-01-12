@@ -336,11 +336,13 @@ void smtp_connection::start_read() {
 
     size_t unread_size = buffers.size() - m_envelope->orig_message_token_marker_size_;
 
+#if 0
     PDBG("read_pending=%d unread_size=%zu buffers.size()=%zu orig_message_token_marker_size=%zu",
          read_pending,
          unread_size,
          buffers.size(),
          m_envelope->orig_message_token_marker_size_);
+#endif
 
     if (unread_size) {
         handle_read_helper(unread_size);
@@ -852,13 +854,13 @@ void smtp_connection::end_check_data() {
         case check::CHK_DISCARD:
             ++msg_count_sent;
             g::mon().on_mail_delivered();
-            PDBG("close_status_t::ok");
+//            PDBG("close_status_t::ok");
             close_status = close_status_t::ok;
             response_stream << "250 2.0.0 Ok: queued on " << boost::asio::ip::host_name() << " as";
             break;
 
         case check::CHK_REJECT:
-            PDBG("close_status_t::fail");
+//            PDBG("close_status_t::fail");
             close_status = close_status_t::fail;
             if (!m_check_data.m_answer.empty()) {
                 response_stream << m_check_data.m_answer;
@@ -868,7 +870,7 @@ void smtp_connection::end_check_data() {
             break;
 
         case check::CHK_TEMPFAIL:
-            PDBG("close_status_t::fail");
+//            PDBG("close_status_t::fail");
             close_status = close_status_t::fail;
             if (!m_check_data.m_answer.empty()) {
                 response_stream << m_check_data.m_answer;

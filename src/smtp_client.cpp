@@ -677,7 +677,7 @@ void smtp_client::fault(string log_msg, string remote_answer)
         m_socket.close();
     } catch (...) {}
 
-    PDBG("call on_backend_conn_closed()");
+//    PDBG("call on_backend_conn_closed()");
     g::mon().on_backend_conn_closed(backend_host.index);
 
     m_socket.get_io_service().post(cb_complete);
@@ -730,7 +730,7 @@ void smtp_client::success()
         m_socket.close();
     } catch (...) {}
 
-    PDBG("call on_backend_conn_closed()");
+//    PDBG("call on_backend_conn_closed()");
     g::mon().on_backend_conn_closed(backend_host.index);
 
     m_socket.get_io_service().post(cb_complete);
