@@ -1,3 +1,9 @@
+resmtp (0.2.6) unstable; urgency=low
+
+  * Monitoring: added conn_bl, conn_wl
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Tue, 12 Jan 2016 18:10:00 +0300
+ 
 resmtp (0.2.5) unstable; urgency=low
 
   * DEB package build: set CMAKE_BUILD_TYPE to 'Release'
