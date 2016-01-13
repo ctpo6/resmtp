@@ -19,7 +19,7 @@ graphite_addr = ('sherlock.mail.rambler.ru', 2003)
 poll_timeout = 30   # resmtp poll timeout, seconds
 
 # monitoring params which we have interest in
-mon_param_names = ('conn', 'conn_bl', 'conn_wl')
+mon_param_names = {'conn', 'conn_bl', 'conn_wl', 'conn_fast', 'conn_tarpit', 'closed_conn_fail_client_early_write'}
 
 
 def send_to_graphite(msg):
@@ -45,13 +45,16 @@ def get_stat():
 
     try:
         sock.connect(resmtp_addr)
-
+        names = mon_param_names.copy()
         for line in sock.makefile('r', 1):
-            line = line.rstrip()
+            line = line.rstrip()    # remove trailing '\n'
             first_word_in_line = line.partition(' ')[0]
-            for param_name in mon_param_names:
-                if first_word_in_line == param_name:
-                    msg += "resmtp.%s %d\n" % (line, timestamp)
+            if first_word_in_line in names:
+                msg += "resmtp.%s %d\n" % (line, timestamp)
+                names.remove(first_word_in_line)
+                # no need to continue reading the data: all params were found
+                if not names:
+                    break
 
     except Exception as e:
         t = "ERROR: exception {0}:\n{1!r}"
