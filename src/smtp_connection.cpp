@@ -145,29 +145,28 @@ void smtp_connection::handle_back_resolve(
 
 void smtp_connection::handle_dnsbl_check()
 {
+    string bl_status_str;
+    bool is_blacklisted = false;
     if (m_dnsbl_check) {
-        m_dnsbl_status = m_dnsbl_check->get_status(m_dnsbl_status_str);
+        is_blacklisted = m_dnsbl_check->get_status(bl_status_str);
         m_dnsbl_check->stop();
         m_dnsbl_check.reset();
-    }
-    else {
-        m_dnsbl_status = false;
     }
 
     //--------------------------------------------------------------------------
     // is IP blacklisted ?
     //--------------------------------------------------------------------------
-    if (m_dnsbl_status) {
+    if (is_blacklisted) {
         log(MSG_NORMAL,
-            str(boost::format("reject connection from blacklisted host %1%[%2%]: %3%")
+            str(boost::format("reject connection from blacklisted host %1%[%2%] (%3%)")
                 % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
                 % m_connected_ip.to_v4().to_string()
-                % m_dnsbl_status_str));
+                % bl_status_str));
 
         g::mon().on_conn_bl();
 
         std::ostream response_stream(&m_response);
-        response_stream << m_dnsbl_status_str;
+        response_stream << "554 5.7.1 Service unavailable\r\n";
 
         if (m_force_ssl) {
             ssl_state_ = ssl_active;
@@ -202,7 +201,8 @@ void smtp_connection::handle_dnsbl_check()
 }
 
 
-void smtp_connection::start_proto() {
+void smtp_connection::start_proto()
+{
     m_proto_state = STATE_START;
     ssl_state_ = ssl_none;
 
@@ -223,14 +223,18 @@ void smtp_connection::start_proto() {
 
     // get whitelist check result, reset checker
     assert(m_dnswl_check);
-    m_dnswl_status = m_dnswl_check->get_status(m_dnswl_status_str);
+    string wl_status_str;
+    wl_status = m_dnswl_check->get_status(wl_status_str);
     m_dnswl_check->stop();
     m_dnswl_check.reset();
-    PDBG("m_dnswl_status:%d  m_dnswl_status_str:%s", m_dnswl_status, m_dnswl_status_str.c_str());
-    if (m_dnswl_status) {
+    log(MSG_DEBUG,
+        str(boost::format("wl_status:%1% wl_status_str:%2%")
+            % wl_status
+            % wl_status_str));
+    if (wl_status) {
         g::mon().on_conn_wl();
     }
-    if (!m_dnswl_status && g::cfg().m_tarpit_delay_seconds) {
+    if (!wl_status && g::cfg().m_tarpit_delay_seconds) {
         on_connection_tarpitted();
         log(MSG_NORMAL,
             str(boost::format("TARPIT %1%[%2%]")
@@ -901,7 +905,7 @@ void smtp_connection::send_response(
         return;
     }
 
-    if (m_dnswl_status || g::cfg().m_tarpit_delay_seconds == 0) {
+    if (wl_status || g::cfg().m_tarpit_delay_seconds == 0) {
         // send immediately
         send_response2(handler);
         return;

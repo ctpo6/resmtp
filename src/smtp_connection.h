@@ -171,19 +171,11 @@ protected:
     void handle_dkim_check(dkim_check::DKIM_STATUS status, const std::string& identity);
     void handle_dkim_timeout(const boost::system::error_code& ec);
 
-
-    // BLACK AND WHITELIST CHECK
+    // BL & WL CHECK
     rbl_client_ptr m_dnsbl_check;
-    bool m_dnsbl_status; // true: IP is blacklisted
-    std::string m_dnsbl_status_str;
-
-    // don't look to 'rbl' - it is actually used as an whitelist checker )))
+    // don't look to 'rbl' - it is actually used as an whitelist checker
+    bool wl_status;
     rbl_client_ptr m_dnswl_check;
-    std::string m_dnswl_status_str;
-    // true: IP is whitelisted
-    // false: since blacklisted IP are being disconnected, actually means that
-    // IP is greylisted
-    bool m_dnswl_status;
 
     //--
     check_rcpt_t m_check_rcpt;

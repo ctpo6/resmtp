@@ -8,8 +8,12 @@
 #include "log.h"
 #include "util.h"
 
+
 using namespace std;
 using namespace y::net;
+
+namespace ba = boost::asio;
+namespace bs = boost::system;
 
 
 rbl_check::rbl_check(boost::asio::io_service& _io_service)
@@ -48,16 +52,20 @@ void rbl_check::start_resolve(const boost::asio::ip::address_v4& av4, const std:
     m_resolver.async_resolve(
         util::rev_order_av4_str(av4, d),
         dns::type_a,
-        boost::bind(&rbl_check::handle_resolve, shared_from_this(), _1, _2));
+        boost::bind(&rbl_check::handle_resolve,
+                    shared_from_this(),
+                    ba::placeholders::error,
+                    ba::placeholders::iterator));
 }
 
 
-void rbl_check::handle_resolve(const boost::system::error_code& ec,
-                               dns::resolver::iterator)
+void rbl_check::handle_resolve(const boost::system::error_code &ec,
+                               dns::resolver::iterator it)
 {
     if (!ec) {
         if (m_complete) {
-            m_message = string("554 5.7.1 Service unavailable\r\n");
+//            m_message = string("554 5.7.1 Service unavailable\r\n");
+            m_message = boost::dynamic_pointer_cast<dns::a_resource>(*it)->address().to_string();
             m_resolver.get_io_service().post(m_complete);
             m_complete = nullptr;
         }
@@ -81,8 +89,8 @@ void rbl_check::stop()
 }
 
 
-bool rbl_check::get_status(std::string &_message)
+bool rbl_check::get_status(string &s)
 {
-    _message = m_message;
+    s = m_message;
     return !m_message.empty();
 }
