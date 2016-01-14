@@ -38,7 +38,8 @@ struct monitor::impl_conn_t
         // counters of specific fail reasons
         uint64_t n_closed_conn_fail_client_early_write;
 
-        uint32_t n_active_conn_max;
+        uint32_t n_active_conn_max;     // for the whole observation period
+        uint32_t n_active_conn_max_last;  // for the time period since last query
         uint32_t n_active_conn_fast;
         uint32_t n_active_conn_tarpit;
     };
@@ -59,6 +60,8 @@ struct monitor::impl_conn_t
         ++c.n_active_conn_fast;
         c.n_active_conn_max = std::max(c.n_active_conn_max,
                                        c.n_active_conn_fast + c.n_active_conn_tarpit);
+        c.n_active_conn_max_last = std::max(c.n_active_conn_max_last,
+                                            c.n_active_conn_fast + c.n_active_conn_tarpit);
     }
 
     void on_conn_bl() noexcept
@@ -108,13 +111,14 @@ struct monitor::impl_conn_t
         }
     }
 
-    void print(std::ostream &os) const noexcept
+    void print(std::ostream &os) noexcept
     {
         // first get a local copy to release the mutex as fast as possible
         counters cc;
         {
             lock_guard<mutex> lock(mtx);
             cc = c;
+            c.n_active_conn_max_last = 0;
         }
 
         // now can slowly print to the stream
@@ -124,8 +128,10 @@ struct monitor::impl_conn_t
         os << "conn_tarpit " << cc.n_conn_tarpit << '\n';
         os << "conn_bl " << cc.n_conn_bl << '\n';
         os << "conn_wl " << cc.n_conn_wl << '\n';
+        os << "conn_gl " << cc.n_conn - cc.n_conn_bl - cc.n_conn_wl << '\n';
 
         os << "active_conn_max " << cc.n_active_conn_max << '\n';
+        os << "active_conn_max_last " << cc.n_active_conn_max_last << '\n';
         os << "active_conn " << cc.n_active_conn_fast + cc.n_active_conn_tarpit << '\n';
         os << "active_conn_fast " << cc.n_active_conn_fast << '\n';
         os << "active_conn_tarpit " << cc.n_active_conn_tarpit << '\n';
@@ -179,7 +185,7 @@ struct monitor::impl_mail_t
     }
 
 
-    void print(std::ostream &os) const noexcept
+    void print(std::ostream &os) noexcept
     {
         // first get a local copy to release the mutex as fast as possible
         counters cc;
@@ -231,7 +237,7 @@ struct monitor::impl_backend_t
             , n_conn(0)
         {}
 
-        void print(ostream &os, uint32_t idx) const noexcept
+        void print(ostream &os, uint32_t idx) noexcept
         {
             os << "backend_status" << '[' << idx << "]";
             switch (status) {
@@ -367,7 +373,7 @@ monitor::~monitor()
 }
 
 
-void monitor::print(std::ostream &os) const noexcept
+void monitor::print(std::ostream &os) noexcept
 {
     os << "version " << g::app_version() << '\n';
     os << "pid " << getpid() << '\n';

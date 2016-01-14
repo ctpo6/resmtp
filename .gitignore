@@ -2,6 +2,7 @@ CMakeLists.txt.user
 build
 build-qtcreator
 build-release
+.idea
 .vscode
 obj-x86_64-linux-gnu
 debian/files

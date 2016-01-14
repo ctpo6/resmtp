@@ -31,7 +31,7 @@ public:
     monitor();
     ~monitor();
 
-    void print(std::ostream &os) const noexcept;
+    void print(std::ostream &os) noexcept;
 
     void on_conn() noexcept;
     void on_conn_bl() noexcept;

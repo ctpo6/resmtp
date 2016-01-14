@@ -18,8 +18,19 @@ resmtp_addr = ('localhost', 11311)
 graphite_addr = ('sherlock.mail.rambler.ru', 2003)
 poll_timeout = 30   # resmtp poll timeout, seconds
 
-# monitoring params which we have interest in
-mon_param_names = {'conn', 'conn_bl', 'conn_wl', 'conn_fast', 'conn_tarpit', 'closed_conn_fail_client_early_write'}
+# monitoring params
+mon_param_names = {
+    'conn',
+    'conn_bl',
+    'conn_wl',
+    'conn_gl',
+    'conn_fast',
+    'conn_tarpit',
+    'closed_conn_fail_client_early_write',
+    'active_conn',
+    'active_conn_max',
+    'active_conn_max_last'
+}
 
 
 def send_to_graphite(msg):
