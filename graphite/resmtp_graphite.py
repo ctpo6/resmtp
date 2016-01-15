@@ -27,6 +27,7 @@ mon_param_names = {
     'conn_fast',
     'conn_tarpit',
     'closed_conn_fail_client_early_write',
+    'closed_conn_fail_client_closed_connection',
     'active_conn',
     'active_conn_max',
     'active_conn_max_last'

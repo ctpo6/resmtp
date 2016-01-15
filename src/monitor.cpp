@@ -37,6 +37,7 @@ struct monitor::impl_conn_t
         uint64_t n_closed_conn_fail_tarpit;
         // counters of specific fail reasons
         uint64_t n_closed_conn_fail_client_early_write;
+        uint64_t n_closed_conn_fail_client_closed_connection;
 
         uint32_t n_active_conn_max;     // for the whole observation period
         uint32_t n_active_conn_max_last;  // for the time period since last query
@@ -105,9 +106,19 @@ struct monitor::impl_conn_t
                 ++c.n_closed_conn_fail_tarpit;
             else
                 ++c.n_closed_conn_fail_fast;
+
             // update specific fail reason counters
-            if (st == status_t::fail_client_early_write)
+            switch (st) {
+            case status_t::fail_client_early_write:
                 ++c.n_closed_conn_fail_client_early_write;
+                break;
+            case status_t::fail_client_closed_connection:
+                ++c.n_closed_conn_fail_client_closed_connection;
+                break;
+            default:
+                break;
+            }
+
         }
     }
 
@@ -152,6 +163,7 @@ struct monitor::impl_conn_t
         os << "closed_conn_fail_fast " << cc.n_closed_conn_fail_fast << '\n';
         os << "closed_conn_fail_tarpit " << cc.n_closed_conn_fail_tarpit << '\n';
         os << "closed_conn_fail_client_early_write " << cc.n_closed_conn_fail_client_early_write << '\n';
+        os << "closed_conn_fail_client_closed_connection " << cc.n_closed_conn_fail_client_closed_connection << '\n';
     }
 };
 
@@ -352,7 +364,9 @@ const char * monitor::get_conn_close_status_name(conn_close_status_t st)
         return "fail";
     case conn_close_status_t::fail_client_early_write:
         return "fail_client_early_write";
-        // no default: to allow gcc with -Wall produce a warning if some case: missed
+    case conn_close_status_t::fail_client_closed_connection:
+        return "fail_client_closed_connection";
+        // no default: allow gcc with -Wall produce a warning if some case missed
     }
     assert(false && "update the switch() above");
     return nullptr;

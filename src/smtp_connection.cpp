@@ -40,7 +40,6 @@
 
 using namespace std;
 using namespace y::net;
-namespace ba = boost::asio;
 
 
 smtp_connection::smtp_connection(boost::asio::io_service &_io_service,
@@ -48,16 +47,19 @@ smtp_connection::smtp_connection(boost::asio::io_service &_io_service,
                                  smtp_backend_manager &bmgr,
                                  boost::asio::ssl::context& _context)
     : io_service_(_io_service)
+    , m_manager(_manager)
+    , backend_mgr(bmgr)
+
     , strand_(_io_service)
     , m_ssl_socket(_io_service, _context)
+
+    , m_resolver(_io_service)
+
+    , m_envelope(std::make_shared<envelope>(false))
+
     , m_timer(_io_service)
     , m_timer_spfdkim(_io_service)
     , m_tarpit_timer(_io_service)
-    , m_manager(_manager)
-    , backend_mgr(bmgr)
-    , m_resolver(_io_service)
-    , m_dkim_status(dkim_check::DKIM_NONE)
-    , m_envelope(std::make_shared<envelope>(false))
 {
 }
 
@@ -74,11 +76,10 @@ void smtp_connection::start(bool force_ssl) {
     m_session_id = envelope::generate_new_id();
 
     m_connected_ip = socket().remote_endpoint().address();
-    log(MSG_NORMAL,
+    log(MSG_DEBUG,
         str(boost::format("**** CONNECT %1%") % m_connected_ip.to_string()));
 
     m_max_rcpt_count = g::cfg().m_max_rcpt_count;
-
     // if specified, get the number of recipients for specific IP
     ip_options_config::ip_options_t opt;
     if (g_ip_config.check(m_connected_ip.to_v4(), opt)) {
@@ -110,12 +111,12 @@ void smtp_connection::handle_back_resolve(
         if (auto ptr = boost::dynamic_pointer_cast<dns::ptr_resource>(*it)) {
             m_remote_host_name = util::unfqdn(ptr->pointer());
         }
-    } else if(ec == boost::asio::error::operation_aborted) {
+    } else if (ec == boost::asio::error::operation_aborted) {
         return;
     }
 
     log(MSG_NORMAL,
-        str(boost::format("resolved %1%[%2%]")
+        str(boost::format("**** CONNECT %1%[%2%]")
             % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
             % m_connected_ip.to_string()));
 
@@ -236,10 +237,6 @@ void smtp_connection::start_proto()
     }
     if (!wl_status && g::cfg().m_tarpit_delay_seconds) {
         on_connection_tarpitted();
-        log(MSG_NORMAL,
-            str(boost::format("TARPIT %1%[%2%]")
-                % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
-                % m_connected_ip.to_v4().to_string()));
     }
 
 
@@ -297,11 +294,9 @@ void smtp_connection::on_connection_close()
 {
     g::mon().on_conn_closed(close_status, tarpit);
     log(MSG_NORMAL,
-        str(boost::format("**** DISCONNECT %1%[%2%] status=%3% tarpit=%4%")
-            % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
-            % m_connected_ip.to_string()
+        str(boost::format("**** DISCONNECT status=%1% tarpit=%2%")
             % resmtp::monitor::get_conn_close_status_name(close_status)
-            % (tarpit ? "1" : "0")));
+            % tarpit));
 }
 
 
@@ -513,6 +508,7 @@ void smtp_connection::handle_read(const boost::system::error_code &ec,
 
     if (!ec) {
         if (size == 0) {
+            PDBG("size == 0");
             PDBG("close_status_t::fail");
             close_status = close_status_t::fail;
             m_manager.stop(shared_from_this());
@@ -524,23 +520,29 @@ void smtp_connection::handle_read(const boost::system::error_code &ec,
 //        PDBG("buffers.size()=%zu", buffers.size());
         handle_read_helper(buffers.size());
     } else {
-        if (ec != boost::asio::error::operation_aborted) {
-            PDBG("ec.message()='%s' size=%zu", ec.message().c_str(), size);
+        if (ec != ba::error::operation_aborted) {
+            PDBG("read: ec.message()='%s' size=%zu", ec.message().c_str(), size);
             PDBG("state=%s msg_count_mail_from=%u msg_count_sent=%u",
                  get_proto_state_name(m_proto_state),
                  msg_count_mail_from,
                  msg_count_sent);
 
-            // TODO investigate & rework???
-            // this is a workaround for the case when connection is closed before
-            // we receive the QUIT command
-            // seems that io scheme must be (heavily!!!) reworked
-            // use async_read_until() instead of async_read_some() for commands?
-            // now don't have a time for this
-            if (!(m_proto_state == STATE_HELLO
-                  && msg_count_mail_from == msg_count_sent)) {
-                PDBG("close_status_t::fail");
-                close_status = close_status_t::fail;
+            if (ec == ba::error::eof && !smtp_client_started) {
+                PDBG("close_status_t::fail_client_closed_connection");
+                close_status = close_status_t::fail_client_closed_connection;
+            } else {
+                // TODO investigate & rework???
+                // this is a workaround for the case when connection is closed before
+                // we receive the QUIT command
+                // seems that io scheme must be (heavily!!!) reworked
+                // use async_read_until() instead of async_read_some() for commands?
+                // now don't have a time for this
+                if (!(m_proto_state == STATE_HELLO
+                      && msg_count_mail_from
+                      && msg_count_mail_from == msg_count_sent)) {
+                    PDBG("close_status_t::fail");
+                    close_status = close_status_t::fail;
+                }
             }
 
             m_manager.stop(shared_from_this());
@@ -845,6 +847,7 @@ void smtp_connection::smtp_delivery()
         strand_.wrap(bind(&smtp_connection::end_check_data, shared_from_this())),
         m_envelope,
         g::cfg().m_dns_servers);
+    smtp_client_started = true;
 }
 
 
@@ -912,9 +915,6 @@ void smtp_connection::send_response(
     }
 
     // send with tarpit timeout
-    log(MSG_DEBUG,
-        str(boost::format("TARPIT: delay %1% seconds")
-            % g::cfg().m_tarpit_delay_seconds));
     m_tarpit_timer.expires_from_now(
         boost::posix_time::seconds(g::cfg().m_tarpit_delay_seconds));
     m_tarpit_timer.async_wait(strand_.wrap(
@@ -954,7 +954,7 @@ void smtp_connection::send_response2(
 }
 
 
-void smtp_connection::handle_write_request(const boost::system::error_code &ec)
+void smtp_connection::handle_write_request(const bs::error_code &ec)
 {
     if (!ec) {
         if (m_error_count > g::cfg().m_hard_error_limit) {
@@ -969,7 +969,8 @@ void smtp_connection::handle_write_request(const boost::system::error_code &ec)
         }
         start_read();
     } else {
-        if (ec != boost::asio::error::operation_aborted) {
+        if (ec != ba::error::operation_aborted) {
+            PDBG("write: ec.message()='%s'", ec.message().c_str());
             PDBG("close_status_t::fail");
             close_status = close_status_t::fail;
             m_manager.stop(shared_from_this());
@@ -1091,20 +1092,17 @@ bool smtp_connection::smtp_rset( const std::string& _cmd, std::ostream &_respons
 }
 
 
-bool smtp_connection::hello( const std::string &_host)
+bool smtp_connection::hello(const std::string &_host)
 {
-    if ( _host.empty() )
-    {
+    if (_host.empty()) {
         m_proto_state = STATE_START;
         return false;
     }
-
     m_proto_state = STATE_HELLO;
-
     m_helo_host = _host;
-
     return true;
 }
+
 
 bool smtp_connection::smtp_helo( const std::string& _cmd, std::ostream &_response )
 {

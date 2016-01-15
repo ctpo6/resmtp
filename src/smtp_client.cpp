@@ -521,7 +521,7 @@ bool smtp_client::process_answer(std::istream &_stream) {
                 // XCLIENT HELO=spike.porcupine.org ADDR=168.100.189.2 NAME=[UNAVAILABLE]
                 answer_stream << "XCLIENT PROTO=ESMTP HELO=" << m_data.m_helo_host
                               << " ADDR=" << m_data.m_remote_ip
-                              << " NAME=" << (m_data.m_remote_host.empty() ? "[UNAVAILABLE]" : m_data.m_helo_host.c_str())
+                              << " NAME=" << (m_data.m_remote_host.empty() ? "[UNAVAILABLE]" : m_data.m_remote_host.c_str())
                               << "\r\n";
                 m_proto_state = proto_state_t::after_xclient;
             } else {
@@ -645,16 +645,26 @@ check::chk_status smtp_client::report_rcpt(bool success,
 
         accept = accept && rcpt_success;
 
-        log(success ? MSG_NORMAL : MSG_CRITICAL,
-            str(boost::format("to=<%1%>, relay=%2%[%3%]:%4%, delay=%5%, status=%6% (%7%) (%8%)")
-                      % rcpt.m_name
-                      % backend_host.host_name
-                      % backend_host_ip
-                      % backend_host.port
-                      % m_envelope->m_timer.mark()
-                      % (rcpt_success ? "sent" : "fault")
-                      % log_msg
-                      % remote));
+        if (rcpt_success) {
+            log(MSG_NORMAL,
+                str(boost::format("report: to=<%1%>, relay=%2%[%3%]:%4%, delay=%5%, status=ok (%6%)")
+                          % rcpt.m_name
+                          % backend_host.host_name
+                          % backend_host_ip
+                          % backend_host.port
+                          % m_envelope->m_timer.mark()
+                          % remote));
+        } else {
+            log(MSG_NORMAL,
+                str(boost::format("report: to=<%1%>, relay=%2%[%3%]:%4%, delay=%5%, status=fail (%6%) (%7%)")
+                          % rcpt.m_name
+                          % backend_host.host_name
+                          % backend_host_ip
+                          % backend_host.port
+                          % m_envelope->m_timer.mark()
+                          % log_msg
+                          % remote));
+        }
         remote.clear();
     }
 
@@ -835,7 +845,7 @@ void smtp_client::on_backend_conn()
 {
     m_proto_state = proto_state_t::connected;
 
-    log(MSG_NORMAL,
+    log(MSG_DEBUG,
         str(boost::format("connect %1%[%2%]:%3%")
             % backend_host.host_name
             % backend_host_ip
