@@ -261,7 +261,7 @@ void smtp_connection::start_proto()
 				boost::asio::placeholders::error));
 		}
 	} else {
-		log(MSG_NORMAL,
+		log(MSG_CRITICAL,
 			str(boost::format("reject connection %1%[%2%]: %3%")
 				% m_remote_host_name
 				% m_connected_ip.to_v4().to_string()
@@ -274,10 +274,10 @@ void smtp_connection::start_proto()
             	    strand_.wrap(boost::bind(&smtp_connection::handle_start_hello_write, shared_from_this(),
                                 boost::asio::placeholders::error, true)));
         } else {
-            send_response(boost::bind(
-                &smtp_connection::handle_last_write_request,
-                shared_from_this(),
-                boost::asio::placeholders::error));
+            send_response(boost::bind(&smtp_connection::handle_last_write_request,
+                                      shared_from_this(),
+                                      boost::asio::placeholders::error),
+                          true);
         }
     }
 }
@@ -310,7 +310,8 @@ bool smtp_connection::check_socket_read_buffer_is_empty()
 
 void smtp_connection::handle_start_hello_write(
         const boost::system::error_code& _error,
-        bool _close) {
+        bool _close)
+{
     if(_error) {
         return;
     }
@@ -464,10 +465,10 @@ bool smtp_connection::handle_read_command_helper(
             break;
         }
     } else {
-        send_response(boost::bind(
-            &smtp_connection::handle_last_write_request,
-            shared_from_this(),
-            boost::asio::placeholders::error));
+        send_response(boost::bind(&smtp_connection::handle_last_write_request,
+                                  shared_from_this(),
+                                  boost::asio::placeholders::error),
+                      true);
     }
     return false;
 }
@@ -555,8 +556,8 @@ void smtp_connection::start_check_data()
 {
     m_check_data.m_session_id = m_session_id;
     m_check_data.m_result = check::CHK_ACCEPT;
-    m_check_data.m_answer = "";
-    // we will need client IP in the upstream SMTP client for XCLIENT command
+    m_check_data.m_answer.clear();
+    // we will need client IP in the SMTP client for XCLIENT command
     m_check_data.m_remote_ip = m_connected_ip.to_string();
     m_check_data.m_remote_host = m_remote_host_name;
     m_check_data.m_helo_host = m_helo_host;
@@ -895,20 +896,25 @@ void smtp_connection::end_check_data() {
 
     response_stream << ' ' << m_session_id << '-' << m_envelope->m_id << "\r\n";
 
+    // don't tarpit after receiving '.' from client
     send_response(boost::bind(&smtp_connection::handle_write_request,
                               shared_from_this(),
-                              boost::asio::placeholders::error));
+                              boost::asio::placeholders::error),
+                  true);
 }
 
 
 void smtp_connection::send_response(
-        boost::function<void(const boost::system::error_code &)> handler) {
+        boost::function<void(const boost::system::error_code &)> handler,
+        bool force_do_not_tarpit) {
     if (m_response.size() == 0) {
 //        PDBG("nothing to send");
         return;
     }
 
-    if (wl_status || g::cfg().m_tarpit_delay_seconds == 0) {
+    if (force_do_not_tarpit
+            || wl_status
+            || g::cfg().m_tarpit_delay_seconds == 0) {
         // send immediately
         send_response2(handler);
         return;
@@ -1502,10 +1508,10 @@ void smtp_connection::handle_timer(const boost::system::error_code &ec)
                 % m_connected_ip.to_string()));
     }
 
-    send_response(boost::bind(
-        &smtp_connection::handle_last_write_request,
-        shared_from_this(),
-        boost::asio::placeholders::error));
+    send_response(boost::bind(&smtp_connection::handle_last_write_request,
+                              shared_from_this(),
+                              boost::asio::placeholders::error),
+                  true);
 }
 
 
@@ -1567,10 +1573,9 @@ void smtp_connection::end_mail_from_command(bool _start_spf,
     g::mon().on_mail_rcpt_to();
 
     if (_start_async) {
-        send_response(boost::bind(
-            &smtp_connection::handle_write_request,
-            shared_from_this(),
-            boost::asio::placeholders::error));
+        send_response(boost::bind(&smtp_connection::handle_write_request,
+                                  shared_from_this(),
+                                  boost::asio::placeholders::error));
     }
 }
 

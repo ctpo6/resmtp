@@ -223,8 +223,8 @@ private:
     void restart_timeout();
     void cancel_timer();
 
-    void send_response(
-            boost::function<void(const bs::error_code &)> handler);
+    void send_response(boost::function<void(const bs::error_code &)> handler,
+                       bool force_do_not_tarpit = false);
     void send_response2(
             boost::function<void(const bs::error_code &)> handler);
 
