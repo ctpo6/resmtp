@@ -145,7 +145,6 @@ protected:
 
     void on_backend_ip_address();
     void on_backend_conn();
-    void on_backend_conn_closed();
 
     void log(uint32_t prio, string msg) noexcept;
 };

@@ -31,10 +31,13 @@
 
 
 #undef PDBG
+#undef PLOG
 #ifdef _DEBUG
 #define PDBG(fmt, args...) log(MSG_DEBUG, util::strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
+#define PLOG(prio, fmt, args...) log(prio, util::strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
 #else
 #define PDBG(fmt, args...)
+#define PLOG(prio, fmt, args...)
 #endif
 
 

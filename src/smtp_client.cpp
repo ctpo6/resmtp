@@ -13,10 +13,13 @@
 
 
 #undef PDBG
+#undef PLOG
 #ifdef _DEBUG
 #define PDBG(fmt, args...) log(MSG_DEBUG, util::strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
+#define PLOG(prio, fmt, args...) log(prio, util::strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
 #else
 #define PDBG(fmt, args...)
+#define PLOG(prio, fmt, args...)
 #endif
 
 
@@ -687,7 +690,7 @@ void smtp_client::fault(string log_msg, string remote_answer)
         m_socket.close();
     } catch (...) {}
 
-//    PDBG("call on_backend_conn_closed()");
+    PLOG(MSG_CRITICAL, "call on_backend_conn_closed()");
     g::mon().on_backend_conn_closed(backend_host.index);
 
     m_socket.get_io_service().post(cb_complete);
@@ -740,7 +743,7 @@ void smtp_client::success()
         m_socket.close();
     } catch (...) {}
 
-//    PDBG("call on_backend_conn_closed()");
+    PLOG(MSG_CRITICAL, "call on_backend_conn_closed()");
     g::mon().on_backend_conn_closed(backend_host.index);
 
     m_socket.get_io_service().post(cb_complete);
@@ -855,12 +858,6 @@ void smtp_client::on_backend_conn()
 
     m_timer_value = g::cfg().backend_connect_timeout;
     start_read_line();
-}
-
-
-void smtp_client::on_backend_conn_closed()
-{
-    g::mon().on_backend_conn_closed(backend_host.index);
 }
 
 

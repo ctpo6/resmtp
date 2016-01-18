@@ -4,11 +4,13 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstdio>
 #include <cstring>
 #include <mutex>
 #include <vector>
 
 #include "global.h"
+#include "log.h"
 
 
 using namespace std;
@@ -90,10 +92,27 @@ struct monitor::impl_conn_t
     {
         lock_guard<mutex> lock(mtx);
 
-        if (tarpit)
+        if (tarpit) {
+#if 1
+            if (!c.n_active_conn_tarpit) {
+                PLOG(MSG_CRITICAL, "!c.n_active_conn_tarpit");
+            } else {
+                --c.n_active_conn_tarpit;
+            }
+#else
             --c.n_active_conn_tarpit;
-        else
+#endif
+        } else {
+#if 1
+            if (!c.n_active_conn_fast) {
+                PLOG(MSG_CRITICAL, "!c.n_active_conn_fast");
+            } else {
+                --c.n_active_conn_fast;
+            }
+#else
             --c.n_active_conn_fast;
+#endif
+        }
 
         if (st == status_t::ok) {
             if (tarpit)
@@ -328,7 +347,15 @@ struct monitor::impl_backend_t
     {
         lock_guard<mutex> lock(mtx.at(idx));
         auto &b = backend.at(idx);
+#if 1
+        if (!b.n_active_conn) {
+            PLOG(MSG_CRITICAL, "!b.n_active_conn idx=%u", idx);
+        } else {
+            --b.n_active_conn;
+        }
+#else
         --b.n_active_conn;
+#endif
     }
 
     void print(std::ostream &os) const noexcept
