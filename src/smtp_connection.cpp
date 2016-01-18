@@ -939,7 +939,7 @@ void smtp_connection::send_response2(
     if (g::cfg().m_socket_check &&
             m_proto_state == STATE_START &&
             !check_socket_read_buffer_is_empty()) {
-        log(MSG_CRITICAL, "abort session (client wrote to socket before receiving a greeting)");
+        log(MSG_NORMAL, "abort session (client wrote to socket before receiving a greeting)");
         PDBG("close_status_t::fail_client_early_write");
         close_status = close_status_t::fail_client_early_write;
         m_manager.stop(shared_from_this());

@@ -75,14 +75,16 @@ server::server(const server_parameters &cfg)
 }
 
 
-void server::run() {
+void server::run()
+{
     for (uint32_t i = 0; i < m_io_service_pool_size; ++i) {
         m_threads_pool.create_thread( [this](){ m_io_service.run(); } );
     }
 }
 
 
-void server::stop() {
+void server::gracefully_stop()
+{
     mon_acceptor->close();
     for (auto &a: m_acceptors) {
         a.close();

@@ -26,7 +26,7 @@ public:
     server(const server_parameters &cfg);
 
     void run();
-    void stop();
+    void gracefully_stop();
 
 private:
     using acceptor_t = boost::asio::ip::tcp::acceptor;

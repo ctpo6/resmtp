@@ -20,18 +20,18 @@ const uint32_t MSG_DEBUG = 50;
 const uint32_t MSG_DEBUG_BUFFERS = 100;
 
 #ifdef _DEBUG
-#define PLOG(prio, fmt, args...) g_log.msg(prio, util::strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
 #define PDBG(fmt, args...) g_log.msg(MSG_DEBUG, util::strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
 #define PDBG0(fmt, args...) fprintf(stderr, "%s:%d %s: " fmt"\n", __FILE__, __LINE__, __func__, ##args)
+#define PLOG(prio, fmt, args...) g_log.msg(prio, util::strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
 #else
-#define PLOG(prio, fmt, args...)
 #define PDBG(fmt, args...)
 #define PDBG0(fmt, args...)
+#define PLOG(prio, fmt, args...)
 #endif
 
 class logger {
 public:
-    void init(const char *ident, int log_prio);
+    void init(const char *ident, uint32_t log_prio);
 
     void msg(uint32_t prio, std::string s) noexcept;
 

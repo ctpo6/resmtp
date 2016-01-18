@@ -2,21 +2,26 @@
 
 #include <syslog.h>
 
+using namespace std;
+
 logger g_log;
 
-void logger::init(const char *ident, int log_prio) {
+
+void logger::init(const char *ident, uint32_t log_prio)
+{
     openlog(ident, 0, LOG_MAIL);
     m_log_prio = log_prio;
 }
 
 
-void logger::msg(uint32_t prio, std::string s) noexcept {
+void logger::msg(uint32_t prio, string s) noexcept
+{
     if (prio <= m_log_prio) {
         boost::mutex::scoped_lock lck(m_condition_mutex);
-        if (prio == MSG_CRITICAL) {
-            m_queue.push(std::string("[CRITICAL] ") + s);
+        if (prio == MSG_CRITICAL || prio == MSG_VERY_CRITICAL) {
+            m_queue.push(string("[CRITICAL] ") + s);
         } else if (prio >= MSG_DEBUG) {
-            m_queue.push(std::string("[DEBUG] ") + s);
+            m_queue.push(string("[DEBUG] ") + s);
         } else {
             m_queue.push(s);
         }
@@ -25,8 +30,9 @@ void logger::msg(uint32_t prio, std::string s) noexcept {
 }
 
 
-void logger::run() {
-    std::string buffer;
+void logger::run()
+{
+    string buffer;
     for (;;) {
         boost::mutex::scoped_lock lck(m_condition_mutex);
         while (m_queue.empty() && !m_exit) {

@@ -92,8 +92,9 @@ int main(int argc, char* argv[])
 
     // initialize DNS servers settings
     if (!g::cfg().init_dns_settings()) {
-        log_err(MSG_VERY_CRITICAL, str(boost::format(
-            "Error: can't obtain DNS settings (cfg: use_system_dns_servers=%1% custom_dns_servers=%2%")
+        log_err(MSG_VERY_CRITICAL,
+                str(boost::format(
+                        "Error: can't obtain DNS settings (cfg: use_system_dns_servers=%1% custom_dns_servers=%2%")
                 % (g::cfg().m_use_system_dns_servers ? "yes" : "no")
                 % g::cfg().m_custom_dns_servers),
                 true);
@@ -152,13 +153,13 @@ int main(int argc, char* argv[])
 
         if (!g_pid_file.create(g::cfg().m_pid_file)) {
             log_err(MSG_CRITICAL,
-                    str(boost::format("Warning: can't create PID file: %1% (%2%)")
+                    str(boost::format("[main]: Warning: can't create PID file: %1% (%2%)")
                         % g::cfg().m_pid_file
                         % strerror(errno)),
                     !daemonized);
         }
 
-        g_log.msg(MSG_NORMAL, "Server successfully started");
+        log_err(MSG_NORMAL, "[main]: Server successfully started", !daemonized);
 
         while(true) {
             pthread_sigmask(SIG_SETMASK, &old_mask, 0);
@@ -190,15 +191,17 @@ int main(int argc, char* argv[])
                 exit(1);
             }
 
-            g_log.msg(MSG_CRITICAL,
-                      str(boost::format("Received signal: %1%, exiting...") % sig));
+            log_err(MSG_NORMAL,
+                    str(boost::format("[main]: Received signal: %1%, exiting:") % sig),
+                    !daemonized);
             break;
         }
 
-        server.stop();
+        log_err(MSG_NORMAL, "[main]: Stopping server...", !daemonized);
+        server.gracefully_stop();
     } catch (const std::exception &e) {
         log_err(MSG_VERY_CRITICAL,
-                str(boost::format("Error: %1%") % e.what()),
+                str(boost::format("[main]: Error: %1%") % e.what()),
                 !daemonized);
         rval = 1;
     }
@@ -210,6 +213,7 @@ int main(int argc, char* argv[])
         t_log = boost::thread( [](){ g_log.run(); } );
     }
 
+    log_err(MSG_NORMAL, "[main]: Stopping logger...", !daemonized);
     g_log.stop();
     t_log.join();
 
