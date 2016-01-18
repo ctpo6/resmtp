@@ -20,8 +20,6 @@
 #include "header_parser.h"
 #include "ip_options.h"
 #include "global.h"
-#include "log.h"
-#include "options.h"
 #include "param_parser.h"
 #include "smtp_backend_manager.h"
 #include "smtp_connection_manager.h"
@@ -614,7 +612,7 @@ void log_message_id(const string &message_id,
                     const string &session_id,
                     const string &envelope_id)
 {
-    g_log.msg(MSG_NORMAL,
+    g::log().msg(MSG_NORMAL,
               str(boost::format("%1%-%2%-RECV: message-id=%3%")
                   % session_id
                   % envelope_id
@@ -792,7 +790,7 @@ void smtp_connection::smtp_delivery_start()
                 ah = str(boost::format("Authentication-Results: %1%; dkim=%2%%3%\r\n")
                         % boost::asio::ip::host_name() % dkim_check::status(m_dkim_status) % dkim_identity);
 
-            g_log.msg(MSG_NORMAL, str(boost::format("%1%-%2%-%3%")
+            g::log().msg(MSG_NORMAL, str(boost::format("%1%-%2%-%3%")
                             % m_session_id % m_envelope->m_id % ah));
 
             append(ah, added_h);
@@ -1585,7 +1583,7 @@ void smtp_connection::end_mail_from_command(bool _start_spf,
 
 void smtp_connection::log(uint32_t prio, string msg) noexcept
 {
-    g_log.msg(prio,
+    g::log().msg(prio,
               str(boost::format("%1%-%2%-FRONT: %3%")
                   % m_session_id
                   % (m_envelope ? m_envelope->m_id.c_str() : "********")

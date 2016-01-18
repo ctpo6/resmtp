@@ -12,7 +12,6 @@
 #include <boost/thread.hpp>
 
 #include "global.h"
-#include "options.h"
 #include "smtp_backend_manager.h"
 #include "smtp_connection.h"
 #include "smtp_connection_manager.h"

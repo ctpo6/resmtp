@@ -7,8 +7,6 @@
 #include <boost/format.hpp>
 
 #include "global.h"
-#include "log.h"
-#include "options.h"
 
 using namespace std;
 using namespace std::chrono;
@@ -95,7 +93,7 @@ smtp_backend_manager::backend_host smtp_backend_manager::get_backend_host()
         // unlock mtx
     }
 
-    g_log.msg(MSG_DEBUG,
+    g::log().msg(MSG_DEBUG,
               str(boost::format("selected backend host: %1% %2%")
                   % hosts[idx].host_name
                   % hosts[idx].weight));

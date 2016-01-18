@@ -19,20 +19,18 @@
 
 #include "global.h"
 #include "ip_options.h"
-#include "log.h"
-#include "options.h"
-#include "pidfile.h"
 #include "server.h"
 
 
 using namespace std;
 
 namespace {
-void log_err(int prio, string s, bool copy_to_stderr)
+void log_err(uint32_t prio, string s, bool copy_to_stderr) noexcept
 {
-    g_log.msg(prio, s);
-    if (copy_to_stderr)
+    g::log().msg(prio, s);
+    if (copy_to_stderr) {
         cerr << s << endl;
+    }
 }
 }
 
@@ -88,7 +86,7 @@ int main(int argc, char* argv[])
             g::cfg().m_log_level == 0 ? MSG_CRITICAL :
             g::cfg().m_log_level == 1 ? MSG_NORMAL :
             g::cfg().m_log_level == 2 ? MSG_DEBUG : MSG_DEBUG_BUFFERS;
-    g_log.init("resmtp", log_level);
+    g::log().init("resmtp", log_level);
 
     // initialize DNS servers settings
     if (!g::cfg().init_dns_settings()) {
@@ -101,7 +99,7 @@ int main(int argc, char* argv[])
         return 1;
     }
     for (auto &s: g::cfg().m_dns_servers) {
-        g_log.msg(MSG_DEBUG,
+        g::log().msg(MSG_DEBUG,
                   str(boost::format("DNS server: %1%") % s));
     }
 
@@ -113,7 +111,7 @@ int main(int argc, char* argv[])
         return 1;
     }
     for (auto &b: g::cfg().backend_hosts) {
-        g_log.msg(MSG_DEBUG,
+        g::log().msg(MSG_DEBUG,
                   str(boost::format("backend host: %1% %2%")
                       % b.host_name
                       % b.weight));
@@ -146,12 +144,12 @@ int main(int argc, char* argv[])
         }
 
         // start logging thread
-        t_log = boost::thread( [](){ g_log.run(); } );
+        t_log = boost::thread( [](){ g::log().run(); } );
 
         // start server
         server.run();
 
-        if (!g_pid_file.create(g::cfg().m_pid_file)) {
+        if (!g::pid_file().create(g::cfg().m_pid_file)) {
             log_err(MSG_CRITICAL,
                     str(boost::format("[main]: Warning: can't create PID file: %1% (%2%)")
                         % g::cfg().m_pid_file
@@ -206,15 +204,15 @@ int main(int argc, char* argv[])
         rval = 1;
     }
 
-    g_pid_file.unlink();
+    g::pid_file().unlink();
 
     // If an exception occured before the creation of the logging thread we need to create it here to log pending errors
     if (t_log.get_id() == boost::thread::id()) {
-        t_log = boost::thread( [](){ g_log.run(); } );
+        t_log = boost::thread( [](){ g::log().run(); } );
     }
 
     log_err(MSG_NORMAL, "[main]: Stopping logger...", !daemonized);
-    g_log.stop();
+    g::log().stop();
     t_log.join();
 
     return rval;

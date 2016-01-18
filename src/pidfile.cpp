@@ -1,36 +1,32 @@
-#include <sys/types.h>
-#include <unistd.h>
-#include <string.h>
-#include <stdio.h>
-#include <fstream>
-
 #include "pidfile.h"
 
-pid_file g_pid_file;
+#include <unistd.h>
 
-bool pid_file::create(const std::string& _file_name)
+#include <fstream>
+#include <utility>
+
+
+using namespace std;
+
+
+bool PidFile::create(string fname) noexcept
 {
-
-    if (_file_name.empty())
-    {
+    if (fname.empty()) {
         return false;
     }
 
-    m_pid_file_name = _file_name;
-
-    std::ofstream s(m_pid_file_name.c_str());
-
+    m_pid_file_name = std::move(fname);
+    std::ofstream s(m_pid_file_name);
     s << getpid() << std::endl;
 
     return s.good();
 }
 
-bool pid_file::unlink()
+
+bool PidFile::unlink() noexcept
 {
-    if (!m_pid_file_name.empty())
-    {
+    if (!m_pid_file_name.empty()) {
         return ::unlink(m_pid_file_name.c_str());
     }
-
     return false;
 }

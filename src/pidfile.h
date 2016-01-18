@@ -1,17 +1,13 @@
-#if !defined(_PIDFILE_H_)
-#define _PIDFILE_H_
+#pragma once
 
 #include <string>
 
-struct pid_file
+using std::string;
+
+struct PidFile
 {
-    bool create(const std::string& _file_name);
+    bool create(string fname) noexcept;
+    bool unlink() noexcept;
 
-    bool unlink();
-
-    std::string m_pid_file_name;
+    string m_pid_file_name;
 };
-
-extern pid_file g_pid_file;
-
-#endif

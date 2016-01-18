@@ -1,5 +1,4 @@
-#ifndef _LOG_H_
-#define _LOG_H_
+#pragma once
 
 #include <syslog.h>
 
@@ -20,14 +19,16 @@ const uint32_t MSG_DEBUG = 50;
 const uint32_t MSG_DEBUG_BUFFERS = 100;
 
 #ifdef _DEBUG
-#define PDBG(fmt, args...) g_log.msg(MSG_DEBUG, util::strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
+#define PDBG(fmt, args...) g::log().msg(MSG_DEBUG, util::strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
 #define PDBG0(fmt, args...) fprintf(stderr, "%s:%d %s: " fmt"\n", __FILE__, __LINE__, __func__, ##args)
-#define PLOG(prio, fmt, args...) g_log.msg(prio, util::strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
+#define PLOG(prio, fmt, args...) g::log().msg(prio, util::strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
 #else
 #define PDBG(fmt, args...)
 #define PDBG0(fmt, args...)
 #define PLOG(prio, fmt, args...)
 #endif
+
+namespace resmtp {
 
 class logger {
 public:
@@ -53,6 +54,4 @@ protected:
     boost::condition m_condition;
 };
 
-extern logger g_log;
-
-#endif // _LOG_H_
+}

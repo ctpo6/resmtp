@@ -8,7 +8,6 @@
 #include <boost/lexical_cast.hpp>
 
 #include "global.h"
-#include "log.h"
 #include "util.h"
 
 
@@ -116,7 +115,7 @@ void smtp_client::start(const check_data_t& _data,
                                          shared_from_this(),
                                          ba::placeholders::error)));
     } catch(...) {
-        g_log.msg(MSG_DEBUG,
+        g::log().msg(MSG_DEBUG,
                   str(boost::format("%1%-%2%-SEND-%3%S trying to resolve: %4%:%5%")
                       % m_data.m_session_id
                       % m_envelope->m_id
@@ -863,7 +862,7 @@ void smtp_client::on_backend_conn()
 
 void smtp_client::log(uint32_t prio, string msg) noexcept
 {
-    g_log.msg(prio,
+    g::log().msg(prio,
               str(boost::format("%1%-%2%-BACK: %3%")
                   % m_data.m_session_id
                   % m_envelope->m_id

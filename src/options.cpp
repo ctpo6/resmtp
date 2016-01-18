@@ -25,7 +25,6 @@
 #include <resolv.h>
 
 #include "global.h"
-#include "log.h"
 
 using namespace std;
 

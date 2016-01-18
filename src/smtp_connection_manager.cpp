@@ -6,7 +6,7 @@
 #include <boost/bind.hpp>
 #include <boost/format.hpp>
 
-#include "log.h"
+#include "global.h"
 
 
 using namespace std;

@@ -4,8 +4,8 @@
 
 using namespace std;
 
-logger g_log;
 
+namespace resmtp {
 
 void logger::init(const char *ident, uint32_t log_prio)
 {
@@ -56,4 +56,6 @@ void logger::stop()
 {
     m_exit = true;
     m_condition.notify_one();
+}
+
 }

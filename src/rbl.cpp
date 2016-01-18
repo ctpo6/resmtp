@@ -5,7 +5,7 @@
 #include <boost/bind.hpp>
 #include <boost/format.hpp>
 
-#include "log.h"
+#include "global.h"
 #include "util.h"
 
 
