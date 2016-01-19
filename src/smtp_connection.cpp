@@ -933,15 +933,33 @@ void smtp_connection::send_response(
 
 void smtp_connection::send_response2(
         boost::function<void(const boost::system::error_code &)> handler) {
-    // check that the client hasn't sent something before receiving greeting msg
-    if (g::cfg().m_socket_check &&
-            m_proto_state == STATE_START &&
-            !check_socket_read_buffer_is_empty()) {
-        log(MSG_NORMAL, "abort session (client wrote to socket before receiving a greeting)");
-        PDBG("close_status_t::fail_client_early_write");
-        close_status = close_status_t::fail_client_early_write;
-        m_manager.stop(shared_from_this());
-        return;
+
+    if (g::cfg().m_socket_check) {
+        // check that the client hasn't sent something before receiving greeting msg
+        bool empty;
+        try {
+            empty = check_socket_read_buffer_is_empty();
+        } catch (const bs::system_error &e) {
+            // TODO this log remove when finished investigating the cause
+            // now it's not clear when it happens
+            PLOG(MSG_CRITICAL,
+                 "EXCEPTION: check_socket_read_buffer_is_empty '%s'",
+                 e.code().message().c_str());
+
+            PDBG("close_status_t::fail");
+            close_status = close_status_t::fail;
+            m_manager.stop(shared_from_this());
+            return;
+        }
+
+        if (m_proto_state == STATE_START && !empty) {
+            log(MSG_NORMAL,
+                "abort session (client wrote to socket before receiving a greeting)");
+            PDBG("close_status_t::fail_client_early_write");
+            close_status = close_status_t::fail_client_early_write;
+            m_manager.stop(shared_from_this());
+            return;
+        }
     }
 
 	log(MSG_DEBUG_BUFFERS,
