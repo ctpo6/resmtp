@@ -1,8 +1,11 @@
 #pragma once
 
+#include <syslog.h>
+
 #include <cstdio>
 #include <queue>
 #include <string>
+#include <utility>
 
 #include <boost/thread.hpp>
 #include <boost/thread/condition.hpp>
@@ -12,15 +15,9 @@
 
 using std::string;
 
-const uint32_t MSG_VERY_CRITICAL = 1;
-const uint32_t MSG_CRITICAL = 10;
-const uint32_t MSG_NORMAL = 20;
-const uint32_t MSG_DEBUG = 50;
-const uint32_t MSG_DEBUG_BUFFERS = 100;
-
 #ifdef _DEBUG
-#define PDBG(fmt, args...) g::log().msg(MSG_DEBUG, util::strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
 #define PDBG0(fmt, args...) fprintf(stderr, "%s:%d %s: " fmt"\n", __FILE__, __LINE__, __func__, ##args)
+#define PDBG(fmt, args...) g::log().msg(resmtp::log::debug, util::strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
 #define PLOG(prio, fmt, args...) g::log().msg(prio, util::strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
 #else
 #define PDBG(fmt, args...)
@@ -30,20 +27,37 @@ const uint32_t MSG_DEBUG_BUFFERS = 100;
 
 namespace resmtp {
 
+enum class log : int {
+    alert = LOG_ALERT,
+    crit = LOG_CRIT,
+    err = LOG_ERR,
+    warning = LOG_WARNING,
+    notice = LOG_NOTICE,
+    info = LOG_INFO,
+    debug = LOG_DEBUG,
+    debug_extra
+};
+
 class Log {
 public:
-    void init(uint32_t log_prio) noexcept;
+    void init(log prio_level) noexcept;
 
-    void msg(uint32_t prio, string s) noexcept;
+    void msg(log prio, string s) noexcept;
 
     void run();
     void stop();
 
 private:
-    bool m_exit = false;
-    uint32_t m_log_prio = MSG_CRITICAL;
+    struct Msg {
+        Msg(log p, string s) : prio(p), msg(std::move(s)) {}
+        log prio;
+        string msg;
+    };
 
-    std::queue<string> m_queue;
+    bool m_exit = false;
+    log m_log_prio = log::crit;
+
+    std::queue<Msg> m_queue;
 
     boost::mutex m_condition_mutex;
     boost::condition m_condition;

@@ -1,39 +1,36 @@
 #include "log.h"
 
-#include <syslog.h>
 
 using namespace std;
 
 
 namespace resmtp {
 
-void Log::init(uint32_t log_prio) noexcept
+void Log::init(log log_prio) noexcept
 {
     openlog("resmtp", 0, LOG_MAIL);
     m_log_prio = log_prio;
 }
 
 
-void Log::msg(uint32_t prio, string s) noexcept
+void Log::msg(log prio, string s) noexcept
 {
-    if (prio <= m_log_prio) {
-        boost::mutex::scoped_lock lck(m_condition_mutex);
-        if (prio == MSG_CRITICAL || prio == MSG_VERY_CRITICAL) {
-            // TODO to avoid string realloc, place prio to the queue and print it in run()
-            m_queue.push(string("[CRITICAL] ") + s);
-        } else if (prio >= MSG_DEBUG) {
-            m_queue.push(string("[DEBUG] ") + s);
-        } else {
-            m_queue.push(s);
-        }
-        m_condition.notify_one();
-    }
+    if (prio > m_log_prio) return;
+
+    boost::mutex::scoped_lock lck(m_condition_mutex);
+
+    // make prio syslog-compatible
+    if (prio == log::debug_extra) prio = log::debug;
+
+    m_queue.emplace(prio, std::move(s));
+    m_condition.notify_one();
 }
 
 
 void Log::run()
 {
-    string buffer;
+    string msg;
+
     for (;;) {
         boost::mutex::scoped_lock lck(m_condition_mutex);
         while (m_queue.empty() && !m_exit) {
@@ -41,11 +38,33 @@ void Log::run()
         }
 
         if (!m_queue.empty()) {
-            m_queue.front().swap(buffer);
+            log prio = m_queue.front().prio;
+            m_queue.front().msg.swap(msg);
             m_queue.pop();
-
             lck.unlock();
-            syslog(LOG_INFO, "%s", buffer.c_str());
+
+            const char *prefix = "";
+            switch (prio) {
+            case log::alert:
+                prefix = "[ALERT] ";
+                break;
+            case log::crit:
+                prefix = "[CRIT] ";
+                break;
+            case log::err:
+                prefix = "[ERROR] ";
+                break;
+            case log::warning:
+                prefix = "[WARNING] ";
+                break;
+            case log::debug:
+                prefix = "[DEBUG] ";
+                break;
+            default:
+                break;
+            }
+
+            syslog(LOG_INFO, "%s%s", prefix, msg.c_str());
         } else if (m_exit) {
             break;
         }
