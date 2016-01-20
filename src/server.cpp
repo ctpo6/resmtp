@@ -19,8 +19,9 @@ server::server(const server_parameters &cfg)
     : m_io_service_pool_size(cfg.m_worker_count)
     , m_io_service()
     , m_ssl_context(m_io_service, ba::ssl::context::sslv23)
-    , mon_acceptor(new acceptor_t(m_io_service))
-    , mon_socket(m_io_service)
+    , mon_io_service()
+    , mon_acceptor(new acceptor_t(mon_io_service))
+    , mon_socket(mon_io_service)
     , m_connection_manager(cfg.m_connection_count_limit,
                            cfg.m_client_connection_count_limit)
     , backend_mgr(cfg.backend_hosts, cfg.backend_port)
@@ -76,6 +77,9 @@ server::server(const server_parameters &cfg)
 
 void server::run()
 {
+    // start monitor
+    mon_thread = boost::thread( [this](){ mon_io_service.run(); } );
+    // start SMTP
     for (uint32_t i = 0; i < m_io_service_pool_size; ++i) {
         m_threads_pool.create_thread( [this](){ m_io_service.run(); } );
     }
@@ -84,14 +88,15 @@ void server::run()
 
 void server::gracefully_stop()
 {
-    mon_acceptor->close();
+    // stop SMTP acceptors and wait all sessions finished
     for (auto &a: m_acceptors) {
         a.close();
     }
-
     m_threads_pool.join_all();
-    m_acceptors.clear();
-    mon_acceptor.reset();
+
+    // stop monitor
+    mon_acceptor->close();
+    mon_thread.join();
 }
 
 
@@ -137,7 +142,6 @@ bool server::setup_acceptor(const std::string& address, bool ssl)
 
     acceptor->open(endpoint.protocol());
     acceptor->set_option(ba::ip::tcp::acceptor::reuse_address(true));
-//    acceptor->set_option(ba::ip::tcp::acceptor::enable_connection_aborted(true));
     acceptor->bind(endpoint);
     acceptor->listen();
 
@@ -184,7 +188,7 @@ void server::handle_mon_write_request(const boost::system::error_code &ec,
     }
 
     try {
-        mon_socket.shutdown(boost::asio::ip::tcp::socket::shutdown_both);
+        mon_socket.shutdown(ba::ip::tcp::socket::shutdown_both);
         mon_socket.close();
     } catch (...) {}
 
@@ -206,8 +210,6 @@ void server::handle_accept(acceptor_t *acceptor,
                            bool force_ssl,
                            const boost::system::error_code &ec)
 {
-//    PDBG("ENTER");
-
     if (ec == ba::error::operation_aborted) {
         return;
     }

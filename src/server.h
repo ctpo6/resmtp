@@ -49,7 +49,7 @@ private:
     boost::asio::io_service m_io_service;
     boost::asio::ssl::context m_ssl_context;
 
-    // monitoring connection acceptor
+    boost::asio::io_service mon_io_service;
     std::unique_ptr<acceptor_t> mon_acceptor;
     boost::asio::ip::tcp::socket mon_socket;
     boost::asio::streambuf mon_response;
@@ -59,6 +59,7 @@ private:
 
     vector<acceptor_t> m_acceptors;
 
+    boost::thread mon_thread;
     boost::thread_group m_threads_pool;
 };
 }
