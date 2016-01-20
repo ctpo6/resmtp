@@ -148,18 +148,15 @@ void smtp_connection::handle_back_resolve(
 
 void smtp_connection::handle_dnsbl_check()
 {
-    string bl_status_str;
-    bool is_blacklisted = false;
+    string bl_status;
     if (m_dnsbl_check) {
-        is_blacklisted = m_dnsbl_check->get_status(bl_status_str);
+        bl_status = m_dnsbl_check->get_status();
         m_dnsbl_check->stop();
         m_dnsbl_check.reset();
     }
 
-    //--------------------------------------------------------------------------
-    // is IP blacklisted ?
-    //--------------------------------------------------------------------------
-    if (is_blacklisted) {
+    // is client IP blacklisted ?
+    if (!bl_status.empty()) {
         g::mon().on_conn_bl();
 
         // update spamhaus log, bad session
@@ -168,10 +165,10 @@ void smtp_connection::handle_dnsbl_check()
                      string());
 
         log(MSG_NORMAL,
-            str(boost::format("reject connection from blacklisted host %1%[%2%] (%3%)")
+            str(boost::format("REJECT host %1%[%2%]: %3%")
                 % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
                 % m_connected_ip.to_v4().to_string()
-                % bl_status_str));
+                % bl_status));
 
         std::ostream response_stream(&m_response);
         response_stream << "554 5.7.1 Service unavailable\r\n";
@@ -236,9 +233,7 @@ void smtp_connection::start_proto()
     m_dnswl_check->stop();
     m_dnswl_check.reset();
     log(MSG_DEBUG,
-        str(boost::format("wl_status:%1% wl_status_str:%2%")
-            % wl_status
-            % wl_status_str));
+        str(boost::format("wl_status_str:%1%") % wl_status_str));
     if (wl_status) {
         g::mon().on_conn_wl();
     }
@@ -251,7 +246,7 @@ void smtp_connection::start_proto()
     string error;
     // returns false on connections number exceeding limits
     if (m_manager.start(shared_from_this(), error)) {
-        // send greeting msg
+        // send a greeting msg
 
         response_stream << "220 " << boost::asio::ip::host_name() << " "
                         << (g::cfg().m_smtp_banner.empty() ? "Ok" : g::cfg().m_smtp_banner) << "\r\n";
