@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <ctime>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -159,13 +160,18 @@ void smtp_connection::handle_dnsbl_check()
     // is IP blacklisted ?
     //--------------------------------------------------------------------------
     if (is_blacklisted) {
+        g::mon().on_conn_bl();
+
+        // update spamhaus log, bad session
+        log_spamhaus(m_connected_ip.to_v4().to_string(),
+                     m_helo_host,
+                     string());
+
         log(MSG_NORMAL,
             str(boost::format("reject connection from blacklisted host %1%[%2%] (%3%)")
                 % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
                 % m_connected_ip.to_v4().to_string()
                 % bl_status_str));
-
-        g::mon().on_conn_bl();
 
         std::ostream response_stream(&m_response);
         response_stream << "554 5.7.1 Service unavailable\r\n";
@@ -510,7 +516,9 @@ void smtp_connection::handle_read(const boost::system::error_code &ec,
 
     if (!ec) {
         if (size == 0) {
+            // TODO investigate: is it really happens?
             PDBG("size == 0");
+
             PDBG("close_status_t::fail");
             close_status = close_status_t::fail;
             m_manager.stop(shared_from_this());
@@ -523,6 +531,7 @@ void smtp_connection::handle_read(const boost::system::error_code &ec,
         handle_read_helper(buffers.size());
     } else {
         if (ec != ba::error::operation_aborted) {
+
             PDBG("read: ec.message()='%s' size=%zu", ec.message().c_str(), size);
             PDBG("state=%s msg_count_mail_from=%u msg_count_sent=%u",
                  get_proto_state_name(m_proto_state),
@@ -531,6 +540,15 @@ void smtp_connection::handle_read(const boost::system::error_code &ec,
 
             if (ec == ba::error::eof && !smtp_client_started) {
                 PDBG("close_status_t::fail_client_closed_connection");
+
+                // log for spamhaus if we still hadn't do that
+                // clients closed tarpitted sessions are coming here,
+                // but they are logged as normal sessions for now
+                // TODO maybe log as a bad-behaving session (without client host name)?
+                log_spamhaus(m_connected_ip.to_v4().to_string(),
+                             m_helo_host,
+                             m_remote_host_name);
+
                 close_status = close_status_t::fail_client_closed_connection;
             } else {
                 // TODO investigate & rework???
@@ -934,14 +952,17 @@ void smtp_connection::send_response(
 void smtp_connection::send_response2(
         boost::function<void(const boost::system::error_code &)> handler) {
 
-    if (g::cfg().m_socket_check) {
-        // check that the client hasn't sent something before receiving greeting msg
+    // check that the client hasn't sent something before receiving greeting msg
+    // don't check whitelisted hosts
+    if (!wl_status
+            && g::cfg().m_socket_check
+            && m_proto_state == STATE_START) {
         bool empty;
         try {
             empty = check_socket_read_buffer_is_empty();
         } catch (const bs::system_error &e) {
             // TODO this log remove when finished investigating the cause
-            // now it's not clear when it happens
+            // client quickly closed the connection by itself?
             PLOG(MSG_CRITICAL,
                  "EXCEPTION: check_socket_read_buffer_is_empty '%s'",
                  e.code().message().c_str());
@@ -952,13 +973,29 @@ void smtp_connection::send_response2(
             return;
         }
 
-        if (m_proto_state == STATE_START && !empty) {
+        if (!empty) {
+            // log for spamhaus if we still hadn't do that
+            // log as a bad behaving session (without client host name)
+            log_spamhaus(m_connected_ip.to_v4().to_string(),
+                         m_helo_host,
+                         string());
+
             log(MSG_NORMAL,
                 "abort session (client wrote to socket before receiving a greeting)");
+
             PDBG("close_status_t::fail_client_early_write");
             close_status = close_status_t::fail_client_early_write;
-            m_manager.stop(shared_from_this());
-            return;
+
+            // don't kick off, gracefully close the session instead
+
+            std::ostream response_stream(&m_response);
+            response_stream << "554 5.7.1 Service unavailable\r\n";
+
+            // substitute the handler with handle_last_write_request()
+            handler = boost::bind(
+                        &smtp_connection::handle_last_write_request,
+                        shared_from_this(),
+                        boost::asio::placeholders::error);
         }
     }
 
@@ -1106,68 +1143,71 @@ bool smtp_connection::smtp_starttls( const std::string& _cmd, std::ostream &_res
     return true;
 }
 
-bool smtp_connection::smtp_rset( const std::string& _cmd, std::ostream &_response )
+
+bool smtp_connection::smtp_rset(const string &, std::ostream &response)
 {
     if (m_proto_state > STATE_START) {
         m_proto_state = STATE_HELLO;
     }
     m_envelope.reset(new envelope(false));
-    _response << "250 2.0.0 Ok\r\n";
+    response << "250 2.0.0 Ok\r\n";
     return true;
 }
 
 
-bool smtp_connection::hello(const std::string &_host)
+bool smtp_connection::smtp_helo(const string &cmd, std::ostream &response)
 {
-    if (_host.empty()) {
-        m_proto_state = STATE_START;
-        return false;
-    }
-    m_proto_state = STATE_HELLO;
-    m_helo_host = _host;
-    return true;
-}
-
-
-bool smtp_connection::smtp_helo( const std::string& _cmd, std::ostream &_response )
-{
-
-    if ( hello( _cmd ) )
-    {
-        _response << "250 " << boost::asio::ip::host_name() << "\r\n";
+    if (!cmd.empty()) {
+        m_helo_host = cmd;
+        // now we know HELO string, log well-behaved session for spamhaus
+        log_spamhaus(m_connected_ip.to_v4().to_string(),
+                     m_helo_host,
+                     m_remote_host_name);
+        response << "250 " << boost::asio::ip::host_name() << "\r\n";
         m_ehlo = false;
+        m_proto_state = STATE_HELLO;
+    } else {
+        // log bad session for spamhaus
+        log_spamhaus(m_connected_ip.to_v4().to_string(),
+                     m_helo_host,
+                     string());
+        ++m_error_count;
+        response << "501 5.5.4 HELO requires domain address.\r\n";
+        m_proto_state = STATE_START;
     }
-    else
-    {
-        m_error_count++;
-
-        _response << "501 5.5.4 HELO requires domain address.\r\n";
-    }
-
     return true;
 }
 
-bool smtp_connection::smtp_ehlo(const std::string& _cmd, std::ostream &_response )
+
+bool smtp_connection::smtp_ehlo(const string &cmd, std::ostream &response)
 {
-    std::string esmtp_flags("250-8BITMIME\r\n250-PIPELINING\r\n" );
+    if (!cmd.empty()) {
+        m_helo_host = cmd;
+        // now we know HELO string, log well-behaved session for spamhaus
+        log_spamhaus(m_connected_ip.to_v4().to_string(),
+                     m_helo_host,
+                     m_remote_host_name);
 
-    if (g::cfg().m_message_size_limit > 0) {
-        esmtp_flags += str(boost::format("250-SIZE %1%\r\n")
-                           % g::cfg().m_message_size_limit);
-    }
+        response << "250-" << boost::asio::ip::host_name()
+                 << "\r\n250-8BITMIME\r\n250-PIPELINING\r\n";
+        if (g::cfg().m_message_size_limit > 0) {
+            response << "250-SIZE " << g::cfg().m_message_size_limit << "\r\n";
+        }
+        if (g::cfg().m_use_tls && !m_force_ssl) {
+            response << "250-STARTTLS\r\n";
+        }
+        response << "250 ENHANCEDSTATUSCODES\r\n";
 
-    if (g::cfg().m_use_tls && !m_force_ssl) {
-        esmtp_flags += "250-STARTTLS\r\n";
-    }
-
-    esmtp_flags += "250 ENHANCEDSTATUSCODES\r\n";
-
-    if (hello(_cmd)) {
-        _response << "250-" << boost::asio::ip::host_name() << "\r\n" << esmtp_flags;
         m_ehlo = true;
+        m_proto_state = STATE_HELLO;
     } else {
+        // log bad session for spamhaus
+        log_spamhaus(m_connected_ip.to_v4().to_string(),
+                     m_helo_host,
+                     string());
         ++m_error_count;
-        _response << "501 5.5.4 EHLO requires domain address.\r\n";
+        response << "501 5.5.4 EHLO requires domain address.\r\n";
+        m_proto_state = STATE_START;
     }
 
     return true;
@@ -1631,4 +1671,30 @@ const char * smtp_connection::get_proto_state_name(proto_state_t st)
     }
     assert(false && "update the switch() above");
     return nullptr;
+}
+
+
+void smtp_connection::log_spamhaus(
+        const string &client_host_address,
+        const string &helo,
+        const string &client_host_name)
+{
+    if (g::cfg().spamhaus_log_file.empty()) return;
+
+    if (!spamhaus_log_pending) return;
+
+    if (client_host_name.empty()) {
+        g::logsph().msg(str(boost::format("%1% %2% %3%")
+            % client_host_address
+            % (!helo.empty() ? helo : client_host_address)
+            % time(nullptr)));
+    } else {
+        g::logsph().msg(str(boost::format("%1% %2% %3% %4%")
+            % client_host_address
+            % (!helo.empty() ? helo : client_host_address)
+            % time(nullptr)
+            % client_host_name));
+    }
+
+    spamhaus_log_pending = false;
 }

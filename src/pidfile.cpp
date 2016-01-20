@@ -16,8 +16,8 @@ bool PidFile::create(string fname) noexcept
     }
 
     m_pid_file_name = std::move(fname);
-    std::ofstream s(m_pid_file_name);
-    s << getpid() << std::endl;
+    ofstream s(m_pid_file_name);
+    s << getpid() << endl;
 
     return s.good();
 }

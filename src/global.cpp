@@ -9,9 +9,16 @@ server_parameters & cfg() noexcept
 }
 
 
-resmtp::logger & log() noexcept
+resmtp::Log & log() noexcept
 {
-    static resmtp::logger l;
+    static resmtp::Log l;
+    return l;
+}
+
+
+resmtp::LogSpamhaus & logsph() noexcept
+{
+    static resmtp::LogSpamhaus l;
     return l;
 }
 

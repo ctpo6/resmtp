@@ -324,6 +324,8 @@ bool server_parameters::parse_config(int argc,
 
             ("monitoring_listen", bpo::value<string>(&mon_listen_point)->default_value("localhost:11311"), "monitoring listen on host:port")
 
+            ("spamhaus_log_file", bpo::value<string>(&spamhaus_log_file), "spamhaus log file path")
+
             ("user", bpo::value<uid_value>(&m_uid), "set uid after port bindings")
             ("group", bpo::value<gid_value>(&m_gid), "set gid after port bindings")
 

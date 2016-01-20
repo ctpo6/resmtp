@@ -65,9 +65,13 @@ struct server_parameters {
     uid_value m_uid;
     gid_value m_gid;
 
+    // plain SMTP listen point
+    // ex.: "0.0.0.0:25"
     vector<string> m_listen_points;
     vector<string> m_ssl_listen_points;
 
+    // monitoring listen point
+    // ex: "0.0.0.0:11311"
     string mon_listen_point;
 
     // max number of incoming connections
@@ -78,21 +82,27 @@ struct server_parameters {
     bool m_use_local_relay;
     remote_point m_local_relay_host;
 
-    std::vector<std::string> backend_hosts_str;
+    vector<string> backend_hosts_str;
     // initialized from backend_hosts_str
-    std::vector<backend_host> backend_hosts;
+    vector<backend_host> backend_hosts;
     // all backend hosts have the same TCP port
     uint16_t backend_port;
 
-    std::string m_smtp_banner;
+    // spamhaus log file name
+    // can be empty
+    // ex.: /spool/logs/resmtp/spamhaus.log
+    // default: empty
+    string spamhaus_log_file;
+
+    string m_smtp_banner;
 
     //
     // DNS settings
     //
     bool m_use_system_dns_servers;
-    std::string m_custom_dns_servers;
+    string m_custom_dns_servers;
     // actual values, not directly from config file
-    std::vector<std::string> m_dns_servers;
+    vector<string> m_dns_servers;
 
     // check if client doesn't send anything before greeting
     bool m_socket_check;
@@ -102,10 +112,10 @@ struct server_parameters {
 
     // DNS BL
     bool m_rbl_active;
-    std::string m_rbl_hosts;
+    string m_rbl_hosts;
 
     // DNS WL
-    std::string m_dnswl_host;
+    string m_dnswl_host;
 
     // maximum number of recipients
     uint32_t m_max_rcpt_count;
@@ -133,11 +143,11 @@ struct server_parameters {
     bool m_remove_extra_cr;
 
     // config: number of allowed recipients
-    std::string m_ip_config_file;
+    string m_ip_config_file;
 
     bool m_use_tls;
-    std::string m_tls_cert_file;
-    std::string m_tls_key_file;
+    string m_tls_cert_file;
+    string m_tls_key_file;
 
     // max number of errors an SMTP client allowed to make
     uint32_t m_hard_error_limit;

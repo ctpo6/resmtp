@@ -7,18 +7,19 @@ using namespace std;
 
 namespace resmtp {
 
-void logger::init(const char *ident, uint32_t log_prio)
+void Log::init(uint32_t log_prio) noexcept
 {
-    openlog(ident, 0, LOG_MAIL);
+    openlog("resmtp", 0, LOG_MAIL);
     m_log_prio = log_prio;
 }
 
 
-void logger::msg(uint32_t prio, string s) noexcept
+void Log::msg(uint32_t prio, string s) noexcept
 {
     if (prio <= m_log_prio) {
         boost::mutex::scoped_lock lck(m_condition_mutex);
         if (prio == MSG_CRITICAL || prio == MSG_VERY_CRITICAL) {
+            // TODO to avoid string realloc, place prio to the queue and print it in run()
             m_queue.push(string("[CRITICAL] ") + s);
         } else if (prio >= MSG_DEBUG) {
             m_queue.push(string("[DEBUG] ") + s);
@@ -30,7 +31,7 @@ void logger::msg(uint32_t prio, string s) noexcept
 }
 
 
-void logger::run()
+void Log::run()
 {
     string buffer;
     for (;;) {
@@ -52,7 +53,7 @@ void logger::run()
 }
 
 
-void logger::stop()
+void Log::stop()
 {
     m_exit = true;
     m_condition.notify_one();

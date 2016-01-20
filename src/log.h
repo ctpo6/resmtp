@@ -1,7 +1,5 @@
 #pragma once
 
-#include <syslog.h>
-
 #include <cstdio>
 #include <queue>
 #include <string>
@@ -11,6 +9,8 @@
 #include <boost/thread/mutex.hpp>
 
 #include "util.h"
+
+using std::string;
 
 const uint32_t MSG_VERY_CRITICAL = 1;
 const uint32_t MSG_CRITICAL = 10;
@@ -30,25 +30,20 @@ const uint32_t MSG_DEBUG_BUFFERS = 100;
 
 namespace resmtp {
 
-class logger {
+class Log {
 public:
-    void init(const char *ident, uint32_t log_prio);
+    void init(uint32_t log_prio) noexcept;
 
-    void msg(uint32_t prio, std::string s) noexcept;
-
-    void msg(uint32_t prio, const char *s) noexcept
-    {
-        msg(prio, std::string(s));
-    }
+    void msg(uint32_t prio, string s) noexcept;
 
     void run();
     void stop();
 
-protected:
+private:
     bool m_exit = false;
     uint32_t m_log_prio = MSG_CRITICAL;
 
-    std::queue<std::string> m_queue;
+    std::queue<string> m_queue;
 
     boost::mutex m_condition_mutex;
     boost::condition m_condition;

@@ -82,11 +82,22 @@ int main(int argc, char* argv[])
         return 1;
     }
 
+    // init main log
     uint32_t log_level =
             g::cfg().m_log_level == 0 ? MSG_CRITICAL :
             g::cfg().m_log_level == 1 ? MSG_NORMAL :
             g::cfg().m_log_level == 2 ? MSG_DEBUG : MSG_DEBUG_BUFFERS;
-    g::log().init("resmtp", log_level);
+    g::log().init(log_level);
+
+    // init spamhaus log
+    try {
+        g::logsph().init(g::cfg().spamhaus_log_file.c_str());
+    } catch (const std::exception &e) {
+        log_err(MSG_NORMAL,
+                str(boost::format("Warning: %1%") % e.what()),
+                true);
+        // continue execution
+    }
 
     // initialize DNS servers settings
     if (!g::cfg().init_dns_settings()) {
@@ -118,6 +129,7 @@ int main(int argc, char* argv[])
     }
 
     boost::thread t_log;
+    boost::thread t_spamhaus_log;
     int rval = 0;
     try {
         if (!g::cfg().m_ip_config_file.empty()) {
@@ -143,8 +155,11 @@ int main(int argc, char* argv[])
             daemonized = true;
         }
 
-        // start logging thread
+        // start main log thread
         t_log = boost::thread( [](){ g::log().run(); } );
+
+        // start spamhaus log thread
+        t_spamhaus_log = boost::thread( [](){ g::logsph().run(); } );
 
         // start server
         server.run();
@@ -211,8 +226,10 @@ int main(int argc, char* argv[])
         t_log = boost::thread( [](){ g::log().run(); } );
     }
 
-    log_err(MSG_NORMAL, "[main]: Stopping logger...", !daemonized);
+    log_err(MSG_NORMAL, "[main]: Stopping loggers...", !daemonized);
+    g::logsph().stop();
     g::log().stop();
+    t_spamhaus_log.join();
     t_log.join();
 
     return rval;

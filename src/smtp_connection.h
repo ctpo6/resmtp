@@ -149,17 +149,16 @@ private:
     string m_dkim_identity;
     bool has_dkim_headers_;
 
-    //--
     check_rcpt_t m_check_rcpt;
 
-    //---
     check_data_t m_check_data;
 
     eom_parser eom_parser_;
     crlf_parser crlf_parser_;
 
-    // ---
     bool read_pending = false;
+
+    bool spamhaus_log_pending = true;
 
     // timers
     uint32_t m_timer_value = 0;
@@ -211,8 +210,6 @@ private:
     bool smtp_data(const string& _cmd, std::ostream &_response);
     bool smtp_starttls(const string& _cmd, std::ostream &_response);
 
-    bool hello(const string &_host);
-
     void start_check_data();
     void smtp_delivery_start();
     void end_check_data();
@@ -237,6 +234,10 @@ private:
     void on_connection_close();
 
     void log(uint32_t prio, string msg) noexcept;
+
+    void log_spamhaus(const string &client_host_address,
+                      const string &helo,
+                      const string &client_host_name);
 };
 
 typedef std::shared_ptr<smtp_connection> smtp_connection_ptr;
