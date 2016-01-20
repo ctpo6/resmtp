@@ -1,8 +1,17 @@
+resmtp (0.3.0) unstable; urgency=low
+
+  * Set version to 0.3.0: candidate to test on increased load
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Tue, 20 Jan 2016 15:10:00 +0300
+ 
 resmtp (0.2.6) unstable; urgency=low
 
-  * Monitoring: added conn_bl, conn_wl
+  * Monitoring: implemented
+  * Critical bugs fixed
+  * Log for Spamhaus
+  * Don't check early write for whitelisted clients
 
- -- Yuri Epstein <yuri.epstein@gmail.com>  Tue, 12 Jan 2016 18:10:00 +0300
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Tue, 20 Jan 2016 14:30:00 +0300
  
 resmtp (0.2.5) unstable; urgency=low
 

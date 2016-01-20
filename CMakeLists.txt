@@ -60,7 +60,7 @@ message(STATUS "")
 ################################################################################
 # Compiler flags
 ################################################################################
-set(MY_C_FLAGS "-Wall -Wno-parentheses")
+set(MY_C_FLAGS "-Wall -Wno-parentheses -Wformat -Werror=format-security")
 set(MY_CXX_FLAGS "-std=c++11")
 
 set(CMAKE_C_FLAGS_RELEASE "-O2 -DNDEBUG")
