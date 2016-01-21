@@ -1,8 +1,10 @@
 resmtp (0.3.1) unstable; urgency=low
 
   * Logging refactored: removed extra string objects reallocations
+  * Logging configuration: log level can be specified both in config file and
+  	command line. Command line has a higher priority
 
- -- Yuri Epstein <yuri.epstein@gmail.com>  Tue, 21 Jan 2016 10:55:00 +0300
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Tue, 21 Jan 2016 14:57:00 +0300
  
 resmtp (0.3.0) unstable; urgency=low
 

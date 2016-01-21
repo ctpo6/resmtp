@@ -83,11 +83,8 @@ int main(int argc, char* argv[])
     }
 
     // init main log
-    r::log log_level =
-            g::cfg().m_log_level == 0 ? r::log::crit :
-            g::cfg().m_log_level == 1 ? r::log::notice :
-            g::cfg().m_log_level == 2 ? r::log::debug : r::log::buffers;
-    g::log().init(log_level);
+    cout << static_cast<int>(g::cfg().log_level) << endl;
+    g::log().init(g::cfg().log_level);
 
     // init spamhaus log
     try {

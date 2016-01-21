@@ -12,6 +12,7 @@
 #include <functional>
 #include <iostream>
 #include <memory>
+#include <unordered_map>
 
 #include <boost/algorithm/string/trim.hpp>
 #include <boost/algorithm/string/case_conv.hpp>
@@ -65,12 +66,12 @@ struct get_second : public std::unary_function<T, typename T::second_type&>
  * _pos in: starting position;
  *      out: pos of the first char after delim
  */
-std::string get_part(const std::string &_str,
-                     const std::string &_delim,
-                     std::string::size_type &_pos) {
-    std::string part;
-    std::string::size_type pos = _str.find(_delim, _pos);
-    if (pos != std::string::npos) {
+string get_part(const string &_str,
+                const string &_delim,
+                string::size_type &_pos) {
+    string part;
+    string::size_type pos = _str.find(_delim, _pos);
+    if (pos != string::npos) {
         part = _str.substr(_pos, pos - _pos);
         _pos = pos + _delim.length();
     }
@@ -78,9 +79,35 @@ std::string get_part(const std::string &_str,
 }
 
 
+void validate(boost::any &v,
+              const vector<string> &values,
+              log_value *, int)
+{
+    using namespace boost::program_options;
+    validators::check_first_occurrence (v);
+    const string &s = validators::get_single_string(values);
+
+    static const unordered_map<string, log_value> map = {
+        {"crit", log_value(r::log::crit)}
+        ,{"err", log_value(r::log::err)}
+        ,{"warning", log_value(r::log::warning)}
+        ,{"notice", log_value(r::log::notice)}
+        ,{"info", log_value(r::log::info)}
+        ,{"debug", log_value(r::log::debug)}
+        ,{"buffers", log_value(r::log::buffers)}
+    };
+
+    try {
+        v = boost::any(map.at(s));
+    } catch (const std::out_of_range &) {
+        throw validation_error(validation_error::invalid_option_value);
+    }
+}
+
+
 void validate(boost::any& v,
               std::vector<std::string> const& values,
-              uid_value* target_type, int)
+              uid_value *, int)
 {
     using namespace boost::program_options;
     validators::check_first_occurrence (v);
@@ -88,7 +115,7 @@ void validate(boost::any& v,
 
     // check for number
     try {
-        v = boost::any (uid_value(boost::lexical_cast<uid_t> (s)));
+        v = boost::any(uid_value(boost::lexical_cast<uid_t> (s)));
         return;
     }
     catch (std::bad_cast const&) {}
@@ -97,19 +124,20 @@ void validate(boost::any& v,
     struct passwd *pwd = ::getpwnam (s.c_str ());
     if (pwd)
     {
-        v = boost::any (uid_value(pwd->pw_uid));
+        v = boost::any(uid_value(pwd->pw_uid));
         ::endpwent ();
         return;
     }
 
     ::endpwent ();
-    throw validation_error(validation_error::invalid_option_value, "invalid user name");
+    throw validation_error(validation_error::invalid_option_value);
 }
 
 
 void validate(boost::any& v,
               std::vector<std::string> const& values,
-              gid_value* target_type, int) {
+              gid_value* target_type, int)
+{
     using namespace boost::program_options;
 
     validators::check_first_occurrence (v);
@@ -130,8 +158,7 @@ void validate(boost::any& v,
     }
 
     ::endgrent();
-    throw validation_error(validation_error::invalid_option_value,
-                           "invalid group name");
+    throw validation_error(validation_error::invalid_option_value);
 }
 
 #if 0
@@ -165,13 +192,11 @@ void validate(boost::any &v,
               server_parameters::remote_point* target_type,
               int)
 {
-    boost::program_options::validators::check_first_occurrence(v);
-    std::string const& s = boost::program_options::validators::get_single_string(values);
-
-//    PDBG0("s = %s", s.c_str());
+    using namespace boost::program_options;
+    validators::check_first_occurrence(v);
+    string const& s = validators::get_single_string(values);
 
     server_parameters::remote_point rp;
-
     rp.m_port = 0;
 
     std::string::size_type pos = 0;
@@ -231,9 +256,7 @@ void validate(boost::any &v,
     }
 
     if (rp.m_port == 0) {
-        throw boost::program_options::validation_error(
-                    boost::program_options::validation_error::invalid_option_value,
-                    "missing port number or service name");
+        throw validation_error(validation_error::invalid_option_value);
     }
 
     v = boost::any(rp);
@@ -304,21 +327,27 @@ bool server_parameters::init_backend_hosts_settings() noexcept
 }
 
 
-bool server_parameters::parse_config(int argc,
-                                     char * argv[]) {
-    std::string config_file;
+bool server_parameters::parse_config(int argc, char * argv[])
+{
+    string config_file;
+
+    bpo::options_description common_opt;
+    common_opt.add_options()
+            ("log,l", bpo::value<log_value>(&log_level), "log level: crit, err, warning, notice, info, debug, buffers")
+            ("pid,p", bpo::value<string>(&m_pid_file)->default_value(def_pid_file), "pid file path")
+            ;
+
     bpo::options_description command_line_opt("Command line options");
     command_line_opt.add_options()
             ("version,v", "print version")
             ("help,h", "print help")
             ("foreground,f", "run at foreground (don't daemonize)")
             ("config,c", bpo::value<std::string>(&config_file)->default_value(def_config_file), "path to configuration file")
-            ("pid-file,p", bpo::value<std::string>(&m_pid_file)->default_value(def_pid_file), "path to pid file")
-            ("log-level,l", bpo::value<uint32_t>(&m_log_level)->default_value(1), "log output level (0 - critical, 1 - informational, 2 - debug, 3 - debug with i/o buffers)")
             ;
+    command_line_opt.add(common_opt);
 
-    bpo::options_description config_options("Configuration");
-    config_options.add_options()
+    bpo::options_description config_opt;
+    config_opt.add_options()
             ("listen", bpo::value<vector<string>>(&m_listen_points), "listen on host:port")
             ("ssl_listen", bpo::value<vector<string>>(&m_ssl_listen_points), "SSL listen on host:port")
 
@@ -376,6 +405,7 @@ bool server_parameters::parse_config(int argc,
             ("tls_cert_file", bpo::value<string>(&m_tls_cert_file), "use a certificate from file")
             ("tls_key_file", bpo::value<string>(&m_tls_key_file), "use a private key from file")
             ;
+    config_opt.add(common_opt);
 
     bpo::variables_map vm;
 
@@ -398,7 +428,7 @@ bool server_parameters::parse_config(int argc,
     if (!ifs) {
         throw std::runtime_error("can't open config file");
     }
-    store(parse_config_file(ifs, config_options, true), vm);
+    store(parse_config_file(ifs, config_opt, true), vm);
     notify(vm);
 
 #if 0

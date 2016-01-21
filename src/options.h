@@ -10,8 +10,14 @@
 #include <string>
 #include <vector>
 
+#include "log.h"
+
+
+namespace r = resmtp;
+
 using std::string;
 using std::vector;
+
 
 // these types are needed for boost::program_options validation mechanism
 struct uid_value {
@@ -25,6 +31,13 @@ struct gid_value {
     explicit gid_value(gid_t g) : gid(g) {}
     operator gid_t () const { return gid; }
     gid_t gid = 0;
+};
+struct log_value {
+    log_value() = default;
+    explicit log_value(r::log l) : log_(l) {}
+    operator r::log() const { return log_; }
+    operator int() const { return static_cast<int>(log_); }
+    r::log log_ = r::log::notice;
 };
 
 
@@ -48,18 +61,16 @@ struct server_parameters {
         uint32_t weight;            // 0..100; 0 - off, 100 - max
     };
 
-    //
-    // command line options
-    //
 
+    // don't daemonize
     bool m_foreground;
-    uint32_t m_log_level;
+
+    // value of this variable is mapped to the syslog priority
+    log_value log_level;
+
     string m_pid_file;
 
-    //
-    // config parameters
-    //
-
+    // number of SMTP connections worker threads
     uint32_t m_worker_count;
 
     uid_value m_uid;
@@ -94,6 +105,7 @@ struct server_parameters {
     // default: empty
     string spamhaus_log_file;
 
+    // SMTP greeting string
     string m_smtp_banner;
 
     //
