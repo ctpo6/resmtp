@@ -11,6 +11,7 @@
 
 #include "check.h"
 #include "envelope.h"
+#include "log.h"
 #include "options.h"
 #include "smtp_backend_manager.h"
 
@@ -146,7 +147,7 @@ protected:
     void on_backend_ip_address();
     void on_backend_conn();
 
-    void log(uint32_t prio, string msg) noexcept;
+    void log(resmtp::log prio, const string &msg) noexcept;
 };
 
 typedef std::shared_ptr<smtp_client> smtp_client_ptr;

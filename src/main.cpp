@@ -24,15 +24,17 @@
 
 using namespace std;
 
-namespace {
-void log_err(uint32_t prio, string s, bool copy_to_stderr) noexcept
+namespace r = resmtp;
+
+//namespace {
+void log_err(r::log prio, string s, bool copy_to_stderr) noexcept
 {
-    g::log().msg(prio, s);
     if (copy_to_stderr) {
         cerr << s << endl;
     }
+    g::log().msg(prio, std::move(s));
 }
-}
+//}
 
 void cxx_exception_handler() __attribute__((noreturn));
 void cxx_exception_handler()
@@ -76,56 +78,52 @@ int main(int argc, char* argv[])
             return 0;
         }
     } catch (const std::exception &e) {
-        log_err(MSG_VERY_CRITICAL,
-                str(boost::format("Error: %1%") % e.what()),
-                true);
+        log_err(r::log::alert, e.what(), true);
         return 1;
     }
 
     // init main log
-    uint32_t log_level =
-            g::cfg().m_log_level == 0 ? MSG_CRITICAL :
-            g::cfg().m_log_level == 1 ? MSG_NORMAL :
-            g::cfg().m_log_level == 2 ? MSG_DEBUG : MSG_DEBUG_BUFFERS;
+    r::log log_level =
+            g::cfg().m_log_level == 0 ? r::log::crit :
+            g::cfg().m_log_level == 1 ? r::log::notice :
+            g::cfg().m_log_level == 2 ? r::log::debug : r::log::buffers;
     g::log().init(log_level);
 
     // init spamhaus log
     try {
         g::logsph().init(g::cfg().spamhaus_log_file.c_str());
     } catch (const std::exception &e) {
-        log_err(MSG_NORMAL,
-                str(boost::format("Warning: %1%") % e.what()),
-                true);
+        log_err(r::log::err, e.what(), true);
         // continue execution
     }
 
     // initialize DNS servers settings
     if (!g::cfg().init_dns_settings()) {
-        log_err(MSG_VERY_CRITICAL,
+        log_err(r::log::alert,
                 str(boost::format(
-                        "Error: can't obtain DNS settings (cfg: use_system_dns_servers=%1% custom_dns_servers=%2%")
+                        "can't obtain DNS settings (cfg: use_system_dns_servers=%1% custom_dns_servers=%2%")
                 % (g::cfg().m_use_system_dns_servers ? "yes" : "no")
                 % g::cfg().m_custom_dns_servers),
                 true);
         return 1;
     }
     for (auto &s: g::cfg().m_dns_servers) {
-        g::log().msg(MSG_DEBUG,
-                  str(boost::format("DNS server: %1%") % s));
+        g::log().msg(r::log::info,
+                     str(boost::format("DNS server: %1%") % s));
     }
 
     // initialize backend hosts settings
     if (!g::cfg().init_backend_hosts_settings()) {
-        log_err(MSG_VERY_CRITICAL,
-                "Error: can't obtain backend hosts settings",
+        log_err(r::log::alert,
+                "can't obtain backend hosts settings",
                 true);
         return 1;
     }
     for (auto &b: g::cfg().backend_hosts) {
-        g::log().msg(MSG_DEBUG,
-                  str(boost::format("backend host: %1% %2%")
-                      % b.host_name
-                      % b.weight));
+        g::log().msg(r::log::info,
+                     str(boost::format("backend host: %1% %2%")
+                         % b.host_name
+                         % b.weight));
     }
 
     boost::thread t_log;
@@ -165,14 +163,16 @@ int main(int argc, char* argv[])
         server.run();
 
         if (!g::pid_file().create(g::cfg().m_pid_file)) {
-            log_err(MSG_CRITICAL,
-                    str(boost::format("[main]: Warning: can't create PID file: %1% (%2%)")
+            log_err(r::log::err,
+                    str(boost::format("can't create PID file: %1% (%2%)")
                         % g::cfg().m_pid_file
                         % strerror(errno)),
                     !daemonized);
+            // continue execution
         }
 
-        log_err(MSG_NORMAL, "[main]: Server successfully started", !daemonized);
+        log_err(r::log::notice,
+                "server successfully started", !daemonized);
 
         while(true) {
             pthread_sigmask(SIG_SETMASK, &old_mask, 0);
@@ -204,18 +204,16 @@ int main(int argc, char* argv[])
                 exit(1);
             }
 
-            log_err(MSG_NORMAL,
-                    str(boost::format("[main]: Received signal: %1%, exiting:") % sig),
+            log_err(r::log::notice,
+                    str(boost::format("received signal: %1%, exiting:") % sig),
                     !daemonized);
             break;
         }
 
-        log_err(MSG_NORMAL, "[main]: Stopping server...", !daemonized);
+        log_err(r::log::notice, "stopping server...", !daemonized);
         server.gracefully_stop();
     } catch (const std::exception &e) {
-        log_err(MSG_VERY_CRITICAL,
-                str(boost::format("[main]: Error: %1%") % e.what()),
-                !daemonized);
+        log_err(r::log::alert, e.what(), !daemonized);
         rval = 1;
     }
 
@@ -226,7 +224,7 @@ int main(int argc, char* argv[])
         t_log = boost::thread( [](){ g::log().run(); } );
     }
 
-    log_err(MSG_NORMAL, "[main]: Stopping loggers...", !daemonized);
+    log_err(r::log::notice, "stopping loggers...", !daemonized);
     g::logsph().stop();
     g::log().stop();
     t_spamhaus_log.join();

@@ -32,7 +32,7 @@
 #undef PDBG
 #undef PLOG
 #ifdef _DEBUG
-#define PDBG(fmt, args...) log(MSG_DEBUG, util::strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
+#define PDBG(fmt, args...) log(r::log::debug, util::strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
 #define PLOG(prio, fmt, args...) log(prio, util::strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
 #else
 #define PDBG(fmt, args...)
@@ -42,6 +42,7 @@
 
 using namespace std;
 using namespace y::net;
+namespace r = resmtp;
 
 
 smtp_connection::smtp_connection(boost::asio::io_service &_io_service,
@@ -78,7 +79,7 @@ void smtp_connection::start(bool force_ssl) {
     m_session_id = envelope::generate_new_id();
 
     m_connected_ip = socket().remote_endpoint().address();
-    log(MSG_DEBUG,
+    log(r::log::debug,
         str(boost::format("**** CONNECT %1%") % m_connected_ip.to_string()));
 
     m_max_rcpt_count = g::cfg().m_max_rcpt_count;
@@ -117,7 +118,7 @@ void smtp_connection::handle_back_resolve(
         return;
     }
 
-    log(MSG_NORMAL,
+    log(r::log::notice,
         str(boost::format("**** CONNECT %1%[%2%]")
             % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
             % m_connected_ip.to_string()));
@@ -164,8 +165,8 @@ void smtp_connection::handle_dnsbl_check()
                      m_helo_host,
                      string());
 
-        log(MSG_NORMAL,
-            str(boost::format("REJECT host %1%[%2%]: %3%")
+        log(r::log::notice,
+            str(boost::format("reject blacklisted host %1%[%2%]: %3%")
                 % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
                 % m_connected_ip.to_v4().to_string()
                 % bl_status));
@@ -232,7 +233,7 @@ void smtp_connection::start_proto()
     wl_status = m_dnswl_check->get_status(wl_status_str);
     m_dnswl_check->stop();
     m_dnswl_check.reset();
-    log(MSG_DEBUG,
+    log(r::log::debug,
         str(boost::format("wl_status_str:%1%") % wl_status_str));
     if (wl_status) {
         g::mon().on_conn_wl();
@@ -263,7 +264,7 @@ void smtp_connection::start_proto()
 				boost::asio::placeholders::error));
 		}
 	} else {
-		log(MSG_CRITICAL,
+		log(r::log::warning,
 			str(boost::format("reject connection %1%[%2%]: %3%")
 				% m_remote_host_name
 				% m_connected_ip.to_v4().to_string()
@@ -295,7 +296,7 @@ void smtp_connection::on_connection_tarpitted()
 void smtp_connection::on_connection_close()
 {
     g::mon().on_conn_closed(close_status, tarpit);
-    log(MSG_NORMAL,
+    log(r::log::notice,
         str(boost::format("**** DISCONNECT status=%1% tarpit=%2%")
             % resmtp::monitor::get_conn_close_status_name(close_status)
             % tarpit));
@@ -482,7 +483,7 @@ void smtp_connection::handle_read_helper(std::size_t size)
     yconst_buffers_iterator b = ybuffers_begin(bufs);
     yconst_buffers_iterator e = b + size;
 
-    log(MSG_DEBUG_BUFFERS,
+    log(r::log::buffers,
         str(boost::format(">>> %1%") % util::str_cleanup_crlf(string(b, e))));
 
     yconst_buffers_iterator bb = b + m_envelope->orig_message_token_marker_size_;
@@ -578,13 +579,14 @@ void smtp_connection::start_check_data()
 
     m_timer.cancel();
 
-    if (m_envelope->orig_message_size_ > g::cfg().m_message_size_limit) {
+    if (g::cfg().m_message_size_limit &&
+            m_envelope->orig_message_size_ > g::cfg().m_message_size_limit) {
         ++m_error_count;
 
         m_check_data.m_result = check::CHK_REJECT;
-        m_check_data.m_answer =  "552 5.3.4 Error: message file too big;";
+        m_check_data.m_answer =  "552 5.3.4 Message is too big;";
 
-        log(MSG_NORMAL, "warning: queue file size limit exceeded");
+        log(r::log::warning, "message size limit exceeded");
 
         end_check_data();
     } else {
@@ -621,18 +623,6 @@ void smtp_connection::handle_dkim_timeout(const boost::system::error_code& ec)
 }
 
 namespace {
-void log_message_id(const string &message_id,
-                    const string &session_id,
-                    const string &envelope_id)
-{
-    g::log().msg(MSG_NORMAL,
-              str(boost::format("%1%-%2%-RECV: message-id=%3%")
-                  % session_id
-                  % envelope_id
-                  % message_id));
-}
-
-
 void handle_parse_header(const header_iterator_range_t &name,
                          const header_iterator_range_t &header,
                          const header_iterator_range_t &value,
@@ -724,13 +714,11 @@ void smtp_connection::smtp_delivery_start()
 
             append(str(boost::format("Message-Id: %1%\r\n") % message_id_str), added_h);
 
-            log(MSG_NORMAL,
+            log(r::log::notice,
                 str(boost::format("message-id=%1%") % message_id_str));
-//            log_message_id(message_id_str, m_check_data.m_session_id, m_envelope->m_id); // log composed message-id
         } else {
-            log(MSG_NORMAL,
+            log(r::log::notice,
                 str(boost::format("message-id=%1%") % message_id));
-//            log_message_id(message_id, m_check_data.m_session_id, m_envelope->m_id); // log original message-id
         }
 
         if (unique_h.find("date") == unique_h.end()) {
@@ -958,7 +946,7 @@ void smtp_connection::send_response2(
         } catch (const bs::system_error &e) {
             // TODO this log remove when finished investigating the cause
             // client quickly closed the connection by itself?
-            PLOG(MSG_CRITICAL,
+            PLOG(r::log::crit,
                  "EXCEPTION: check_socket_read_buffer_is_empty '%s'",
                  e.code().message().c_str());
 
@@ -975,8 +963,8 @@ void smtp_connection::send_response2(
                          m_helo_host,
                          string());
 
-            log(MSG_NORMAL,
-                "abort session (client wrote to socket before receiving a greeting)");
+            log(r::log::notice,
+                "abort session: client wrote to socket before receiving a greeting");
 
             PDBG("close_status_t::fail_client_early_write");
             close_status = close_status_t::fail_client_early_write;
@@ -994,7 +982,7 @@ void smtp_connection::send_response2(
         }
     }
 
-	log(MSG_DEBUG_BUFFERS,
+	log(r::log::buffers,
 		str(boost::format("<<< %1%")
 			% util::str_cleanup_crlf(util::str_from_buf(m_response))));
 	if(ssl_state_ == ssl_active) {
@@ -1015,7 +1003,7 @@ void smtp_connection::handle_write_request(const bs::error_code &ec)
 {
     if (!ec) {
         if (m_error_count > g::cfg().m_hard_error_limit) {
-            log(MSG_CRITICAL, "too many errors");
+            log(r::log::crit, "too many errors");
 
             std::ostream response_stream(&m_response);
             response_stream << "421 4.7.0 " << boost::asio::ip::host_name() << " Error: too many errors\r\n";
@@ -1420,7 +1408,7 @@ bool smtp_connection::smtp_mail(const std::string& _cmd,
     }
 
     if (g::cfg().m_message_size_limit > 0) {
-        unsigned int msize = atoi(pmap["size"].c_str());
+        uint32_t msize = atoi(pmap["size"].c_str());
         if (msize > g::cfg().m_message_size_limit) {
             ++m_error_count;
             _response << "552 5.3.4 Message size exceeds fixed limit.\r\n";
@@ -1532,7 +1520,7 @@ void smtp_connection::handle_timer(const boost::system::error_code &ec)
                     << " Error: timeout exceeded\r\n";
 
     if (m_proto_state == STATE_BLAST_FILE) {
-        log(MSG_NORMAL,
+        log(r::log::debug,
             str(boost::format("timeout after DATA (%1% bytes) from %2%[%3%]")
                 % buffers.size()
                 % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
@@ -1555,7 +1543,7 @@ void smtp_connection::handle_timer(const boost::system::error_code &ec)
             state_desc = "HELO";
             break;
         }
-        log(MSG_NORMAL,
+        log(r::log::debug,
             str(boost::format("timeout after %1% from %2%[%3%]")
                 % state_desc
                 % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
@@ -1611,7 +1599,7 @@ void smtp_connection::end_mail_from_command(bool _start_spf,
 
     m_envelope->m_sender = _addr.empty() ? "<>" : _addr;
 
-    log(MSG_NORMAL,
+    log(r::log::notice,
         str(boost::format("from=<%1%>") % m_envelope->m_sender));
 
     std::ostream response_stream(&m_response);
@@ -1634,7 +1622,7 @@ void smtp_connection::end_mail_from_command(bool _start_spf,
 }
 
 
-void smtp_connection::log(uint32_t prio, string msg) noexcept
+void smtp_connection::log(r::log prio, const string &msg) noexcept
 {
     g::log().msg(prio,
               str(boost::format("%1%-%2%-FRONT: %3%")

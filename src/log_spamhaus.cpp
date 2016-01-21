@@ -1,6 +1,8 @@
 #include "log_spamhaus.h"
 
 #include <exception>
+#include <utility>
+
 
 using namespace std;
 
@@ -24,7 +26,7 @@ void LogSpamhaus::msg(string s) noexcept
     if (!initialized) return;
 
     boost::mutex::scoped_lock lock(m_condition_mutex);
-    m_queue.push(s);
+    m_queue.push(std::move(s));
     m_condition.notify_one();
 }
 

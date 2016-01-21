@@ -64,13 +64,11 @@ server::server(const server_parameters &cfg)
     }
 
     if (cfg.m_gid && setgid(cfg.m_gid) == -1) {
-        g::log().msg(MSG_CRITICAL, "failed to change process group id");
-        throw std::exception();
+        throw std::runtime_error("failed to change process group id");
     }
 
     if (cfg.m_uid && setuid(cfg.m_uid) == -1) {
-        g::log().msg(MSG_CRITICAL, "failed to change process user id");
-        throw std::exception();
+        throw std::runtime_error("failed to change process user id");
     }
 }
 
@@ -221,9 +219,9 @@ void server::handle_accept(acceptor_t *acceptor,
             // TODO what really can be thrown here???
         } catch (const boost::system::system_error &e) {
             if (e.code() != ba::error::not_connected) {
-                g::log().msg(MSG_CRITICAL,
-                          str(boost::format("ERROR: connection start exception: %1%")
-                              % e.what()));
+                g::log().msg(log::crit,
+                             str(boost::format("connection start exception: %1%")
+                                 % e.what()));
             }
         }
         conn.reset(new smtp_connection(m_io_service,
@@ -232,8 +230,8 @@ void server::handle_accept(acceptor_t *acceptor,
                                        m_ssl_context));
     } else {
         if (ec != ba::error::not_connected) {
-            g::log().msg(MSG_CRITICAL,
-                      str(boost::format("ERROR: accept failed: %1%")
+            g::log().msg(log::crit,
+                      str(boost::format("accept failed: %1%")
                           % ec.message()));
         }
     }

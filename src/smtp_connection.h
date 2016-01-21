@@ -18,6 +18,7 @@
 #include "buffers.h"
 #include "envelope.h"
 #include "eom_parser.h"
+#include "log.h"
 #include "monitor.h"
 #include "rbl.h"
 #include "smtp_client.h"
@@ -233,7 +234,7 @@ private:
     void on_connection_tarpitted();
     void on_connection_close();
 
-    void log(uint32_t prio, string msg) noexcept;
+    void log(resmtp::log prio, const std::string &msg) noexcept;
 
     void log_spamhaus(const string &client_host_address,
                       const string &helo,

@@ -8,8 +8,12 @@
 
 #include "global.h"
 
+
 using namespace std;
 using namespace std::chrono;
+
+namespace r = resmtp;
+
 
 smtp_backend_manager::smtp_backend_manager(
         const vector<server_parameters::backend_host> &h,
@@ -93,7 +97,7 @@ smtp_backend_manager::backend_host smtp_backend_manager::get_backend_host()
         // unlock mtx
     }
 
-    g::log().msg(MSG_DEBUG,
+    g::log().msg(r::log::debug,
               str(boost::format("selected backend host: %1% %2%")
                   % hosts[idx].host_name
                   % hosts[idx].weight));

@@ -5,7 +5,6 @@
 #include <cstdio>
 #include <queue>
 #include <string>
-#include <utility>
 
 #include <boost/thread.hpp>
 #include <boost/thread/condition.hpp>
@@ -35,14 +34,15 @@ enum class log : int {
     notice = LOG_NOTICE,
     info = LOG_INFO,
     debug = LOG_DEBUG,
-    debug_extra
+    buffers
 };
 
 class Log {
 public:
     void init(log prio_level) noexcept;
 
-    void msg(log prio, string s) noexcept;
+    void msg(log prio, const string &s) noexcept;
+    void msg(log prio, string &&s) noexcept;
 
     void run();
     void stop();

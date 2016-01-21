@@ -94,7 +94,7 @@ struct monitor::impl_conn_t
         if (tarpit) {
 #if 1
             if (!c.n_active_conn_tarpit) {
-                PLOG(MSG_CRITICAL, "!c.n_active_conn_tarpit");
+                PLOG(log::crit, "!c.n_active_conn_tarpit");
             } else {
                 --c.n_active_conn_tarpit;
             }
@@ -104,7 +104,7 @@ struct monitor::impl_conn_t
         } else {
 #if 1
             if (!c.n_active_conn_fast) {
-                PLOG(MSG_CRITICAL, "!c.n_active_conn_fast");
+                PLOG(log::crit, "!c.n_active_conn_fast");
             } else {
                 --c.n_active_conn_fast;
             }
@@ -348,7 +348,7 @@ struct monitor::impl_backend_t
         auto &b = backend.at(idx);
 #if 1
         if (!b.n_active_conn) {
-            PLOG(MSG_CRITICAL, "!b.n_active_conn idx=%u", idx);
+            PLOG(log::crit, "!b.n_active_conn idx=%u", idx);
         } else {
             --b.n_active_conn;
         }

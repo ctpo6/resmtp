@@ -1,3 +1,9 @@
+resmtp (0.3.1) unstable; urgency=low
+
+  * Logging refactored: removed extra string objects reallocations
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Tue, 21 Jan 2016 10:55:00 +0300
+ 
 resmtp (0.3.0) unstable; urgency=low
 
   * Set version to 0.3.0: candidate to test on increased load

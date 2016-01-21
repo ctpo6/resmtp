@@ -1,5 +1,7 @@
 #include "log.h"
 
+#include <utility>
+
 
 using namespace std;
 
@@ -13,14 +15,28 @@ void Log::init(log log_prio) noexcept
 }
 
 
-void Log::msg(log prio, string s) noexcept
+void Log::msg(log prio, const string &s) noexcept
 {
     if (prio > m_log_prio) return;
 
-    boost::mutex::scoped_lock lck(m_condition_mutex);
+    boost::mutex::scoped_lock lock(m_condition_mutex);
 
     // make prio syslog-compatible
-    if (prio == log::debug_extra) prio = log::debug;
+    if (prio == log::buffers) prio = log::debug;
+
+    m_queue.emplace(prio, s);
+    m_condition.notify_one();
+}
+
+
+void Log::msg(log prio, string &&s) noexcept
+{
+    if (prio > m_log_prio) return;
+
+    boost::mutex::scoped_lock lock(m_condition_mutex);
+
+    // make prio syslog-compatible
+    if (prio == log::buffers) prio = log::debug;
 
     m_queue.emplace(prio, std::move(s));
     m_condition.notify_one();
@@ -64,7 +80,7 @@ void Log::run()
                 break;
             }
 
-            syslog(LOG_INFO, "%s%s", prefix, msg.c_str());
+            syslog(static_cast<int>(prio), "%s%s", prefix, msg.c_str());
         } else if (m_exit) {
             break;
         }
