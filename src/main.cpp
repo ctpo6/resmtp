@@ -83,7 +83,6 @@ int main(int argc, char* argv[])
     }
 
     // init main log
-    cout << static_cast<int>(g::cfg().log_level) << endl;
     g::log().init(g::cfg().log_level);
 
     // init spamhaus log
