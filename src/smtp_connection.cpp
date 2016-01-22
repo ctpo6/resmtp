@@ -123,27 +123,23 @@ void smtp_connection::handle_back_resolve(
             % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
             % m_connected_ip.to_string()));
 
-    // blacklist check is OFF
-    if (!g::cfg().m_rbl_active) {
+    // DNSBL check is off
+    if (g::cfg().dnsbl_hosts.empty()) {
         handle_dnsbl_check();
         return;
     }
 
-    //--------------------------------------------------------------------------
-    // start blacklist check
-    //--------------------------------------------------------------------------
+    // start DNSBL check
     m_dnsbl_check.reset(new rbl_check(io_service_));
     for (auto &s: g::cfg().m_dns_servers) {
         m_dnsbl_check->add_nameserver(ba::ip::address::from_string(s));
     }
-    std::istringstream is(g::cfg().m_rbl_hosts);
-    for (std::istream_iterator<std::string> it(is);
-         it != std::istream_iterator<std::string>();
-         ++it) {
-        m_dnsbl_check->add_rbl_source(*it);
+    for (auto &s: g::cfg().dnsbl_hosts) {
+        m_dnsbl_check->add_rbl_source(s);
     }
-    m_dnsbl_check->start(m_connected_ip.to_v4(), bind(
-        &smtp_connection::handle_dnsbl_check, shared_from_this()));
+    m_dnsbl_check->start(m_connected_ip.to_v4(),
+                         bind(&smtp_connection::handle_dnsbl_check,
+                              shared_from_this()));
 }
 
 
@@ -193,17 +189,21 @@ void smtp_connection::handle_dnsbl_check()
         return;
     }
 
-    //--------------------------------------------------------------------------
-    // start whitelist check
-    //--------------------------------------------------------------------------
+    // DNSWL check is off
+    if (g::cfg().dnswl_host.empty()) {
+        start_proto();
+        return;
+    }
+
+    // start DNSWL check
     m_dnswl_check.reset(new rbl_check(io_service_));
     for (auto &s: g::cfg().m_dns_servers) {
         m_dnswl_check->add_nameserver(ba::ip::address::from_string(s));
     }
-    m_dnswl_check->add_rbl_source(g::cfg().m_dnswl_host);
-    m_dnswl_check->start(
-                m_connected_ip.to_v4(),
-                bind(&smtp_connection::start_proto, shared_from_this()));
+    m_dnswl_check->add_rbl_source(g::cfg().dnswl_host);
+    m_dnswl_check->start(m_connected_ip.to_v4(),
+                         bind(&smtp_connection::start_proto,
+                              shared_from_this()));
 }
 
 
@@ -227,21 +227,24 @@ void smtp_connection::start_proto()
         add_new_command("starttls", &smtp_connection::smtp_starttls);
     }
 
-    // get whitelist check result, reset checker
-    assert(m_dnswl_check);
-    string wl_status_str;
-    wl_status = m_dnswl_check->get_status(wl_status_str);
-    m_dnswl_check->stop();
-    m_dnswl_check.reset();
-    log(r::log::debug,
-        str(boost::format("wl_status_str:%1%") % wl_status_str));
+    // get DNSWL check result
+    if (m_dnswl_check) {
+        string wl_status_str;
+        wl_status = m_dnswl_check->get_status(wl_status_str);
+        m_dnswl_check->stop();
+        m_dnswl_check.reset();
+        log(r::log::debug,
+            str(boost::format("wl_status_str:%1%") % wl_status_str));
+    } else {
+        wl_status = false;
+    }
+
     if (wl_status) {
         g::mon().on_conn_wl();
     }
     if (!wl_status && g::cfg().m_tarpit_delay_seconds) {
         on_connection_tarpitted();
     }
-
 
     std::ostream response_stream(&m_response);
     string error;

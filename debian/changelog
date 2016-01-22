@@ -1,3 +1,9 @@
+resmtp (0.3.2) unstable; urgency=low
+
+  * Reworked DNSBL and DNSWL configuration
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Tue, 22 Jan 2016 15:55:00 +0300
+ 
 resmtp (0.3.1) unstable; urgency=low
 
   * Logging refactored: removed extra string objects reallocations

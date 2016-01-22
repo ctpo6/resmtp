@@ -122,12 +122,10 @@ struct server_parameters {
     // tarpitting delay
     uint32_t m_tarpit_delay_seconds;
 
-    // DNS BL
-    bool m_rbl_active;
-    string m_rbl_hosts;
-
-    // DNS WL
-    string m_dnswl_host;
+    // DNSBL hosts
+    vector<string> dnsbl_hosts;
+    // DNSWL host
+    string dnswl_host;
 
     // maximum number of recipients
     uint32_t m_max_rcpt_count;

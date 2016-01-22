@@ -368,9 +368,9 @@ bool server_parameters::parse_config(int argc, char * argv[])
             ("smtp_banner", bpo::value<string>(&m_smtp_banner), "smtp banner")
 
             ("workers", bpo::value<uint32_t>(&m_worker_count), "workers count")
-            ("rbl_check", bpo::value<bool>(&m_rbl_active)->default_value(false), "RBL active ?")
-            ("rbl_hosts", bpo::value<string>(&m_rbl_hosts), "RBL hosts list")
-            ("dnswl_host", bpo::value<string>(&m_dnswl_host), "DNSWL host")
+
+            ("dnsbl_host", bpo::value<vector<string>>(&dnsbl_hosts), "DNSBL hosts list")
+            ("dnswl_host", bpo::value<string>(&dnswl_host), "DNSWL host")
 
             ("spf_timeout", bpo::value<time_t>(&m_spf_timeout)->default_value(15), "spf calculation timeout")
             ("dkim_timeout", bpo::value<time_t>(&m_dkim_timeout)->default_value(15), "dkim calculation timeout")
