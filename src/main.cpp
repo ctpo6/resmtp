@@ -170,6 +170,7 @@ int main(int argc, char* argv[])
         log_err(r::log::notice,
                 "server successfully started", !daemonized);
 
+        int sig;
         while(true) {
             pthread_sigmask(SIG_SETMASK, &old_mask, 0);
             sigset_t wait_mask;
@@ -180,7 +181,6 @@ int main(int argc, char* argv[])
             sigaddset(&wait_mask, SIGHUP);
             sigaddset(&wait_mask, SIGSEGV);
             pthread_sigmask(SIG_BLOCK, &wait_mask, 0);
-            int sig = 0;
             sigwait(&wait_mask, &sig);
 
             if (sig == SIGHUP) {
@@ -207,7 +207,17 @@ int main(int argc, char* argv[])
         }
 
         log_err(r::log::notice, "stopping server...", !daemonized);
-        server.gracefully_stop();
+#if 0
+        // graceful stop need now to be enhanced to cancel timeout timers as
+        // there are hanging sessions
+        if (sig == SIGINT) {
+            server.gracefully_stop();
+        } else
+#else
+        {
+            server.stop();
+        }
+#endif
     } catch (const std::exception &e) {
         log_err(r::log::alert, e.what(), !daemonized);
         rval = 1;

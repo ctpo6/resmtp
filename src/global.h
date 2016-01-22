@@ -8,6 +8,9 @@
 
 namespace g {
 
+void set_stop_flag() noexcept;
+bool get_stop_flag() noexcept;
+
 server_parameters & cfg() noexcept;
 
 resmtp::monitor & mon() noexcept;

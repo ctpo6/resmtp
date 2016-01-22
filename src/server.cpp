@@ -84,8 +84,28 @@ void server::run()
 }
 
 
+void server::stop()
+{
+    // stop monitor
+    mon_acceptor->close();
+
+    // stop SMTP acceptors
+    for (auto &a: m_acceptors) {
+        a.close();
+    }
+
+    // abort all sessions
+    m_connection_manager.stop_all();
+
+    m_threads_pool.join_all();
+    mon_thread.join();
+}
+
+
 void server::gracefully_stop()
 {
+    g::set_stop_flag();
+
     // stop SMTP acceptors and wait all sessions finished
     for (auto &a: m_acceptors) {
         a.close();

@@ -1,6 +1,21 @@
 #include "global.h"
 
+#include <csignal>
+
 namespace g {
+
+volatile static std::sig_atomic_t stop_flag = 0;
+
+void set_stop_flag() noexcept
+{
+    stop_flag = 1;
+}
+
+bool get_stop_flag() noexcept
+{
+    return stop_flag;
+}
+
 
 server_parameters & cfg() noexcept
 {

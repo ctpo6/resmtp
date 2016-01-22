@@ -918,6 +918,7 @@ void smtp_connection::send_response(
     }
 
     if (force_do_not_tarpit
+            || g::get_stop_flag()   // gracefully stop
             || wl_status
             || g::cfg().m_tarpit_delay_seconds == 0) {
         // send immediately
