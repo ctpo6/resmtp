@@ -1,0 +1,13 @@
+Source: resmtp-graph
+Section: mail
+Priority: extra
+Maintainer: Yuri Epstein <yuri.epstein@gmail.com>
+Build-Depends: debhelper (>= 7.0.50~), python3
+Standards-Version: 3.9.1
+X-Python3-Version: >= 3.2
+
+Package: resmtp-graph
+Architecture: any
+Depends: ${misc:Depends}, ${python3:Depends}, resmtp (>=0.3.2)
+Description: resmtp monitoring data collection script for graphite
+
