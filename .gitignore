@@ -12,3 +12,6 @@ debian/resmtp.postrm.debhelper
 debian/resmtp.prerm.debhelper
 debian/resmtp.substvars
 debian/resmtp
+
+# debian package builder output files
+resmtp-graph_*
