@@ -1,5 +1,14 @@
+resmtp-graph (0.1.0) unstable; urgency=low
+
+  * Start/stop as a system service.
+  * Include host name as a part of a params names prefix to make possible
+    distinguish data sources.
+  * Removed 'py' from script name for stop script.
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Tue, 26 Jan 2016 16:43:00 +0300
+ 
 resmtp-graph (0.0.1) unstable; urgency=low
 
   * Initial release.
 
- -- Yuri Epstein <yuri.epstein@gmail.com>  Mon, 25 Jan 2015 15:30:00 +0300
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Mon, 25 Jan 2016 15:30:00 +0300

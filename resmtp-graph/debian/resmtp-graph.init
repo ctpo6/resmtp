@@ -1,27 +1,24 @@
 #! /bin/sh
 
 ### BEGIN INIT INFO
-# Provides:          resmtp
-# Required-Start:    $remote_fs $syslog
-# Required-Stop:     $remote_fs $syslog
-# Should-Start:
-# Should-Stop:
+# Provides:          resmtp-graph
+# Required-Start:    $remote_fs $syslog $resmtp
+# Required-Stop:     $remote_fs $syslog $resmtp
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
-# Short-Description: Script to start/stop resmtp
-# Description: SMTP frontend relay
+# Short-Description: script to start/stop resmtp-graph
+# Description: resmtp monitoring data collection script for graphite
 ### END INIT INFO
 
 PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin
 # process name (for display)
-NAME=resmtp
+NAME=resmtp-graph
 # actual executable
-DAEMON=/usr/sbin/resmtp
+DAEMON=/usr/sbin/resmtp-graph
 USER=postfix
 GROUP=postfix
-RUNDIR=/var/run/$NAME
 SCRIPTNAME=/etc/init.d/$NAME
-PIDFILE=$RUNDIR/$NAME.pid
+PIDFILE=/var/run/$NAME.pid
 
 # file exists and is executable
 [ -x $DAEMON ] || exit 5
@@ -35,19 +32,16 @@ export TMPDIR=/tmp
 # automatically abort on any error occured (so no need to put '|| exit 1' everywhere)
 set -e
 
-SSD="start-stop-daemon --pidfile $PIDFILE --name $NAME"
+SSD="start-stop-daemon --pidfile $PIDFILE --name $NAME --oknodo"
 
 do_start()
 {
-	mkdir -m755 -p $RUNDIR
-	chown $USER:$GROUP $RUNDIR
-	$SSD --start --oknodo --pidfile $PIDFILE --exec $DAEMON \
-		-- -c /etc/resmtp/resmtp.conf -p $PIDFILE
+	$SSD --start --background --make-pidfile --chuid $USER:$GROUP --exec $DAEMON
 }
 
 do_stop()
 {
-	$SSD --stop --oknodo "$@"
+	$SSD --stop "$@"
 }
 
 case "$1" in
@@ -57,18 +51,18 @@ case "$1" in
     ;;
   stop)
 		log_daemon_msg "Stopping $NAME"
-    do_stop
+    do_stop --retry 10
     ;;
-  restart|force-reload)
+  restart|reload|force-reload)
 		log_daemon_msg "Restarting $NAME"
-    do_stop --retry 5 && do_start
+    do_stop --retry 10 && do_start
     ;;
   status)
-  	status_of_proc -p $PIDFILE "$DAEMON" "$NAME" && log_daemon_msg "pid: "`pidof $DAEMON`
+  	status_of_proc -p $PIDFILE "$DAEMON" "$NAME"
   	exit $?
   	;;
   *)
-    echo "Usage: $SCRIPTNAME {start|stop|restart|force-reload|status}" >&2
+    echo "Usage: $SCRIPTNAME {start|stop|restart|reload|force-reload|status}" >&2
     exit 1
     ;;
 esac

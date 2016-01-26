@@ -5,18 +5,19 @@ import pwd
 import sys
 # import json
 import time
-import daemon
-import signal
+# import daemon
+import platform
+# import signal
 import socket
 import syslog
 # import lockfile
 # import requests
-from setproctitle import setproctitle
-# from pprint import pprint
+# from setproctitle import setproctitle
 
 resmtp_addr = ('localhost', 11311)
 graphite_addr = ('sherlock.mail.rambler.ru', 2003)
 poll_timeout = 30   # resmtp poll timeout, seconds
+host_name = None    # will be initialized with something like 'inmx1.mail.rambler.ru'
 
 # monitoring params
 mon_param_names = {
@@ -49,9 +50,8 @@ def send_to_graphite(msg):
     sock.close()
 
 
-def get_stat():
+def get_stat(timestamp):
     msg = ''
-    timestamp = int(time.time())
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -62,7 +62,7 @@ def get_stat():
             line = line.rstrip()    # remove trailing '\n'
             first_word_in_line = line.partition(' ')[0]
             if first_word_in_line in names:
-                msg += "resmtp.%s %d\n" % (line, timestamp)
+                msg += "resmtp:%s.%s %d\n" % (host_name, line, timestamp)
                 names.remove(first_word_in_line)
                 # no need to continue reading the data: all params were found
                 if not names:
@@ -80,11 +80,16 @@ def get_stat():
 
 def do_main():
     # gid = grp.getgrnam('nogroup').gr_gid
-    uid = pwd.getpwnam('nobody').pw_uid
-    os.setuid(uid)
+    # uid = pwd.getpwnam('nobody').pw_uid
+    # os.setuid(uid)
+
+    global host_name
+    host_name = platform.node().split('.', maxsplit=1)[0]
 
     while 1:
-        msg = get_stat()
+        timestamp = int(time.time())
+        print(time.strftime("%Y.%m.%d %H:%M:%S", time.localtime(timestamp)))
+        msg = get_stat(timestamp)
         if msg:
             print(msg)
             send_to_graphite(msg)
@@ -111,7 +116,7 @@ def do_terminate(signum, frame):
 #     # signal.SIGUSR1: reload_program_config,
 # }
 
-setproctitle('resmtp_graphite')
+# setproctitle('resmtp_graphite')
 syslog.syslog('started')
 
 # with context:
