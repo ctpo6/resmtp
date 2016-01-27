@@ -19,8 +19,9 @@ NAME=resmtp
 DAEMON=/usr/sbin/resmtp
 USER=postfix
 GROUP=postfix
-RUNDIR=/var/run/$NAME
 SCRIPTNAME=/etc/init.d/$NAME
+# own dir is needed as resmtp creates pid file by itself
+RUNDIR=/var/run/$NAME
 PIDFILE=$RUNDIR/$NAME.pid
 
 # file exists and is executable
@@ -35,19 +36,19 @@ export TMPDIR=/tmp
 # automatically abort on any error occured (so no need to put '|| exit 1' everywhere)
 set -e
 
-SSD="start-stop-daemon --pidfile $PIDFILE --name $NAME"
+SSD="start-stop-daemon --pidfile $PIDFILE --name $NAME --oknodo"
 
 do_start()
 {
 	mkdir -m755 -p $RUNDIR
 	chown $USER:$GROUP $RUNDIR
-	$SSD --start --oknodo --pidfile $PIDFILE --exec $DAEMON \
+	$SSD --start --exec $DAEMON \
 		-- -c /etc/resmtp/resmtp.conf -p $PIDFILE
 }
 
 do_stop()
 {
-	$SSD --stop --oknodo "$@"
+	$SSD --stop "$@"
 }
 
 case "$1" in
@@ -57,11 +58,11 @@ case "$1" in
     ;;
   stop)
 		log_daemon_msg "Stopping $NAME"
-    do_stop
+    do_stop --retry=TERM/30/KILL/5
     ;;
   restart|force-reload)
 		log_daemon_msg "Restarting $NAME"
-    do_stop --retry 5 && do_start
+    do_stop --retry=TERM/30/KILL/5 && do_start
     ;;
   status)
   	status_of_proc -p $PIDFILE "$DAEMON" "$NAME" && log_daemon_msg "pid: "`pidof $DAEMON`

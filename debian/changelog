@@ -1,3 +1,10 @@
+resmtp (0.3.3) unstable; urgency=low
+
+  * Link to Boost statically, removed runtime dependencies from Boost in deb
+  * Fixed service stop settings in init script
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Wed, 27 Jan 2016 10:45:00 +0300
+ 
 resmtp (0.3.2) unstable; urgency=low
 
   * Reworked DNSBL and DNSWL configuration

@@ -37,14 +37,18 @@ if (NOT CXX11_SUPPORTED)
 	MESSAGE(FATAL_ERROR "C++11 isn't supported!")
 endif ()
 
+################################################################################
+# Thread library
+################################################################################
+find_package(Threads)
 
 ################################################################################
 # Boost
 ################################################################################
-set(Boost_USE_STATIC_LIBS OFF)
+set(Boost_USE_STATIC_LIBS ON)
 set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_RUNTIME OFF)
-find_package(Boost REQUIRED COMPONENTS filesystem program_options regex system timer thread)
+find_package(Boost REQUIRED COMPONENTS program_options regex system timer thread)
 
 ################################################################################
 # Other libraries
@@ -127,7 +131,7 @@ file(GLOB CONFIGS
 
 # include ${HEADERS} ${CONFIGS} to make them visible in the QtCreator project tree
 add_executable(resmtp ${SOURCES} ${HEADERS} ${CONFIGS})
-target_link_libraries(resmtp ${Boost_LIBRARIES} ${OPENSSL_LIBRARIES} ${HAVE_spf2} ${HAVE_opendkim})
+target_link_libraries(resmtp ${CMAKE_THREAD_LIBS_INIT} ${Boost_LIBRARIES} ${OPENSSL_LIBRARIES} ${HAVE_spf2} ${HAVE_opendkim})
 
 ################################################################################
 # Install
