@@ -207,6 +207,7 @@ int main(int argc, char* argv[])
         }
 
         log_err(r::log::notice, "stopping server...", !daemonized);
+        time_t t0 = std::time(nullptr);
 #if 0
         // graceful stop need now to be enhanced to cancel timeout timers as
         // there are hanging sessions
@@ -218,6 +219,10 @@ int main(int argc, char* argv[])
             server.stop();
         }
 #endif
+        log_err(r::log::notice,
+                str(boost::format("server stopped in %1% seconds")
+                    % (std::time(nullptr) - t0)),
+                !daemonized);
     } catch (const std::exception &e) {
         log_err(r::log::alert, e.what(), !daemonized);
         rval = 1;
@@ -230,10 +235,13 @@ int main(int argc, char* argv[])
         t_log = boost::thread( [](){ g::log().run(); } );
     }
 
-    log_err(r::log::notice, "stopping loggers...", !daemonized);
     g::logsph().stop();
     g::log().stop();
     t_spamhaus_log.join();
+
+    log_err(r::log::notice,
+            str(boost::format("exit: %1%") % rval),
+            !daemonized);
     t_log.join();
 
     return rval;

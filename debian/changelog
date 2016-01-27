@@ -2,6 +2,7 @@ resmtp (0.3.3) unstable; urgency=low
 
   * Link to Boost statically, removed runtime dependencies from Boost in deb
   * Fixed service stop settings in init script
+  * Log the time required for server stopping
 
  -- Yuri Epstein <yuri.epstein@gmail.com>  Wed, 27 Jan 2016 10:45:00 +0300
  
