@@ -2,14 +2,17 @@
  * resmtp
  */
 
+#include <cxxabi.h>
 #include <execinfo.h>
 #include <pthread.h>
 #include <signal.h>
+#include <sys/resource.h>
 
 #include <cstdlib>
 #include <ctime>
 #include <exception>
 #include <iostream>
+#include <memory>
 #include <stdexcept>
 #include <string>
 
@@ -26,15 +29,71 @@ using namespace std;
 
 namespace r = resmtp;
 
-//namespace {
-void log_err(r::log prio, string s, bool copy_to_stderr) noexcept
+namespace {
+const uint32_t RLIMIT_OFILE_VALUE = 100000;
+
+
+void log_err(r::log prio, string s, bool copy_to_stderr)
 {
     if (copy_to_stderr) {
         cerr << s << endl;
     }
     g::log().msg(prio, std::move(s));
 }
-//}
+
+
+void free_deleter(char *ptr)
+{
+    if (ptr) free(ptr);
+}
+
+
+unique_ptr<char, void (*)(char *)>
+get_demangled_symbol_from_backtrace_str(char *str)
+{
+    unique_ptr<char, void (*)(char *)> result(nullptr, free_deleter);
+
+    char *begin = strchr(str, '(');
+    char *end = strchr(str, '+');
+    if (begin == nullptr || end == nullptr || begin > end) {
+        return result;
+    }
+    ++begin;
+
+    char save = *end;
+    *end = 0;
+    int status;
+    char *ret = abi::__cxa_demangle(begin, 0, 0, &status);
+    *end = save;
+    if (status) {
+        return result;
+    }
+    result.reset(ret);
+    return result;
+}
+
+
+void print_backtrace()
+{
+    void * array[20];
+    int size = backtrace(array, 20);
+    if (!size) return;
+
+    char **s = backtrace_symbols(array, size);
+
+    // start from 1 to skip print_backtrace() itself
+    for (int i = 1; i < size; ++i) {
+        auto demangled = get_demangled_symbol_from_backtrace_str(s[i]);
+        if (demangled) {
+            cerr << demangled.get() << endl;
+        } else {
+            cerr << s[i] << endl;
+        }
+    }
+
+    free(s);
+}
+
 
 void cxx_exception_handler() __attribute__((noreturn));
 void cxx_exception_handler()
@@ -46,31 +105,29 @@ void cxx_exception_handler()
     g::mon().print(cerr);
 
     // print call stack backtrace
-    void * array[20];
-    int size = backtrace(array, 20);
-
-#if 0
-    // it's get messed with cerr output
-    backtrace_symbols_fd(array, size, STDERR_FILENO);
-#endif
-
-    if (size > 0) {
-        char **s = backtrace_symbols(array, size);
-        for (int i = 0; i < size; ++i) {
-            cerr << s[i] << endl;
-        }
-        free(s);
-    }
+    print_backtrace();
 
     exit(1);
+}
+
+
+bool set_limits()
+{
+    struct rlimit64 rl;
+    rl.rlim_cur = RLIMIT_OFILE_VALUE;
+    rl.rlim_max = RLIMIT_OFILE_VALUE;
+    if (setrlimit64(RLIMIT_OFILE, &rl) == -1) {
+        return false;
+    }
+    return true;
+}
 }
 
 
 int main(int argc, char* argv[])
 {
     std::set_terminate(cxx_exception_handler);
-
-    std::srand(std::time(0));
+    std::srand(std::time(nullptr));
 
     bool daemonized = false;
     try {
@@ -139,6 +196,12 @@ int main(int argc, char* argv[])
         sigset_t old_mask;
         pthread_sigmask(SIG_BLOCK, &new_mask, &old_mask);
 
+        if (!set_limits()) {
+            throw std::runtime_error(
+                        str(boost::format("failed to set limits: RLIMIT_OFILE(%1%)")
+                            % RLIMIT_OFILE_VALUE));
+        }
+
         resmtp::server server(g::cfg());
 
         // Daemonize as late as possible, so as to be able to copy fatal error to stderr in case the server can't start
@@ -188,15 +251,8 @@ int main(int argc, char* argv[])
             }
 
             if (sig == SIGSEGV) {
-                void * array[10];
-                size_t size;
-
-                // get void*'s for all entries on the stack
-                size = backtrace(array, 10);
-
-                // print out all the frames to stderr
-                std::cerr << "Error: SIGSEGV signal" << std::endl;
-                backtrace_symbols_fd(array, size, STDERR_FILENO);
+                cerr << "received SIGSEGV signal\n";
+                print_backtrace();
                 exit(1);
             }
 
