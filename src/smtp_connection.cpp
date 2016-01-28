@@ -118,9 +118,9 @@ void smtp_connection::handle_back_resolve(
         return;
     }
 
-    log(r::log::notice,
+    log(r::log::info,
         str(boost::format("**** CONNECT %1%[%2%]")
-            % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
+            % (m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str())
             % m_connected_ip.to_string()));
 
     // DNSBL check is off
@@ -162,13 +162,13 @@ void smtp_connection::handle_dnsbl_check()
                      string());
 
         log(r::log::notice,
-            str(boost::format("reject blacklisted host %1%[%2%]: %3%")
-                % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
+            str(boost::format("%1%[%2%] reject: blacklisted (%3%)")
+                % (m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str())
                 % m_connected_ip.to_v4().to_string()
                 % bl_status));
 
         std::ostream response_stream(&m_response);
-        response_stream << "554 5.7.1 Service unavailable\r\n";
+        response_stream << "554 5.7.1 Client host blocked\r\n";
 
         if (m_force_ssl) {
             ssl_state_ = ssl_active;
@@ -299,7 +299,7 @@ void smtp_connection::on_connection_tarpitted()
 void smtp_connection::on_connection_close()
 {
     g::mon().on_conn_closed(close_status, tarpit);
-    log(r::log::notice,
+    log(r::log::info,
         str(boost::format("**** DISCONNECT status=%1% tarpit=%2%")
             % resmtp::monitor::get_conn_close_status_name(close_status)
             % tarpit));
@@ -538,8 +538,6 @@ void smtp_connection::handle_read(const boost::system::error_code &ec,
                  msg_count_sent);
 
             if (ec == ba::error::eof && !smtp_client_started) {
-                PDBG("close_status_t::fail_client_closed_connection");
-
                 // log for spamhaus if we still hadn't do that
                 // clients closed tarpitted sessions are coming here,
                 // but they are logged as normal sessions for now
@@ -548,6 +546,13 @@ void smtp_connection::handle_read(const boost::system::error_code &ec,
                              m_helo_host,
                              m_remote_host_name);
 
+                log(r::log::notice,
+                    str(boost::format("%1%[%2%] reject: client closed connection; tarpit=%3%")
+                        % (m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str())
+                        % m_connected_ip.to_v4().to_string()
+                        % tarpit));
+
+                PDBG("close_status_t::fail_client_closed_connection");
                 close_status = close_status_t::fail_client_closed_connection;
             } else {
                 // TODO investigate & rework???
@@ -717,10 +722,10 @@ void smtp_connection::smtp_delivery_start()
 
             append(str(boost::format("Message-Id: %1%\r\n") % message_id_str), added_h);
 
-            log(r::log::notice,
+            log(r::log::info,
                 str(boost::format("message-id=%1%") % message_id_str));
         } else {
-            log(r::log::notice,
+            log(r::log::info,
                 str(boost::format("message-id=%1%") % message_id));
         }
 
@@ -848,6 +853,7 @@ void smtp_connection::smtp_delivery()
         m_smtp_client->stop();
     }
     m_smtp_client.reset(new smtp_client(io_service_, backend_mgr));
+    m_check_data.tarpit = tarpit;
     m_smtp_client->start(
         m_check_data,
         strand_.wrap(bind(&smtp_connection::end_check_data, shared_from_this())),
@@ -964,11 +970,14 @@ void smtp_connection::send_response2(
             // log for spamhaus if we still hadn't do that
             // log as a bad behaving session (without client host name)
             log_spamhaus(m_connected_ip.to_v4().to_string(),
-                         m_helo_host,
+                         string(),
                          string());
 
             log(r::log::notice,
-                "abort session: client wrote to socket before receiving a greeting");
+                str(boost::format("%1%[%2%] reject: client wrote to socket before greeting; tarpit=%3%")
+                    % (m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str())
+                    % m_connected_ip.to_v4().to_string()
+                    % tarpit));
 
             PDBG("close_status_t::fail_client_early_write");
             close_status = close_status_t::fail_client_early_write;
@@ -1527,7 +1536,7 @@ void smtp_connection::handle_timer(const boost::system::error_code &ec)
         log(r::log::debug,
             str(boost::format("timeout after DATA (%1% bytes) from %2%[%3%]")
                 % buffers.size()
-                % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
+                % (m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str())
                 % m_connected_ip.to_string()));
     } else {
         const char *state_desc = "";
@@ -1550,9 +1559,15 @@ void smtp_connection::handle_timer(const boost::system::error_code &ec)
         log(r::log::debug,
             str(boost::format("timeout after %1% from %2%[%3%]")
                 % state_desc
-                % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
+                % (m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str())
                 % m_connected_ip.to_string()));
     }
+
+    log(r::log::notice,
+        str(boost::format("%1%[%2%] reject: timeout; tarpit=%3%")
+            % (m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str())
+            % m_connected_ip.to_v4().to_string()
+            % tarpit));
 
     send_response(boost::bind(&smtp_connection::handle_last_write_request,
                               shared_from_this(),
@@ -1597,14 +1612,10 @@ void smtp_connection::end_mail_from_command(bool _start_spf,
                             shared_from_this(), boost::asio::placeholders::error)));
     }
 
-    m_envelope.reset(new envelope(true));
-
     m_smtp_from = _addr;
 
+    m_envelope.reset(new envelope(true));
     m_envelope->m_sender = _addr.empty() ? "<>" : _addr;
-
-    log(r::log::notice,
-        str(boost::format("from=<%1%>") % m_envelope->m_sender));
 
     std::ostream response_stream(&m_response);
 

@@ -38,6 +38,8 @@ struct check_data_t : public check
     string m_remote_host;
     // extracted from HELO/EHLO
     string m_helo_host;
+    // needed for logging
+    bool tarpit;
 };
 
 #endif // _CHECK_H_

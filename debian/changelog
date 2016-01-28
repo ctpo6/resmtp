@@ -1,3 +1,9 @@
+resmtp (0.3.6) unstable; urgency=low
+
+  * Produce only one log record with NOTICE priority per delivered mail
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Thu, 28 Jan 2016 18:30:00 +0300
+ 
 resmtp (0.3.5) unstable; urgency=low
 
   * Increase maximum number of opened files limit value

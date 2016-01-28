@@ -650,6 +650,15 @@ check::chk_status smtp_client::report_rcpt(bool success,
 
         if (rcpt_success) {
             log(r::log::notice,
+                str(boost::format("%1%[%2%] ok: tarpit=%3% helo=%4% from=<%5%> to=<%6%> relay=%7%")
+                    % (m_data.m_remote_host.empty() ? "[UNAVAILABLE]" : m_data.m_remote_host.c_str())
+                    % m_data.m_remote_ip
+                    % m_data.tarpit
+                    % m_data.m_helo_host
+                    % m_envelope->m_sender
+                    % rcpt.m_name
+                    % backend_host.host_name));
+#if 0
                 str(boost::format("report: to=<%1%>, relay=%2%[%3%]:%4%, delay=%5%, status=ok (%6%)")
                           % rcpt.m_name
                           % backend_host.host_name
@@ -657,7 +666,19 @@ check::chk_status smtp_client::report_rcpt(bool success,
                           % backend_host.port
                           % m_envelope->m_timer.mark()
                           % remote));
+#endif
         } else {
+            log(r::log::notice,
+                str(boost::format("%1%[%2%] fail: tarpit=%3% helo=%4% from=<%5%> to=<%6%> relay=%7% (%8%)")
+                    % (m_data.m_remote_host.empty() ? "[UNAVAILABLE]" : m_data.m_remote_host.c_str())
+                    % m_data.m_remote_ip
+                    % m_data.tarpit
+                    % m_data.m_helo_host
+                    % m_envelope->m_sender
+                    % rcpt.m_name
+                    % backend_host.host_name
+                    % remote));
+#if 0
             log(r::log::notice,
                 str(boost::format("report: to=<%1%>, relay=%2%[%3%]:%4%, delay=%5%, status=fail (%6%) (%7%)")
                           % rcpt.m_name
@@ -667,6 +688,7 @@ check::chk_status smtp_client::report_rcpt(bool success,
                           % m_envelope->m_timer.mark()
                           % log_msg
                           % remote));
+#endif
         }
         remote.clear();
     }

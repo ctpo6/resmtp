@@ -82,7 +82,6 @@ struct envelope :
     string m_sender;
     rcpt_list_t m_rcpt_list;
     timer m_timer;
-//    resmtp::coroutine smtp_delivery_coro_;
 };
 
 typedef std::shared_ptr<envelope> envelope_ptr;
