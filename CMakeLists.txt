@@ -56,8 +56,6 @@ find_package(Boost REQUIRED COMPONENTS program_options regex system timer thread
 find_package(OpenSSL REQUIRED)
 configure_library(spf2/spf.h "/usr/include /usr/local/include"
                   spf2 "/usr/lib /usr/local/lib")
-configure_library(opendkim/dkim.h "/usr/include /usr/local/include"
-                  opendkim "/usr/lib /usr/local/lib")
 message(STATUS "")                  
 
 

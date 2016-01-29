@@ -17,7 +17,6 @@
 #include <boost/lexical_cast.hpp>
 #include <boost/type_traits.hpp>
 
-#include "aspf.h"
 #include "header_parser.h"
 #include "ip_options.h"
 #include "global.h"
@@ -609,26 +608,8 @@ void smtp_connection::handle_spf_timeout(const boost::system::error_code& ec)
     if (ec == boost::asio::error::operation_aborted) {
         return;
     }
-
-    if (spf_check_) {
-        spf_check_->stop();
-    }
-    spf_check_.reset();
 }
 
-
-void smtp_connection::handle_dkim_timeout(const boost::system::error_code& ec)
-{
-    if (ec == boost::asio::error::operation_aborted)
-        return;
-    if (dkim_check_)
-        dkim_check_->stop();
-    dkim_check_.reset();
-    if (m_smtp_delivery_pending) {
-//        PDBG("call smtp_delivery_start()");
-        smtp_delivery_start();
-    }
-}
 
 namespace {
 void handle_parse_header(const header_iterator_range_t &name,
@@ -652,165 +633,92 @@ void handle_parse_header(const header_iterator_range_t &name,
 
 void smtp_connection::smtp_delivery_start()
 {
-//    PDBG("ENTER");
-#if 0
-    if (dkim_check_ && dkim_check_->is_inprogress()) // wait for DKIM check to complete
-    {
-        m_smtp_delivery_pending = true;
-        return;
-    }
-#endif
-    m_smtp_delivery_pending = false;
+	yconst_buffers& orig_m = m_envelope->orig_message_;
+	yconst_buffers& alt_m = m_envelope->altered_message_;
+	yconst_buffers& orig_h = m_envelope->orig_headers_;
+	yconst_buffers& added_h = m_envelope->added_headers_;
 
-    yconst_buffers& orig_m = m_envelope->orig_message_;
-    yconst_buffers& alt_m = m_envelope->altered_message_;
-    yconst_buffers& orig_h = m_envelope->orig_headers_;
-    yconst_buffers& added_h = m_envelope->added_headers_;
+	if (m_check_data.m_result != check::CHK_ACCEPT) {
+		PDBG("call end_check_data()");
+		end_check_data();
+		return;
+	}
 
-#if 0
-    reenter (m_envelope->smtp_delivery_coro_)
-    {
-#endif
-        has_dkim_headers_ = false;
+	// alter headers & compose the resulting message here
+	typedef list<header_iterator_range_t> hl_t; // header fields subset from the original message for the composed message
+	hl_t h;
+	header_iterator_range_t message_id;
+	unordered_set<string> unique_h;
+	header_iterator_range_t::iterator b = ybuffers_begin(orig_m);
+	header_iterator_range_t::iterator e = ybuffers_end(orig_m);
+	header_iterator_range_t r(b, e);
+	m_envelope->orig_message_body_beg_ = parse_header(
+		r,
+		boost::bind(&handle_parse_header,
+				  _1,
+				  _2,
+				  _3,
+				  boost::ref(h),
+				  boost::ref(message_id),
+				  boost::ref(unique_h)));
 
-        if (m_check_data.m_result != check::CHK_ACCEPT) {
-            PDBG("call end_check_data()");
-            end_check_data();
-            return;
-        }
+	shared_const_chunk crlf(new chunk_csl("\r\n"));
+	for(hl_t::const_iterator it=h.begin(); it!=h.end(); ++it) {
+		// append existing headers
+		append(it->begin(), it->end(), orig_h);
+		append(crlf, orig_h);
+	}
 
-//        PDBG("");
-        // alter headers & compose the resulting message here
-        typedef list<header_iterator_range_t> hl_t; // header fields subset from the original message for the composed message
-        hl_t h;
-        header_iterator_range_t message_id;
-        unordered_set<string> unique_h;
-        header_iterator_range_t::iterator b = ybuffers_begin(orig_m);
-        header_iterator_range_t::iterator e = ybuffers_end(orig_m);
-        header_iterator_range_t r(b, e);
-//        PDBG("call parse_header()");
-        m_envelope->orig_message_body_beg_ = parse_header(r,
-                boost::bind(&handle_parse_header,
-                            _1,
-                            _2,
-                            _3,
-                            boost::ref(h),
-                            boost::ref(message_id),
-                            boost::ref(unique_h)));
+	// add missing headers
+	if (unique_h.find("message-id") == unique_h.end()) {
+		time_t rawtime;
+		time(&rawtime);
+		struct tm timeinfo;
+		localtime_r(&rawtime, &timeinfo);
+		char timeid[100];
+		strftime(timeid, sizeof(timeid), "%Y%m%d%H%M%S", &timeinfo);
 
-        shared_const_chunk crlf(new chunk_csl("\r\n"));
-        for(hl_t::const_iterator it=h.begin(); it!=h.end(); ++it) {
-            // append existing headers
-            append(it->begin(), it->end(), orig_h);
-            append(crlf, orig_h);
-        }
+		// format: <20100406110540.C671D18D007F@mxback1.mail.yandex.net>
+		string message_id_str = str(boost::format("<%1%.%2%@%3%>")
+									% timeid
+									% m_envelope->m_id
+									% boost::asio::ip::host_name());
 
-        // add missing headers
-        if (unique_h.find("message-id") == unique_h.end()) {
-            time_t rawtime;
-            time(&rawtime);
-            struct tm timeinfo;
-            localtime_r(&rawtime, &timeinfo);
-            char timeid[100];
-            strftime(timeid, sizeof(timeid), "%Y%m%d%H%M%S", &timeinfo);
+		append(str(boost::format("Message-Id: %1%\r\n") % message_id_str), added_h);
 
-            // format: <20100406110540.C671D18D007F@mxback1.mail.yandex.net>
-            string message_id_str = str(boost::format("<%1%.%2%@%3%>")
-                                        % timeid
-                                        % m_envelope->m_id
-                                        % boost::asio::ip::host_name());
+		log(r::log::info,
+			str(boost::format("message-id=%1%") % message_id_str));
+	} else {
+		log(r::log::info,
+			str(boost::format("message-id=%1%") % message_id));
+	}
 
-            append(str(boost::format("Message-Id: %1%\r\n") % message_id_str), added_h);
+	if (unique_h.find("date") == unique_h.end()) {
+		char timestr[256];
+		char zonestr[256];
+		time_t rawtime;
+		time (&rawtime);
+		append(str(boost::format("Date: %1%")
+				   % rfc822date(&rawtime,
+								timestr,
+								sizeof(timestr),
+								zonestr,
+								sizeof(zonestr))),
+			   added_h);
+	}
 
-            log(r::log::info,
-                str(boost::format("message-id=%1%") % message_id_str));
-        } else {
-            log(r::log::info,
-                str(boost::format("message-id=%1%") % message_id));
-        }
+	if (unique_h.find("from") == unique_h.end()) {
+		append("From: MAILER-DAEMON\r\n", added_h);
+	}
 
-        if (unique_h.find("date") == unique_h.end()) {
-            char timestr[256];
-            char zonestr[256];
-            time_t rawtime;
-            time (&rawtime);
-            append(str(boost::format("Date: %1%")
-                       % rfc822date(&rawtime,
-                                    timestr,
-                                    sizeof(timestr),
-                                    zonestr,
-                                    sizeof(zonestr))),
-                   added_h);
-        }
+	if (unique_h.find("to") == unique_h.end()) {
+		append("To: undisclosed-recipients:;\r\n", added_h);
+	}
 
-        if (unique_h.find("from") == unique_h.end()) {
-            append("From: MAILER-DAEMON\r\n", added_h);
-        }
-
-        if (unique_h.find("to") == unique_h.end()) {
-            append("To: undisclosed-recipients:;\r\n", added_h);
-        }
-
-#if 0
-        has_dkim_headers_ = unique_h.find("dkim-signature") != unique_h.end();
-        PDBG("has_dkim_headers_=%d", has_dkim_headers_);
-        if (has_dkim_headers_) {
-            dkim_check_.reset( new dkim_check);
-            m_smtp_delivery_pending = true;
-
-            m_timer_spfdkim.expires_from_now(
-                boost::posix_time::seconds(g::cfg().m_dkim_timeout));
-            m_timer_spfdkim.async_wait(
-                strand_.wrap(boost::bind(&smtp_connection::handle_dkim_timeout,
-                                shared_from_this(), boost::asio::placeholders::error)));
-
-            m_dkim_status = dkim_check::DKIM_NONE;
-            m_dkim_identity.clear();
-            yield dkim_check_->start(
-                strand_.get_io_service(),
-                dkim_parameters(ybuffers_begin(orig_m),
-                        m_envelope->orig_message_body_beg_,
-                        ybuffers_end(orig_m)),
-                strand_.wrap(
-                    boost::bind(&smtp_connection::handle_dkim_check,
-                            shared_from_this(), _1, _2)));
-
-            m_smtp_delivery_pending = false;
-        }
-
-        bool has_dkim = m_dkim_status != dkim_check::DKIM_NONE;
-        bool has_spf = m_spf_result && m_spf_expl;
-
-        if (has_dkim || has_spf) {
-            PDBG("");
-            // add Authentication-Results header
-            string ah;
-            string dkim_identity;
-            if (has_dkim && !m_dkim_identity.empty())
-                dkim_identity = str( boost::format(" header.i=%1%") % m_dkim_identity );
-            if (has_dkim && has_spf)
-                ah = str(boost::format("Authentication-Results: %1%; spf=%2% (%3%) smtp.mail=%4%; dkim=%5%%6%\r\n")
-                        % boost::asio::ip::host_name() % m_spf_result.get() % m_spf_expl.get() % m_smtp_from
-                        % dkim_check::status(m_dkim_status) % dkim_identity);
-            else if (has_spf)
-                ah = str(boost::format("Authentication-Results: %1%; spf=%2% (%3%) smtp.mail=%4%\r\n")
-                        % boost::asio::ip::host_name() % m_spf_result.get() % m_spf_expl.get() % m_smtp_from);
-            else
-                ah = str(boost::format("Authentication-Results: %1%; dkim=%2%%3%\r\n")
-                        % boost::asio::ip::host_name() % dkim_check::status(m_dkim_status) % dkim_identity);
-
-            g::log().msg(MSG_NORMAL, str(boost::format("%1%-%2%-%3%")
-                            % m_session_id % m_envelope->m_id % ah));
-
-            append(ah, added_h);
-        }
-#endif
-
-//        shared_const_chunk crlf (new chunk_csl("\r\n"));
-        append(added_h.begin(), added_h.end(), alt_m);
-        append(orig_h.begin(), orig_h.end(), alt_m);
-        append(crlf, alt_m);
-        append(m_envelope->orig_message_body_beg_, ybuffers_end(orig_m), alt_m);
+	append(added_h.begin(), added_h.end(), alt_m);
+	append(orig_h.begin(), orig_h.end(), alt_m);
+	append(crlf, alt_m);
+	append(m_envelope->orig_message_body_beg_, ybuffers_end(orig_m), alt_m);
 
 #if 0   // LMTP support is turned off for now
         if (g::cfg().m_use_local_relay) {
@@ -829,11 +737,8 @@ void smtp_connection::smtp_delivery_start()
             smtp_delivery();
         }
 #endif
-        smtp_delivery();
 
-#if 0
-    } // reenter
-#endif
+		smtp_delivery();
 }
 
 void smtp_connection::end_lmtp_proto()
@@ -1372,26 +1277,8 @@ void smtp_connection::handle_bb_result_helper() {
 
 void smtp_connection::handle_spf_check(boost::optional<std::string> result,
                                        boost::optional<std::string> expl) {
-//    PDBG("ENTER");
-    m_spf_result = result;
-    m_spf_expl = expl;
-    spf_check_.reset();
-    m_timer_spfdkim.cancel();
 }
 
-
-void smtp_connection::handle_dkim_check(dkim_check::DKIM_STATUS status, const std::string& identity)
-{
-    m_dkim_status = status;
-    m_dkim_identity = identity;
-
-    dkim_check_.reset();
-    m_timer_spfdkim.cancel();
-    if (m_smtp_delivery_pending) {
-//        PDBG("call smtp_delivery_start()");
-        smtp_delivery_start();
-    }
-}
 
 bool smtp_connection::smtp_mail(const std::string& _cmd,
                                 std::ostream &_response)
@@ -1431,7 +1318,6 @@ bool smtp_connection::smtp_mail(const std::string& _cmd,
 
     m_proto_state = STATE_CHECK_MAILFROM;
 
-//    end_mail_from_command(true, false, addr, "");
     end_mail_from_command(false, false, addr, "");
 
     return true;
@@ -1585,55 +1471,18 @@ void smtp_connection::restart_timeout()
 }
 
 
-void smtp_connection::end_mail_from_command(bool _start_spf,
-                                            bool _start_async,
-                                            std::string _addr,
-                                            const std::string &_response)
+void smtp_connection::end_mail_from_command(std::string _addr)
 {
-    if (_start_spf) {
-        PDBG("_start_spf");
-        // start SPF check
-        spf_parameters p;
-        p.domain = m_helo_host;
-        p.from = _addr;
-        p.ip = m_connected_ip.to_string();
-        m_spf_result.reset();
-        m_spf_expl.reset();
-        spf_check_.reset(new spf_check);
-
-        spf_check_->start(io_service_, p,
-                strand_.wrap(boost::protect(boost::bind(&smtp_connection::handle_spf_check,
-                                        shared_from_this(), _1, _2)))
-                          );
-
-        m_timer_spfdkim.expires_from_now(boost::posix_time::seconds(g::cfg().m_spf_timeout));
-        m_timer_spfdkim.async_wait(
-            strand_.wrap(boost::bind(&smtp_connection::handle_spf_timeout,
-                            shared_from_this(), boost::asio::placeholders::error)));
-    }
-
-    m_smtp_from = _addr;
-
     m_envelope.reset(new envelope(true));
     m_envelope->m_sender = _addr.empty() ? "<>" : _addr;
 
     std::ostream response_stream(&m_response);
 
-	if (_response.empty()) {
-		m_proto_state = STATE_AFTER_MAIL;
-		response_stream << "250 2.1.0 <" << _addr << "> ok\r\n";
-	} else {
-		response_stream << _response << "\r\n";
-    }
+	m_proto_state = STATE_AFTER_MAIL;
+	response_stream << "250 2.1.0 <" << _addr << "> ok\r\n";
 
     ++msg_count_mail_from;
     g::mon().on_mail_rcpt_to();
-
-    if (_start_async) {
-        send_response(boost::bind(&smtp_connection::handle_write_request,
-                                  shared_from_this(),
-                                  boost::asio::placeholders::error));
-    }
 }
 
 

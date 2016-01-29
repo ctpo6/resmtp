@@ -14,7 +14,6 @@
 
 #include "net/dns_resolver.hpp"
 
-#include "adkim.h"
 #include "buffers.h"
 #include "envelope.h"
 #include "eom_parser.h"
@@ -136,20 +135,6 @@ private:
     uint32_t msg_count_mail_from = 0;
     uint32_t msg_count_sent = 0;
 
-    // SPF
-    string m_smtp_from;
-    bool m_smtp_delivery_pending = false;
-    boost::optional<string> m_spf_result;
-    boost::optional<string> m_spf_expl;
-    std::shared_ptr<class spf_check> spf_check_;
-
-    // DKIM
-    typedef std::shared_ptr<dkim_check> dkim_check_ptr;
-    dkim_check_ptr dkim_check_;
-    dkim_check::DKIM_STATUS m_dkim_status = dkim_check::DKIM_NONE;
-    string m_dkim_identity;
-    bool has_dkim_headers_;
-
     check_rcpt_t m_check_rcpt;
 
     check_data_t m_check_data;
@@ -178,13 +163,7 @@ private:
     void handle_spf_check(boost::optional<string> result, boost::optional<string> expl);
     void handle_spf_timeout(const bs::error_code& ec);
 
-    void handle_dkim_check(dkim_check::DKIM_STATUS status, const string& identity);
-    void handle_dkim_timeout(const bs::error_code& ec);
-
-    void end_mail_from_command(bool _start_spf,
-                               bool _start_async,
-                               string _addr,
-                               const string &_response);
+	void end_mail_from_command(string _addr);
 
     void handle_bb_result_helper();
 
