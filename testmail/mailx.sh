@@ -6,7 +6,7 @@
 
 do_send_mail()
 {
-	mailx -r "yuri.epstein@rambler.ru" -s "test" -S smtp="inmx1.mail.rambler.ru:25" 25volt@25volt.ru < ./mail.txt
+	mailx -r "yuri.epstein@rambler.ru" -s "test" -S smtp="resmtp.mail.rambler.ru:25" 25volt@25volt.ru < ./mail.txt
 }
 
 if [ $# != 1 ]; then
