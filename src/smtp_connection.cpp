@@ -43,6 +43,19 @@ using namespace y::net;
 namespace r = resmtp;
 
 
+const smtp_connection::proto_map_t smtp_connection::smtp_command_handlers {
+    {"helo", &smtp_connection::smtp_helo},
+    {"ehlo", &smtp_connection::smtp_ehlo},
+    {"mail", &smtp_connection::smtp_mail},
+    {"rcpt", &smtp_connection::smtp_rcpt},
+    {"data", &smtp_connection::smtp_data},
+    {"quit", &smtp_connection::smtp_quit},
+    {"rset", &smtp_connection::smtp_rset},
+    {"noop", &smtp_connection::smtp_noop},
+    {"starttls", &smtp_connection::smtp_starttls}
+};
+
+
 smtp_connection::smtp_connection(boost::asio::io_service &_io_service,
                                  smtp_connection_manager &_manager,
                                  smtp_backend_manager &bmgr,
@@ -56,11 +69,10 @@ smtp_connection::smtp_connection(boost::asio::io_service &_io_service,
 
     , m_resolver(_io_service)
 
-    , m_envelope(std::make_shared<envelope>(false))
-
     , m_timer(_io_service)
     , m_tarpit_timer(_io_service)
 {
+    m_envelope.reset(new envelope(false));
 }
 
 
@@ -210,19 +222,6 @@ void smtp_connection::start_proto()
     ssl_state_ = ssl_none;
 
     restart_timeout();
-
-    add_new_command("helo", &smtp_connection::smtp_helo);
-    add_new_command("ehlo", &smtp_connection::smtp_ehlo);
-    add_new_command("mail", &smtp_connection::smtp_mail);
-    add_new_command("rcpt", &smtp_connection::smtp_rcpt);
-    add_new_command("data", &smtp_connection::smtp_data);
-    add_new_command("quit", &smtp_connection::smtp_quit);
-    add_new_command("rset", &smtp_connection::smtp_rset);
-    add_new_command("noop", &smtp_connection::smtp_noop);
-    // "starttls" is available only for initially unencrypted connections if TLS support is enabled in config
-    if (g::cfg().m_use_tls && !m_force_ssl) {
-        add_new_command("starttls", &smtp_connection::smtp_starttls);
-    }
 
     // get DNSWL check result
     if (m_dnswl_check) {
@@ -752,7 +751,7 @@ void smtp_connection::smtp_delivery()
     m_smtp_client->start(
         m_check_data,
         strand_.wrap(bind(&smtp_connection::end_check_data, shared_from_this())),
-        m_envelope,
+        *m_envelope,
         g::cfg().m_dns_servers);
     smtp_client_started = true;
 }
@@ -997,8 +996,8 @@ bool smtp_connection::execute_command(string cmd, std::ostream &os)
 
     std::transform(cmd.begin(), cmd.end(), cmd.begin(), ::tolower);
 
-    proto_map_t::iterator func = m_proto_map.find(cmd);
-    if (func != m_proto_map.end()) {
+    auto func = smtp_command_handlers.find(cmd);
+    if (func != smtp_command_handlers.cend()) {
         return (func->second)(this, arg, os);
     } else {
         ++m_error_count;
@@ -1006,12 +1005,6 @@ bool smtp_connection::execute_command(string cmd, std::ostream &os)
     }
 
     return true;
-}
-
-
-void smtp_connection::add_new_command(const char *_command, proto_func_t _func)
-{
-    m_proto_map[_command] = _func;
 }
 
 
@@ -1027,10 +1020,16 @@ bool smtp_connection::smtp_noop ( const std::string& _cmd, std::ostream &_respon
     return true;
 }
 
-bool smtp_connection::smtp_starttls( const std::string& _cmd, std::ostream &_response )
+
+bool smtp_connection::smtp_starttls(const string &, std::ostream &response)
 {
-    ssl_state_ = ssl_hand_shake;
-    _response << "220 Go ahead\r\n";
+    // "starttls" is available only for initially unencrypted connections if TLS support is enabled in config
+    if (g::cfg().m_use_tls && !m_force_ssl) {
+        ssl_state_ = ssl_hand_shake;
+        response << "220 Go ahead\r\n";
+    } else {
+        response << "502 5.5.2 Syntax error, command unrecognized.\r\n";
+    }
     return true;
 }
 

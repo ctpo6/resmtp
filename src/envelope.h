@@ -82,6 +82,4 @@ struct envelope :
     timer m_timer;
 };
 
-typedef std::shared_ptr<envelope> envelope_ptr;
-
 #endif

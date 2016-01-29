@@ -22,7 +22,8 @@ using std::vector;
 
 class smtp_client :
         public std::enable_shared_from_this<smtp_client>,
-        private boost::noncopyable {
+        private boost::noncopyable
+{
 public:
 
     smtp_client(boost::asio::io_service &io_service,
@@ -41,7 +42,7 @@ public:
 
     void start(const check_data_t &_data,
                complete_cb_t complete,
-               envelope_ptr _envelope,
+               envelope &envelope,
                const vector<string> &dns_servers);
 
     void stop();
@@ -69,7 +70,7 @@ protected:
 
     complete_cb_t cb_complete;
 
-    envelope_ptr m_envelope;
+    envelope *m_envelope = nullptr;
 
     enum class proto_state_t {
         start = 0,

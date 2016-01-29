@@ -137,13 +137,13 @@ void smtp_client::start(const check_data_t& _data,
 
 void smtp_client::start(const check_data_t &_data,
                         complete_cb_t complete,
-                        envelope_ptr _envelope,
+                        envelope &envelope,
                         const vector<string> &dns_servers)
 {
     m_data = _data;
     cb_complete = complete;
 
-    m_envelope = _envelope;
+    m_envelope = &envelope;
     m_envelope->cleanup_answers();
 
     for (auto &s: dns_servers) {

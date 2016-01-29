@@ -81,6 +81,8 @@ private:
         ssl_active
     } ssl_state_t;
 
+    // map: smtp command name -> command handler ptr
+    static const proto_map_t smtp_command_handlers;
 
     ba::io_service &io_service_;
     smtp_connection_manager &m_manager;
@@ -88,9 +90,6 @@ private:
 
     // should connection be opened via SSL/TLS
     bool m_force_ssl;
-
-    // map: smtp command name -> command handler ptr
-    proto_map_t m_proto_map;
 
     ba::io_service::strand strand_;
     ssl_socket_t m_ssl_socket;
@@ -114,7 +113,7 @@ private:
 
     close_status_t close_status = close_status_t::ok;
 
-    envelope_ptr m_envelope;
+    std::unique_ptr<envelope> m_envelope;
 
     ystreambuf buffers;
     ba::streambuf m_response;
@@ -167,7 +166,6 @@ private:
 
     //---
     bool execute_command(string cmd, std::ostream &_response);
-    void add_new_command(const char *_command, proto_func_t _func);
     bool smtp_quit(const string& _cmd, std::ostream &_response);
     bool smtp_noop(const string& _cmd, std::ostream &_response);
     bool smtp_rset(const string& _cmd, std::ostream &_response);
