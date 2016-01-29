@@ -372,9 +372,6 @@ bool server_parameters::parse_config(int argc, char * argv[])
             ("dnsbl_host", bpo::value<vector<string>>(&dnsbl_hosts), "DNSBL hosts list")
             ("dnswl_host", bpo::value<string>(&dnswl_host), "DNSWL host")
 
-            ("spf_timeout", bpo::value<time_t>(&m_spf_timeout)->default_value(15), "spf calculation timeout")
-            ("dkim_timeout", bpo::value<time_t>(&m_dkim_timeout)->default_value(15), "dkim calculation timeout")
-
             ("smtpd_recipient_limit", bpo::value<uint32_t>(&m_max_rcpt_count)->default_value(100), "maximum recipient per mail")
 
             ("smtpd_client_connection_count_limit", bpo::value<uint32_t>(&m_client_connection_count_limit)->default_value(0), "max number of connections per IP (0 - unlimited)")

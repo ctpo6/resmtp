@@ -528,12 +528,12 @@ bool smtp_client::process_answer(std::istream &_stream) {
                               << "\r\n";
                 m_proto_state = proto_state_t::after_xclient;
             } else {
-                answer_stream << "MAIL FROM: <" << m_envelope->m_sender << ">\r\n";
+                answer_stream << "MAIL FROM:<" << m_envelope->m_sender << ">\r\n";
                 if (m_use_pipelining) {
                     for(m_current_rcpt = m_envelope->m_rcpt_list.begin();
                         m_current_rcpt != m_envelope->m_rcpt_list.end();
                         ++m_current_rcpt) {
-                        answer_stream << "RCPT TO: <" << m_current_rcpt->m_name << ">\r\n";
+                        answer_stream << "RCPT TO:<" << m_current_rcpt->m_name << ">\r\n";
                     }
                     answer_stream << "DATA\r\n";
                 }

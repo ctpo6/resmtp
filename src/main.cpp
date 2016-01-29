@@ -262,21 +262,29 @@ int main(int argc, char* argv[])
             break;
         }
 
-        log_err(r::log::notice, "stopping server...", !daemonized);
+        log_err(r::log::notice, "stop server: started", !daemonized);
         time_t t0 = std::time(nullptr);
 #if 0
-        // graceful stop need now to be enhanced to cancel timeout timers as
-        // there are hanging sessions
+        // TODO
+        // it's a really very graceful stop: allow sessions to finish;
+        // now it's needed to be fixed to cancel timeout timers as
+        // there are hanging sessions, taking a LOT of time to expire
         if (sig == SIGINT) {
             server.gracefully_stop();
         } else
 #else
         {
+            // not so graceful stop: close sockets immediately
             server.stop();
         }
 #endif
+        // TODO
+        // now there is a problem: this message may not appear in the log on
+        // SIGTERM; server seems to be stopped immediately, never reaching this
+        // line;
+        // SIGINT has the same problem too
         log_err(r::log::notice,
-                str(boost::format("server stopped in %1% seconds")
+                str(boost::format("stop server: finished in %1% seconds")
                     % (std::time(nullptr) - t0)),
                 !daemonized);
     } catch (const std::exception &e) {

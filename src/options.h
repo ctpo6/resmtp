@@ -65,7 +65,7 @@ struct server_parameters {
     // don't daemonize
     bool m_foreground;
 
-    // value of this variable is mapped to the syslog priority
+    // value of this variable is mapped to syslog priority
     log_value log_level;
 
     string m_pid_file;
@@ -129,12 +129,6 @@ struct server_parameters {
 
     // maximum number of recipients
     uint32_t m_max_rcpt_count;
-
-    // SPF check timeout
-    time_t m_spf_timeout;
-
-    // DKIM check timeout
-    time_t m_dkim_timeout;
 
     time_t frontend_cmd_timeout;
     time_t frontend_data_timeout;

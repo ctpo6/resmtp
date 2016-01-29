@@ -24,15 +24,9 @@ bool envelope::has_recipient(uint64_t suid) const
 }
 
 
-envelope::rcpt_list_t::iterator envelope::add_recipient(string name,
-                                                        uint64_t suid,
-                                                        string uid)
+void envelope::add_recipient(string addr)
 {
-    if (!suid || !has_recipient(suid)) {
-        m_rcpt_list.emplace_back(name, suid, uid);
-        return --m_rcpt_list.end();
-    }
-    return m_rcpt_list.end();
+    m_rcpt_list.emplace_back(std::move(addr), 0, string());
 }
 
 

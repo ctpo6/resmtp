@@ -14,18 +14,17 @@
 #include <boost/bind.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/format.hpp>
-#include <boost/lexical_cast.hpp>
 #include <boost/type_traits.hpp>
 
+#include "global.h"
 #include "header_parser.h"
 #include "ip_options.h"
-#include "global.h"
 #include "param_parser.h"
+#include "rfc_date.h"
+#include "rfc822date.h"
 #include "smtp_backend_manager.h"
 #include "smtp_connection_manager.h"
 #include "util.h"
-#include "rfc_date.h"
-#include "rfc822date.h"
 
 
 #undef PDBG
@@ -60,7 +59,6 @@ smtp_connection::smtp_connection(boost::asio::io_service &_io_service,
     , m_envelope(std::make_shared<envelope>(false))
 
     , m_timer(_io_service)
-    , m_timer_spfdkim(_io_service)
     , m_tarpit_timer(_io_service)
 {
 }
@@ -336,9 +334,7 @@ void smtp_connection::handle_start_hello_write(
 
 
 void smtp_connection::start_read() {
-    if (m_proto_state == STATE_CHECK_RCPT ||
-            m_proto_state == STATE_CHECK_DATA ||
-            m_proto_state == STATE_CHECK_MAILFROM) {
+    if (m_proto_state == STATE_CHECK_DATA) {
         m_timer.cancel();               // wait for check to complete
         return;
     }
@@ -422,7 +418,8 @@ bool smtp_connection::handle_read_data_helper(
 
     if (eom_found) {
         m_proto_state = STATE_CHECK_DATA;
-        io_service_.post(strand_.wrap(bind(&smtp_connection::start_check_data, shared_from_this())));
+        io_service_.post(strand_.wrap(bind(&smtp_connection::start_check_data,
+                                           shared_from_this())));
         parsed = read;
         return false;
     }
@@ -502,8 +499,9 @@ void smtp_connection::handle_read_helper(std::size_t size)
 
     buffers.consume(parsed_len);
 
-    if (cont)
+    if (cont) {
         start_read();
+    }
 }
 
 
@@ -576,6 +574,8 @@ void smtp_connection::handle_read(const boost::system::error_code &ec,
 
 void smtp_connection::start_check_data()
 {
+    m_timer.cancel();
+
     m_check_data.m_session_id = m_session_id;
     m_check_data.m_result = check::CHK_ACCEPT;
     m_check_data.m_answer.clear();
@@ -583,8 +583,6 @@ void smtp_connection::start_check_data()
     m_check_data.m_remote_ip = m_connected_ip.to_string();
     m_check_data.m_remote_host = m_remote_host_name;
     m_check_data.m_helo_host = m_helo_host;
-
-    m_timer.cancel();
 
     if (g::cfg().m_message_size_limit &&
             m_envelope->orig_message_size_ > g::cfg().m_message_size_limit) {
@@ -599,14 +597,6 @@ void smtp_connection::start_check_data()
     } else {
 //        PDBG("call smtp_delivery_start()");
         smtp_delivery_start();
-    }
-}
-
-
-void smtp_connection::handle_spf_timeout(const boost::system::error_code& ec)
-{
-    if (ec == boost::asio::error::operation_aborted) {
-        return;
     }
 }
 
@@ -1138,35 +1128,34 @@ bool is_invalid(char _elem) {
 }
 }
 
-bool smtp_connection::smtp_rcpt(const std::string& _cmd, std::ostream &_response) {
+
+bool smtp_connection::smtp_rcpt(const string &_cmd,
+                                std::ostream &_response)
+{
     if (m_proto_state != STATE_AFTER_MAIL && m_proto_state != STATE_RCPT_OK) {
         PDBG("m_proto_state = %d", m_proto_state);
         ++m_error_count;
         _response << "503 5.5.4 Bad sequence of commands.\r\n";
-        PDBG("RETURN TRUE");
         return true;
     }
 
     if (strncasecmp( _cmd.c_str(), "to:", 3 ) != 0) {
         ++m_error_count;
         _response << "501 5.5.4 Wrong param.\r\n";
-        PDBG("RETURN TRUE");
         return true;
     }
 
     if (m_envelope->m_rcpt_list.size() >= m_max_rcpt_count) {
         ++m_error_count;
         _response << "452 4.5.3 Error: too many recipients\r\n";
-        PDBG("RETURN TRUE");
         return true;
     }
 
-    std::string addr(util::trim(extract_addr(util::trim(_cmd.substr(3)))));
+    string addr(util::trim(extract_addr(util::trim(_cmd.substr(3)))));
 
     if (addr.empty()) {
         ++m_error_count;
         _response << "501 5.1.3 Bad recipient address syntax.\r\n";
-        PDBG("RETURN TRUE");
         return true;
     }
 
@@ -1174,113 +1163,31 @@ bool smtp_connection::smtp_rcpt(const std::string& _cmd, std::ostream &_response
     if (dog_pos == std::string::npos) {
         ++m_error_count;
         _response << "504 5.5.2 Recipient address rejected: need fully-qualified address\r\n";
-        PDBG("RETURN TRUE");
         return true;
     }
 
     if (std::count_if(addr.begin(), addr.end(), is_invalid) > 0) {
         ++m_error_count;
         _response << "501 5.1.3 Bad recipient address syntax.\r\n";
-        PDBG("RETURN TRUE");
         return true;
     }
 
+#if 0 // original NwSMTP code; seems not correct
     if (addr.find("%") != std::string::npos) {
         ++m_error_count;
         _response << "501 5.1.3 Bad recipient address syntax.\r\n";
-        PDBG("RETURN TRUE");
         return true;
     }
+#endif
 
-    m_proto_state = STATE_CHECK_RCPT;
-
-    m_check_rcpt.m_result = check::CHK_ACCEPT;
-    m_check_rcpt.m_session_id = m_session_id;
-    m_check_rcpt.m_answer.clear();
-    try {
-        m_check_rcpt.m_remote_ip = m_connected_ip.to_string();
-    } catch(...) {
-        m_check_rcpt.m_remote_ip = "unknown";
-    }
-
-    m_check_rcpt.m_rcpt = addr;
-    m_check_rcpt.m_suid = 0;
-    m_check_rcpt.m_uid.clear();
-
-    m_timer.cancel();
-
-    socket().get_io_service().post(strand_.wrap(boost::bind(
-        &smtp_connection::handle_bb_result_helper, shared_from_this())));
-
+    _response << "250 2.1.5 <" << addr << "> recipient ok\r\n";
+    m_envelope->add_recipient(std::move(addr));
+    m_proto_state = STATE_RCPT_OK;
     return true;
 }
 
 
-void smtp_connection::handle_bb_result_helper() {
-    std::string result = str(boost::format("250 2.1.5 <%1%> recipient ok\r\n")
-                             % m_check_rcpt.m_rcpt);
-
-    switch (m_check_rcpt.m_result) {
-    case check::CHK_ACCEPT:
-        m_envelope->add_recipient(m_check_rcpt.m_rcpt,
-                                  m_check_rcpt.m_suid,
-                                  m_check_rcpt.m_uid);
-        m_proto_state = STATE_RCPT_OK;
-        break;
-
-    case check::CHK_DISCARD:
-        break;
-
-    case check::CHK_REJECT:
-        ++m_error_count;
-        result = "550 5.7.1 No such user!\r\n";
-        break;
-
-    case check::CHK_TEMPFAIL:
-        ++m_error_count;
-        result = "450 4.7.1 No such user!\r\n";
-        break;
-    }
-
-    if (!m_envelope->m_rcpt_list.empty()) {
-        m_proto_state = STATE_RCPT_OK;
-    } else {
-        m_proto_state = STATE_AFTER_MAIL;
-    }
-
-    if (!m_check_rcpt.m_answer.empty()) {
-        PDBG("m_check_rcpt.m_answer = %s", m_check_rcpt.m_answer.c_str());
-        result = m_check_rcpt.m_answer;
-    }
-
-    std::ostream response_stream(&m_response);
-    response_stream << result;
-
-    send_response(boost::bind(
-        &smtp_connection::handle_write_request,
-        shared_from_this(),
-        boost::asio::placeholders::error));
-#if 0
-    if (ssl_state_ == ssl_active) {
-        boost::asio::async_write(m_ssl_socket, m_response,
-                strand_.wrap(boost::bind(&smtp_connection::handle_write_request, shared_from_this(),
-                                boost::asio::placeholders::error)));
-
-    } else {
-        boost::asio::async_write(socket(), m_response,
-                strand_.wrap(boost::bind(&smtp_connection::handle_write_request, shared_from_this(),
-                                boost::asio::placeholders::error)));
-    }
-#endif
-}
-
-
-void smtp_connection::handle_spf_check(boost::optional<std::string> result,
-                                       boost::optional<std::string> expl) {
-}
-
-
-bool smtp_connection::smtp_mail(const std::string& _cmd,
+bool smtp_connection::smtp_mail(const string &_cmd,
                                 std::ostream &_response)
 {
     if (strncasecmp(_cmd.c_str(), "from:", 5) != 0) {
@@ -1296,12 +1203,11 @@ bool smtp_connection::smtp_mail(const std::string& _cmd,
     }
 
     param_parser::params_map pmap;
-    std::string addr;
+    string addr;
     param_parser::parse(_cmd.substr(5), addr, pmap);
     addr = util::trim(extract_addr(addr));
 
-    if (std::count_if(addr.begin(), addr.end(), is_invalid) > 0)
-    {
+    if (std::count_if(addr.begin(), addr.end(), is_invalid) > 0) {
         ++m_error_count;
         _response << "501 5.1.7 Bad address mailbox syntax.\r\n";
         return true;
@@ -1316,15 +1222,25 @@ bool smtp_connection::smtp_mail(const std::string& _cmd,
         }
     }
 
-    m_proto_state = STATE_CHECK_MAILFROM;
+    _response << "250 2.1.0 <" << addr << "> ok\r\n";
 
-    end_mail_from_command(false, false, addr, "");
+    m_envelope.reset(new envelope(true));
 
+#if 0 // it was original NwSMTP code; seems that it's not needed
+    m_envelope->m_sender = addr.empty() ? string("<>") : std::move(addr);
+#else
+    m_envelope->m_sender = std::move(addr);
+#endif
+
+    ++msg_count_mail_from;
+    g::mon().on_mail_rcpt_to();
+
+    m_proto_state = STATE_AFTER_MAIL;
     return true;
 }
 
 
-bool smtp_connection::smtp_data( const std::string& _cmd, std::ostream &_response )
+bool smtp_connection::smtp_data(const string &_cmd, std::ostream &_response)
 {
     if (m_proto_state != STATE_RCPT_OK) {
 //        PDBG("m_proto_state = %d", m_proto_state);
@@ -1373,7 +1289,6 @@ bool smtp_connection::smtp_data( const std::string& _cmd, std::ostream &_respons
 void smtp_connection::stop()
 {
 	m_timer.cancel();
-	m_timer_spfdkim.cancel();
 	m_tarpit_timer.cancel();
 
 	m_resolver.cancel();
@@ -1471,21 +1386,6 @@ void smtp_connection::restart_timeout()
 }
 
 
-void smtp_connection::end_mail_from_command(std::string _addr)
-{
-    m_envelope.reset(new envelope(true));
-    m_envelope->m_sender = _addr.empty() ? "<>" : _addr;
-
-    std::ostream response_stream(&m_response);
-
-	m_proto_state = STATE_AFTER_MAIL;
-	response_stream << "250 2.1.0 <" << _addr << "> ok\r\n";
-
-    ++msg_count_mail_from;
-    g::mon().on_mail_rcpt_to();
-}
-
-
 void smtp_connection::log(r::log prio, const string &msg) noexcept
 {
     g::log().msg(prio,
@@ -1509,12 +1409,8 @@ const char * smtp_connection::get_proto_state_name(proto_state_t st)
         return "RCPT_OK";
     case STATE_BLAST_FILE:
         return "BLAST_FILE";
-    case STATE_CHECK_RCPT:
-        return "CHECK_RCPT";
     case STATE_CHECK_DATA:
         return "CHECK_DATA";
-    case STATE_CHECK_MAILFROM:
-        return "CHECK_MAILFROM";
     }
     assert(false && "update the switch() above");
     return nullptr;

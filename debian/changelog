@@ -1,3 +1,10 @@
+resmtp (0.3.7) unstable; urgency=low
+
+  * Removed already disabled SPF & DKIM check code; it was ugly
+  * Minor fixes in protocol code
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Fri, 29 Jan 2016 13:08:00 +0300
+ 
 resmtp (0.3.6) unstable; urgency=low
 
   * Produce only one log record with NOTICE priority per delivered mail

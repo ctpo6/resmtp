@@ -71,9 +71,7 @@ private:
         STATE_AFTER_MAIL,
         STATE_RCPT_OK,
         STATE_BLAST_FILE,
-        STATE_CHECK_RCPT,
-        STATE_CHECK_DATA,
-        STATE_CHECK_MAILFROM
+        STATE_CHECK_DATA
     } proto_state_t;
     static const char * get_proto_state_name(proto_state_t st);
 
@@ -135,8 +133,6 @@ private:
     uint32_t msg_count_mail_from = 0;
     uint32_t msg_count_sent = 0;
 
-    check_rcpt_t m_check_rcpt;
-
     check_data_t m_check_data;
 
     eom_parser eom_parser_;
@@ -149,7 +145,6 @@ private:
     // timers
     uint32_t m_timer_value = 0;
     ba::deadline_timer m_timer;
-    ba::deadline_timer m_timer_spfdkim;
     ba::deadline_timer m_tarpit_timer;
 
 
@@ -159,13 +154,6 @@ private:
     void start_proto();
 
     void handle_start_hello_write(const bs::error_code& _error, bool _close);
-
-    void handle_spf_check(boost::optional<string> result, boost::optional<string> expl);
-    void handle_spf_timeout(const bs::error_code& ec);
-
-	void end_mail_from_command(string _addr);
-
-    void handle_bb_result_helper();
 
     void handle_write_request(const bs::error_code& ec);
     void handle_ssl_handshake(const bs::error_code& ec);
@@ -198,7 +186,6 @@ private:
 
     void handle_timer(const bs::error_code &ec);
     void restart_timeout();
-    void cancel_timer();
 
     void send_response(boost::function<void(const bs::error_code &)> handler,
                        bool force_do_not_tarpit = false);
