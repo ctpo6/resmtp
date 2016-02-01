@@ -773,7 +773,8 @@ void smtp_client::success()
 }
 
 
-void smtp_client::do_stop() {
+void smtp_client::do_stop()
+{
     m_timer.cancel();
     m_resolver.cancel();
 
@@ -786,13 +787,20 @@ void smtp_client::do_stop() {
 
 void smtp_client::stop()
 {
+    // changed to stop synchronously to make working with current implementation
+    // of the server shutdown
+#if 0
     m_socket.get_io_service().post(
         strand_.wrap(boost::bind(&smtp_client::do_stop,
                                  shared_from_this())));
+#else
+    do_stop();
+#endif
 }
 
 
-void smtp_client::handle_timer(const bs::error_code &ec) {
+void smtp_client::handle_timer(const bs::error_code &ec)
+{
     if (ec) {
         return;
     }

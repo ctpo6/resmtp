@@ -747,6 +747,7 @@ void smtp_connection::smtp_delivery()
         m_smtp_client->stop();
     }
     m_smtp_client.reset(new smtp_client(io_service_, backend_mgr));
+
     m_check_data.tarpit = tarpit;
     m_smtp_client->start(
         m_check_data,
@@ -811,9 +812,10 @@ void smtp_connection::end_check_data() {
 
 void smtp_connection::send_response(
         boost::function<void(const boost::system::error_code &)> handler,
-        bool force_do_not_tarpit) {
+        bool force_do_not_tarpit)
+{
     if (m_response.size() == 0) {
-//        PDBG("nothing to send");
+        PDBG("nothing to send");
         return;
     }
 
@@ -822,7 +824,7 @@ void smtp_connection::send_response(
             || wl_status
             || g::cfg().m_tarpit_delay_seconds == 0) {
         // send immediately
-        send_response2(handler);
+        send_response2(boost::system::error_code(), handler);
         return;
     }
 
@@ -832,12 +834,18 @@ void smtp_connection::send_response(
     m_tarpit_timer.async_wait(strand_.wrap(
         boost::bind(&smtp_connection::send_response2,
                     shared_from_this(),
+                    boost::asio::placeholders::error,
                     handler)));
 }
 
 
 void smtp_connection::send_response2(
-        boost::function<void(const boost::system::error_code &)> handler) {
+        const boost::system::error_code &ec,
+        boost::function<void(const boost::system::error_code &)> handler)
+{
+    if (ec) {   // tarpit timer was canceled in stop()
+        return;
+    }
 
     // check that the client hasn't sent something before receiving greeting msg
     // don't check whitelisted hosts
@@ -1311,7 +1319,10 @@ void smtp_connection::stop()
 
     if (m_smtp_client) {
         m_smtp_client->stop();
+        // timer handlers in smtp_client are called after returning from stop()
+#if 0
         m_smtp_client.reset();
+#endif
     }
 
     on_connection_close();
@@ -1320,7 +1331,7 @@ void smtp_connection::stop()
 
 void smtp_connection::handle_timer(const boost::system::error_code &ec)
 {
-    if (ec) {
+    if (ec) {   // timer was canceled in stop()
         return;
     }
 
@@ -1390,7 +1401,7 @@ void smtp_connection::log(r::log prio, const string &msg) noexcept
     g::log().msg(prio,
               str(boost::format("%1%-%2%-FRONT: %3%")
                   % m_session_id
-                  % (m_envelope ? m_envelope->m_id.c_str() : "********")
+                  % m_envelope->m_id
                   % msg));
 }
 

@@ -187,8 +187,8 @@ private:
 
     void send_response(boost::function<void(const bs::error_code &)> handler,
                        bool force_do_not_tarpit = false);
-    void send_response2(
-            boost::function<void(const bs::error_code &)> handler);
+    void send_response2(const boost::system::error_code &ec,
+                        boost::function<void(const bs::error_code &)> handler);
 
     // check is performed in the STATE_START before sending the greeting msg:
     // if there is something in the read buffer, it indicates that the client

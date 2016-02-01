@@ -58,11 +58,11 @@ case "$1" in
     ;;
   stop)
 		log_daemon_msg "Stopping $NAME"
-    do_stop --retry=TERM/30/KILL/5
+    do_stop --retry=TERM/60/KILL/5
     ;;
   restart|force-reload)
 		log_daemon_msg "Restarting $NAME"
-    do_stop --retry=TERM/30/KILL/5 && do_start
+    do_stop --retry=TERM/60/KILL/5 && do_start
     ;;
   status)
   	status_of_proc -p $PIDFILE "$DAEMON" "$NAME" && log_daemon_msg "pid: "`pidof $DAEMON`
