@@ -101,10 +101,12 @@ private:
 
     smtp_client_ptr m_smtp_client;
 
-    proto_state_t m_proto_state;
+    proto_state_t m_proto_state = STATE_START;
     ssl_state_t ssl_state_;
 
-    bool wl_status;
+    bool is_blacklisted;
+    string bl_status_str;
+    bool is_whitelisted;
     bool tarpit = false;
 
     // this flag is raised once we have ever tried to start the SMTP client

@@ -650,7 +650,7 @@ check::chk_status smtp_client::report_rcpt(bool success,
 
         if (rcpt_success) {
             log(r::log::notice,
-                str(boost::format("%1%[%2%] ok: tarpit=%3% helo=%4% from=<%5%> to=<%6%> relay=%7%")
+                str(boost::format("%1%[%2%] OK: tarpit=%3% helo=%4% from=<%5%> to=<%6%> relay=%7%")
                     % (m_data.m_remote_host.empty() ? "[UNAVAILABLE]" : m_data.m_remote_host.c_str())
                     % m_data.m_remote_ip
                     % m_data.tarpit
@@ -669,7 +669,7 @@ check::chk_status smtp_client::report_rcpt(bool success,
 #endif
         } else {
             log(r::log::notice,
-                str(boost::format("%1%[%2%] fail: tarpit=%3% helo=%4% from=<%5%> to=<%6%> relay=%7% (%8%)")
+                str(boost::format("%1%[%2%] FAIL: tarpit=%3% helo=%4% from=<%5%> to=<%6%> relay=%7% (%8%)")
                     % (m_data.m_remote_host.empty() ? "[UNAVAILABLE]" : m_data.m_remote_host.c_str())
                     % m_data.m_remote_ip
                     % m_data.tarpit

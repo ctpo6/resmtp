@@ -1,8 +1,14 @@
+resmtp (0.4.0) unstable; urgency=low
+
+  * Postpone blacklisted IP rejection until receiving MAIL FROM:
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Mon, 1 Feb 2016 14:15:00 +0300
+ 
 resmtp (0.3.9) unstable; urgency=low
 
   * Fixed segfault on server shutdown
 
- -- Yuri Epstein <yuri.epstein@gmail.com>  mon, 1 Feb 2016 13:49:00 +0300
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Mon, 1 Feb 2016 13:49:00 +0300
  
 resmtp (0.3.8) unstable; urgency=low
 

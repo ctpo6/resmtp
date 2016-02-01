@@ -26,21 +26,20 @@ smtp_connection_manager::smtp_connection_manager(
 }
 
 
-bool smtp_connection_manager::start(
-        smtp_connection_ptr session,
-        std::string &msg)
+bool smtp_connection_manager::start(smtp_connection_ptr session,
+                                    string &msg)
 {
     boost::mutex::scoped_lock lock(m_mutex);
 
-    if (max_sessions && connections.size() >= max_sessions) {
-        msg = str(boost::format("421 4.7.0 %1% Error: too many connections.\r\n")
-                  % boost::asio::ip::host_name());
+    if (max_sessions &&
+            connections.size() >= max_sessions) {
+        msg.assign("421 4.7.0 Too many connections\r\n");
         return false;
     }
 
-    if (max_sessions_per_ip && get_ip_count(session->remote_address()) >= max_sessions_per_ip) {
-        msg = str(boost::format("421 4.7.0 %1% Error: too many connections from %2%\r\n")
-                  % boost::asio::ip::host_name()
+    if (max_sessions_per_ip &&
+            get_ip_count(session->remote_address()) >= max_sessions_per_ip) {
+        msg = str(boost::format("421 4.7.0 Too many connections from %1%\r\n")
                   % session->remote_address().to_string());
         return false;
     }
