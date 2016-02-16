@@ -1,3 +1,9 @@
+resmtp (0.4.1) unstable; urgency=low
+
+  * Experiments with spamhaus log
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Tue, 2 Feb 2016 15:28:00 +0300
+ 
 resmtp (0.4.0) unstable; urgency=low
 
   * Postpone blacklisted IP rejection until receiving MAIL FROM:
