@@ -125,7 +125,8 @@ struct server_parameters {
     uint32_t m_tarpit_delay_seconds;
 
     // 'White' IP addresses
-    vector<string> white_ip;
+    vector<string> white_ip_str;
+    vector<boost::asio::ip::address_v4> white_ip;
 
     // DNSBL hosts
     vector<string> dnsbl_hosts;
@@ -166,6 +167,7 @@ struct server_parameters {
     bool parse_config(int argc, char* argv[]);
 
     bool init_dns_settings() noexcept;
+    bool init_white_ip_settings() noexcept;
     bool init_backend_hosts_settings() noexcept;
 };
 

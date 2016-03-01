@@ -152,6 +152,7 @@ private:
     void handle_back_resolve(const bs::error_code &ec,
                              y::net::dns::resolver::iterator it);
     void handle_dnsbl_check();
+    void handle_dnswl_check();
     void start_proto();
 
     void handle_start_hello_write(const bs::error_code& _error, bool _close);

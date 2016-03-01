@@ -292,6 +292,23 @@ bool server_parameters::init_dns_settings() noexcept
 }
 
 
+bool server_parameters::init_white_ip_settings() noexcept
+{
+    if (white_ip_str.empty()) return true; // nothing to do
+
+    white_ip.reserve(white_ip_str.size());
+    for (const auto &s: white_ip_str) {
+        boost::system::error_code ec;
+        auto addr(ba::ip::address_v4::from_string(s, ec));
+        if (ec) {
+            return false;   // failed to init from str
+        }
+        white_ip.push_back(addr);
+    }
+    return true;
+}
+
+
 bool server_parameters::init_backend_hosts_settings() noexcept
 {
     using namespace boost;
@@ -369,7 +386,7 @@ bool server_parameters::parse_config(int argc, char * argv[])
 
             ("workers", bpo::value<uint32_t>(&m_worker_count), "workers count")
 
-            ("white_ip", bpo::value<vector<string>>(&white_ip), "White IP addresses list")
+            ("white_ip", bpo::value<vector<string>>(&white_ip_str), "white IP addresses list")
 
             ("dnsbl_host", bpo::value<vector<string>>(&dnsbl_hosts), "DNSBL hosts list")
             ("dnswl_host", bpo::value<string>(&dnswl_host), "DNSWL host")

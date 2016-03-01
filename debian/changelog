@@ -1,3 +1,9 @@
+resmtp (0.5.0) unstable; urgency=low
+
+  * Implemented pre-configured white IP list support
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Tue, 1 March 2016 14:35:00 +0300
+ 
 resmtp (0.4.1) unstable; urgency=low
 
   * Experiments with spamhaus log

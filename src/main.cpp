@@ -150,6 +150,18 @@ int main(int argc, char* argv[])
         // continue execution
     }
 
+    // initialize white IP settings
+    if (!g::cfg().init_white_ip_settings()) {
+        log_err(r::log::alert,
+                "can't configure white IP addresses list",
+                true);
+        return 1;
+    }
+    for (const auto &addr: g::cfg().white_ip) {
+        g::log().msg(r::log::info,
+                     str(boost::format("white IP: %1%") % addr.to_string()));
+    }
+
     // initialize DNS servers settings
     if (!g::cfg().init_dns_settings()) {
         log_err(r::log::alert,

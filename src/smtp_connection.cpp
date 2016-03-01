@@ -81,6 +81,15 @@ boost::asio::ip::tcp::socket& smtp_connection::socket()
     return m_ssl_socket.next_layer();
 }
 
+namespace {
+bool is_address_white(const ba::ip::address &addr)
+{
+    if (!addr.is_v4()) return false;
+    // assume that white_ip.size() is small, so using find() is effective
+    auto &wl = g::cfg().white_ip;
+    return std::find(wl.begin(), wl.end(), addr.to_v4()) != wl.end();
+}
+}
 
 void smtp_connection::start(bool force_ssl)
 {
@@ -92,7 +101,7 @@ void smtp_connection::start(bool force_ssl)
     m_session_id = envelope::generate_new_id();
 
     m_connected_ip = socket().remote_endpoint().address();
-    log(r::log::debug,
+    log(r::log::info,
         str(boost::format("**** CONNECT %1%") % m_connected_ip.to_string()));
 
     m_max_rcpt_count = g::cfg().m_max_rcpt_count;
@@ -104,13 +113,23 @@ void smtp_connection::start(bool force_ssl)
 
     m_timer_value = g::cfg().frontend_cmd_timeout;
 
-    for (const auto &addr: g::cfg().dns_ip) {
-        m_resolver.add_nameserver(addr);
+    m_remote_host_name.clear();
+
+    // skip IP resolve for pre-configured white IPs as they must be from
+    // the internal network
+    if (is_address_white(m_connected_ip)) {
+        log(r::log::info,
+            str(boost::format("whitelisted: %1%") % m_connected_ip.to_string()));
+        is_blacklisted = false;
+        is_whitelisted = true;
+        start_proto();
+        return;
     }
 
     // resolve client IP to host name
-    m_remote_host_name.clear();
-//    PDBG("call async_resolve() %s", m_connected_ip.to_string().c_str());
+    for (const auto &addr: g::cfg().dns_ip) {
+        m_resolver.add_nameserver(addr);
+    }
     m_resolver.async_resolve(
                 util::rev_order_av4_str(m_connected_ip.to_v4(), "in-addr.arpa"),
                 dns::type_ptr,
@@ -133,9 +152,9 @@ void smtp_connection::handle_back_resolve(
     }
 
     log(r::log::info,
-        str(boost::format("**** CONNECT %1%[%2%]")
-            % (m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str())
-            % m_connected_ip.to_string()));
+        str(boost::format("resolve %1%: %2%")
+            % m_connected_ip.to_string()
+            % (m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str())));
 
     // DNSBL check is off
     if (g::cfg().dnsbl_hosts.empty()) {
@@ -159,17 +178,23 @@ void smtp_connection::handle_back_resolve(
 
 void smtp_connection::handle_dnsbl_check()
 {
-    is_blacklisted = m_dnsbl_check->get_status(bl_status_str);
-    m_dnsbl_check->stop();
-    m_dnsbl_check.reset();
+    if (m_dnsbl_check) {
+        is_blacklisted = m_dnsbl_check->get_status(bl_status_str);
+        m_dnsbl_check->stop();
+        m_dnsbl_check.reset();
+    }
+    else {
+        is_blacklisted = false;
+    }
 
     if (is_blacklisted) {
         g::mon().on_conn_bl();
     }
 
+    // blacklisted or DNSWL check is off
     if (is_blacklisted || g::cfg().dnswl_host.empty()) {
         // blacklisted connection will be rejected later, after receving 'MAIL FROM:'
-        start_proto();
+        handle_dnswl_check();
         return;
     }
 
@@ -180,15 +205,13 @@ void smtp_connection::handle_dnsbl_check()
     }
     m_dnswl_check->add_rbl_source(g::cfg().dnswl_host);
     m_dnswl_check->start(m_connected_ip.to_v4(),
-                         bind(&smtp_connection::start_proto,
+                         bind(&smtp_connection::handle_dnswl_check,
                               shared_from_this()));
 }
 
 
-void smtp_connection::start_proto()
+void smtp_connection::handle_dnswl_check()
 {
-    restart_timeout();
-
     // get DNSWL check result
     if (m_dnswl_check) {
         string wl_status_str;
@@ -208,6 +231,14 @@ void smtp_connection::start_proto()
     if (!is_whitelisted && g::cfg().m_tarpit_delay_seconds) {
         on_connection_tarpitted();
     }
+
+    start_proto();
+}
+
+
+void smtp_connection::start_proto()
+{
+    restart_timeout();
 
     std::ostream response_stream(&m_response);
     string error;
