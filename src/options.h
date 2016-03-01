@@ -10,6 +10,8 @@
 #include <string>
 #include <vector>
 
+#include <boost/asio.hpp>
+
 #include "log.h"
 
 
@@ -111,16 +113,19 @@ struct server_parameters {
     //
     // DNS settings
     //
-    bool m_use_system_dns_servers;
-    string m_custom_dns_servers;
-    // actual values, not directly from config file
-    vector<string> m_dns_servers;
+    // input from cfg
+    vector<string> dns_ip_str;
+    // actually used by the program
+    vector<boost::asio::ip::address_v4> dns_ip;
 
     // check if client doesn't send anything before greeting
     bool m_socket_check;
 
     // tarpitting delay
     uint32_t m_tarpit_delay_seconds;
+
+    // 'White' IP addresses
+    vector<string> white_ip;
 
     // DNSBL hosts
     vector<string> dnsbl_hosts;

@@ -2,11 +2,11 @@ Source: resmtp
 Section: mail
 Priority: extra
 Maintainer: Yuri Epstein <yuri.epstein@gmail.com>
-Build-Depends: cdbs, debhelper (>= 7.0.50~), cmake, libssl-dev, libboost-all-dev
+Build-Depends: debhelper, cmake, libssl-dev, libboost-all-dev
 Standards-Version: 3.9.1
 
 Package: resmtp
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, libc6 (>= 2.19~), libstdc++6 (>= 4.8.4~), libssl1.0.0 (>= 1.0.0~)
+Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: SMTP frontend relay
 

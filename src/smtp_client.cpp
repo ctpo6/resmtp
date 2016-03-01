@@ -138,7 +138,7 @@ void smtp_client::start(const check_data_t& _data,
 void smtp_client::start(const check_data_t &_data,
                         complete_cb_t complete,
                         envelope &envelope,
-                        const vector<string> &dns_servers)
+                        const vector<boost::asio::ip::address_v4> &dns_servers)
 {
     m_data = _data;
     cb_complete = complete;
@@ -146,8 +146,8 @@ void smtp_client::start(const check_data_t &_data,
     m_envelope = &envelope;
     m_envelope->cleanup_answers();
 
-    for (auto &s: dns_servers) {
-        m_resolver.add_nameserver(ba::ip::address::from_string(s));
+    for (const auto &addr: dns_servers) {
+        m_resolver.add_nameserver(addr);
     }
 
     m_lmtp = false;

@@ -104,8 +104,8 @@ void smtp_connection::start(bool force_ssl)
 
     m_timer_value = g::cfg().frontend_cmd_timeout;
 
-    for (auto &s: g::cfg().m_dns_servers) {
-        m_resolver.add_nameserver(ba::ip::address::from_string(s));
+    for (const auto &addr: g::cfg().dns_ip) {
+        m_resolver.add_nameserver(addr);
     }
 
     // resolve client IP to host name
@@ -122,7 +122,8 @@ void smtp_connection::start(bool force_ssl)
 
 void smtp_connection::handle_back_resolve(
         const boost::system::error_code& ec,
-        dns::resolver::iterator it) {
+        dns::resolver::iterator it)
+{
     if (!ec) {
         if (auto ptr = boost::dynamic_pointer_cast<dns::ptr_resource>(*it)) {
             m_remote_host_name = util::unfqdn(ptr->pointer());
@@ -144,8 +145,8 @@ void smtp_connection::handle_back_resolve(
 
     // start DNSBL check
     m_dnsbl_check.reset(new rbl_check(io_service_));
-    for (auto &s: g::cfg().m_dns_servers) {
-        m_dnsbl_check->add_nameserver(ba::ip::address::from_string(s));
+    for (const auto &addr: g::cfg().dns_ip) {
+        m_dnsbl_check->add_nameserver(addr);
     }
     for (auto &s: g::cfg().dnsbl_hosts) {
         m_dnsbl_check->add_rbl_source(s);
@@ -174,8 +175,8 @@ void smtp_connection::handle_dnsbl_check()
 
     // start DNSWL check
     m_dnswl_check.reset(new rbl_check(io_service_));
-    for (auto &s: g::cfg().m_dns_servers) {
-        m_dnswl_check->add_nameserver(ba::ip::address::from_string(s));
+    for (const auto &addr: g::cfg().dns_ip) {
+        m_dnswl_check->add_nameserver(addr);
     }
     m_dnswl_check->add_rbl_source(g::cfg().dnswl_host);
     m_dnswl_check->start(m_connected_ip.to_v4(),
@@ -725,7 +726,7 @@ void smtp_connection::smtp_delivery()
         m_check_data,
         strand_.wrap(bind(&smtp_connection::end_check_data, shared_from_this())),
         *m_envelope,
-        g::cfg().m_dns_servers);
+        g::cfg().dns_ip);
     smtp_client_started = true;
 }
 

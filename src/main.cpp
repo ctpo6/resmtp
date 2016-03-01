@@ -153,16 +153,13 @@ int main(int argc, char* argv[])
     // initialize DNS servers settings
     if (!g::cfg().init_dns_settings()) {
         log_err(r::log::alert,
-                str(boost::format(
-                        "can't obtain DNS settings (cfg: use_system_dns_servers=%1% custom_dns_servers=%2%")
-                % (g::cfg().m_use_system_dns_servers ? "yes" : "no")
-                % g::cfg().m_custom_dns_servers),
+                "can't configure DNS servers IP addresses",
                 true);
         return 1;
     }
-    for (auto &s: g::cfg().m_dns_servers) {
+    for (const auto &addr: g::cfg().dns_ip) {
         g::log().msg(r::log::info,
-                     str(boost::format("DNS server: %1%") % s));
+                     str(boost::format("DNS server: %1%") % addr.to_string()));
     }
 
     // initialize backend hosts settings

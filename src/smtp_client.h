@@ -4,6 +4,7 @@
 #include <functional>
 #include <memory>
 
+#include <boost/asio.hpp>
 #include <boost/asio/ssl.hpp>
 #include <boost/noncopyable.hpp>
 
@@ -43,7 +44,7 @@ public:
     void start(const check_data_t &_data,
                complete_cb_t complete,
                envelope &envelope,
-               const vector<string> &dns_servers);
+               const vector<boost::asio::ip::address_v4> &dns_servers);
 
     void stop();
 

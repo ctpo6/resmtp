@@ -265,27 +265,28 @@ void validate(boost::any &v,
 
 bool server_parameters::init_dns_settings() noexcept
 {
-    if (m_use_system_dns_servers) {
-        // get DNS servers from libresolv
-        typedef struct __res_state TResState;
-        std::unique_ptr<TResState> rs(new TResState);
-        if(res_ninit(rs.get()) != 0) {
+    if (dns_ip_str.empty()) {
+        // get host configured DNS servers addresses using libresolv
+        static struct __res_state rs;
+        if (res_ninit(&rs) != 0 || rs.nscount <= 0) {
             return false;
         }
-        if(rs->nscount <= 0) {
-            return false;
+        dns_ip.reserve(rs.nscount);
+        for (int i = 0; i < rs.nscount; ++i) {
+            dns_ip.emplace_back((unsigned long)htonl(rs.nsaddr_list[i].sin_addr.s_addr));
         }
-        for(int i = 0; i < rs->nscount; ++i) {
-            ba::ip::address_v4 addr(
-                static_cast<unsigned long>(htonl(rs->nsaddr_list[i].sin_addr.s_addr)));
-            m_dns_servers.push_back(addr.to_string());
+    }
+    else {
+        // get DNS servers addresses from cfg
+        dns_ip.reserve(dns_ip_str.size());
+        for (const auto &s: dns_ip_str) {
+            boost::system::error_code ec;
+            auto addr(ba::ip::address_v4::from_string(s, ec));
+            if (ec) {
+                return false;   // failed to init from str
+            }
+            dns_ip.push_back(addr);
         }
-    } else {
-        // get space separated list of DNS hosts from config file
-        std::istringstream iss(m_custom_dns_servers);
-        std::copy(std::istream_iterator<std::string>(iss),
-                  std::istream_iterator<std::string>(),
-                  std::back_inserter(m_dns_servers));
     }
     return true;
 }
@@ -358,8 +359,7 @@ bool server_parameters::parse_config(int argc, char * argv[])
             ("user", bpo::value<uid_value>(&m_uid), "set uid after port bindings")
             ("group", bpo::value<gid_value>(&m_gid), "set gid after port bindings")
 
-            ("use_system_dns_servers", bpo::value<bool>(&m_use_system_dns_servers)->default_value(true), "use host's DNS servers settings?")
-            ("custom_dns_servers", bpo::value<string>(&m_custom_dns_servers), "custom DNS servers IP addresses list")
+            ("dsn_ip", bpo::value<vector<string>>(&dns_ip_str), "DNS servers IP addresses list")
 
             ("socket_check", bpo::value<bool>(&m_socket_check)->default_value(false), "check socket emptiness before sending greeting ?")
 
@@ -368,6 +368,8 @@ bool server_parameters::parse_config(int argc, char * argv[])
             ("smtp_banner", bpo::value<string>(&m_smtp_banner), "smtp banner")
 
             ("workers", bpo::value<uint32_t>(&m_worker_count), "workers count")
+
+            ("white_ip", bpo::value<vector<string>>(&white_ip), "White IP addresses list")
 
             ("dnsbl_host", bpo::value<vector<string>>(&dnsbl_hosts), "DNSBL hosts list")
             ("dnswl_host", bpo::value<string>(&dnswl_host), "DNSWL host")
