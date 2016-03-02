@@ -1,6 +1,12 @@
+resmtp (0.6.0) unstable; urgency=low
+
+  * Recreate spamhaus log file on SIGHUP
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Tue, 1 March 2016 14:35:00 +0300
+ 
 resmtp (0.5.0) unstable; urgency=low
 
-  * Implemented pre-configured white IP list support
+  * Pre-configured white IP list support
 
  -- Yuri Epstein <yuri.epstein@gmail.com>  Tue, 1 March 2016 14:35:00 +0300
  

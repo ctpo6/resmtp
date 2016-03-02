@@ -144,7 +144,9 @@ int main(int argc, char* argv[])
 
     // init spamhaus log
     try {
-        g::logsph().init(g::cfg().spamhaus_log_file.c_str());
+        g::logsph().init(g::cfg().spamhaus_log_file.c_str(),
+                         g::cfg().m_uid,
+                         g::cfg().m_gid);
     } catch (const std::exception &e) {
         log_err(r::log::err, e.what(), true);
         // continue execution
@@ -243,7 +245,7 @@ int main(int argc, char* argv[])
                 "server successfully started", !daemonized);
 
         int sig;
-        while(true) {
+        while (true) {
             pthread_sigmask(SIG_SETMASK, &old_mask, 0);
             sigset_t wait_mask;
             sigemptyset(&wait_mask);
@@ -256,6 +258,8 @@ int main(int argc, char* argv[])
             sigwait(&wait_mask, &sig);
 
             if (sig == SIGHUP) {
+                log_err(r::log::notice, "received SIGHUP", !daemonized);
+                g::logsph().recreate_log_file();
                 continue;
             }
 

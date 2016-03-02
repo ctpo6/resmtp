@@ -11,7 +11,7 @@ using namespace std;
 
 namespace resmtp {
 
-void LogSpamhaus::init(const char *fname)
+void LogSpamhaus::init(const char *fname, uid_t owner, gid_t group)
 {
     if (!fname || !fname[0]) return;
 
@@ -19,13 +19,21 @@ void LogSpamhaus::init(const char *fname)
     if (!ofs) {
         throw std::runtime_error("can't open spamhaus log file");
     }
-    initialized = true;
+
+    // chown the file to have an ability to recreate it later (on SIGHUP)
+    if (chown(fname, owner, group) != 0) {
+        throw std::runtime_error("can't chown spamhaus log file");
+    }
+
+    file_name = fname;
+    f_recreate = false;
+    f_initialized = true;
 }
 
 
 void LogSpamhaus::msg(string s) noexcept
 {
-    if (!initialized) return;
+    if (!f_initialized) return;
 
     boost::mutex::scoped_lock lock(m_condition_mutex);
     m_queue.push(std::move(s));
@@ -38,7 +46,7 @@ void LogSpamhaus::run()
     string buffer;
     for (;;) {
         boost::mutex::scoped_lock lock(m_condition_mutex);
-        while (m_queue.empty() && !m_exit) {
+        while (m_queue.empty() && !f_exit) {
             m_condition.wait(lock);
         }
 
@@ -47,11 +55,18 @@ void LogSpamhaus::run()
             m_queue.pop();
 
             lock.unlock();
+
+            if (f_recreate) {
+                ofs.close();
+                ofs.open(file_name);    // truncate file if already exists
+                f_recreate = false;
+            }
+
             ofs << buffer << endl;
 
             // monitor ofs state: investigate what happens when fs is full
             g::mon().set_spamhaus_log_file_iostate(ofs.rdstate());
-        } else if (m_exit) {
+        } else if (f_exit) {
             break;
         }
    }
@@ -60,7 +75,7 @@ void LogSpamhaus::run()
 
 void LogSpamhaus::stop()
 {
-    m_exit = true;
+    f_exit = true;
     m_condition.notify_one();
 }
 
