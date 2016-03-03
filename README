@@ -1,0 +1,48 @@
+ReSMTP: SMTP frontend proxy server.
+
+Developed for needs of Rambler, forked from NwSMTP (https://github.com/yandex/NwSMTP).
+
+Features added (vs NwSMTP):
+- tarpitting of suspicious incoming connections (using black & white DNS lists)
+- backend multiplexing with WRR load balancing 
+- statistics monitoring (text, Graphite/Grafana)
+
+Features removed (vs NwSMTP):
+- spam & virus filtering
+- SPF & DKIM checks
+- LMTP
+
+SSL support kept, but not tested.
+
+
+Build & installation
+--------------------
+1) Using deb:
+debuild --no-tgz-check -us -uc [-jN]
+cd ..
+sudo dpkg -i resmtp_x.y.z_<arch>.deb
+
+2) Using cmake:
+mkdir build
+cd build
+cmake ..
+make [-jN]
+sudo make install
+sudo service resmtp start
+
+
+Configuration
+-------------
+Please see the default config file etc/resmtp.conf for available configuration
+parameters.
+The default path of config file is /etc/resmpt/resmtp.conf.
+
+If logging for spamhaus feature is planned to be turned on, the directory for
+spamhaus log file (/spool/logs/resmtp/) must be chowned to nobody:nogroup.
+
+
+Misc
+----
+Recreate spamhaus log file:
+sudo kill -hup <pid>
+

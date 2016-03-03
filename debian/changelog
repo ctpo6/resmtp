@@ -1,8 +1,14 @@
+resmtp (0.6.1) unstable; urgency=low
+
+  * Added Rambler keepalived IP addresses to config
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Thu, 3 March 2016 13:05:00 +0300
+ 
 resmtp (0.6.0) unstable; urgency=low
 
   * Recreate spamhaus log file on SIGHUP
 
- -- Yuri Epstein <yuri.epstein@gmail.com>  Tue, 1 March 2016 14:35:00 +0300
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Wed, 2 March 2016 17:35:00 +0300
  
 resmtp (0.5.0) unstable; urgency=low
 
