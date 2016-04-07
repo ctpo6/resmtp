@@ -3,10 +3,9 @@ Section: mail
 Priority: extra
 Maintainer: Yuri Epstein <yuri.epstein@gmail.com>
 Build-Depends: debhelper, cmake, libssl-dev, libboost-all-dev
-Standards-Version: 3.9.1
+Standards-Version: 3.9.5
 
 Package: resmtp
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
-Description: SMTP frontend relay
-
+Depends: ${shlibs:Depends}, ${misc:Depends}, logrotate
+Description: SMTP frontend proxy server

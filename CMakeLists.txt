@@ -121,12 +121,13 @@ file(GLOB SOURCES
     src/*.cpp
 )
 file(GLOB CONFIGS
-    etc/*.conf
+    etc/resmtp/resmtp.conf
+    etc/logrotate.d/resmtp
 )
 
 # include ${HEADERS} ${CONFIGS} to make them visible in the QtCreator project tree
 add_executable(resmtp ${SOURCES} ${HEADERS} ${CONFIGS})
-target_link_libraries(resmtp ${CMAKE_THREAD_LIBS_INIT} ${Boost_LIBRARIES} ${OPENSSL_LIBRARIES} ${HAVE_spf2} ${HAVE_opendkim})
+target_link_libraries(resmtp ${CMAKE_THREAD_LIBS_INIT} ${Boost_LIBRARIES} ${OPENSSL_LIBRARIES})
 
 ################################################################################
 # Install
@@ -143,8 +144,12 @@ ENDIF ()
 install(TARGETS resmtp
         RUNTIME DESTINATION ${SBINDIR})
 
-install(FILES etc/resmtp.conf
+install(FILES etc/resmtp/resmtp.conf
         DESTINATION ${SYSCONFDIR}/resmtp/
+        PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
+
+install(FILES etc/logrotate.d/resmtp
+        DESTINATION ${SYSCONFDIR}/logrotate.d/
         PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
 
 #install(DIRECTORY DESTINATION /spool/logs/resmtp DIRECTORY_PERMISSIONS

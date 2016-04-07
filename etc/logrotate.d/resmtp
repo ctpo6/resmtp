@@ -1,0 +1,14 @@
+/spool/logs/resmtp/spamhaus.log
+{
+	rotate 7
+	daily
+	missingok
+	notifempty
+	delaycompress
+	create postfix postfix
+	compress
+	postrotate
+		kill -HUP `cat /var/run/resmtp/resmtp.pid`
+	endscript
+}
+
