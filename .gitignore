@@ -2,6 +2,7 @@ CMakeLists.txt.user
 build
 build-qtcreator
 build-release
+build-netbeans
 nbproject
 .idea
 .vscode
