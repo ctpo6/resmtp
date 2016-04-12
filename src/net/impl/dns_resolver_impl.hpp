@@ -61,18 +61,14 @@ class dns_resolver_impl : public boost::enable_shared_from_this<dns_resolver_imp
     class dns_handler_base
     {
       public:
-        dns_handler_base()
-        {
-        }
+        dns_handler_base() = default;
     
-        virtual ~dns_handler_base()
-        {
-        }
+        virtual ~dns_handler_base() = default;
 
         virtual void invoke(
-				    boost::asio::io_service& ios,
-				    net::dns::resolver_iterator it,
-				    const boost::system::error_code& ec)
+				    boost::asio::io_service &/*ios*/,
+				    net::dns::resolver_iterator /*it*/,
+				    const boost::system::error_code& /*ec*/)
         {}
     };
 
@@ -352,7 +348,7 @@ class dns_resolver_impl : public boost::enable_shared_from_this<dns_resolver_imp
             );
     }
   
-    void handle_send(shared_dq_t dq, const boost::system::error_code& ec, size_t bytes_sent)
+    void handle_send(shared_dq_t dq, const boost::system::error_code& ec, size_t /*bytes_sent*/)
     {
         if (!ec && _socket.is_open())
         {

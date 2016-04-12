@@ -79,7 +79,7 @@ typedef enum
 */
 class request_base_t
 {
-  protected:
+protected:
     /// Domain name of the resource record
     std::string    rr_domain;
 
@@ -89,7 +89,7 @@ class request_base_t
     /// Resource record class
     uint16_t  rr_class;
 
-  public:
+public:
     /// Default constructor
     request_base_t()
             : rr_type(type_none), rr_class(class_none)
@@ -100,10 +100,7 @@ class request_base_t
 
       \param o request_base_t to copy
     */
-    request_base_t(const request_base_t & o)
-            : rr_domain(o.rr_domain), rr_type(o.rr_type), rr_class(o.rr_class)
-    {
-    }
+    request_base_t(const request_base_t &o) = default;
 
     /*!
       Constructs a request_base_t
@@ -111,7 +108,7 @@ class request_base_t
       \param t Resource type to create object for
       \param c Resource class to create object for
     */
-    request_base_t(const type_t t, const class_t c=class_in)
+    request_base_t(type_t t, class_t c = class_in)
             : rr_type(t), rr_class(c)
     {
     }
@@ -123,7 +120,7 @@ class request_base_t
       \param t Resource type to create object for
       \param c Resource class to create object for
     */
-    request_base_t(const std::string & d, const type_t t, const class_t c=class_in)
+    request_base_t(const std::string & d, type_t t, class_t c = class_in)
             : rr_domain(d), rr_type(t), rr_class(c)
     {}
 
@@ -138,10 +135,7 @@ class request_base_t
         decode(buffer, offset_map);
     }
 
-    /// Virtual Destructor
-    virtual ~request_base_t()
-    {
-    }
+    virtual ~request_base_t() = default;
 
     /*!
       Sets the domain name
@@ -183,7 +177,7 @@ class request_base_t
       \param t resource type to assign to the request_base_t.
       \return Current type
     */
-    const type_t  rtype(const type_t t)
+    type_t  rtype(type_t t)
     {
         rr_type = t;
         return (type_t)rr_type;
@@ -194,7 +188,7 @@ class request_base_t
 
       \return Current type
     */
-    const type_t  rtype() const
+    type_t  rtype() const
     {
         return (type_t)rr_type;
     }
@@ -205,7 +199,7 @@ class request_base_t
       \param c resource class to assign to the request_base_t.
       \return current class
     */
-    const class_t  rclass(const class_t c)
+    class_t  rclass(class_t c)
     {
         rr_class = c;
         return (class_t)rr_class;
@@ -216,7 +210,7 @@ class request_base_t
 
       \return current class
     */
-    const class_t  rclass() const
+    class_t  rclass() const
     {
         return (class_t)rr_class;
     }
@@ -383,13 +377,10 @@ class   resource_base_t : public request_base_t
         decode(buffer, offset_map);
     }
 
-    virtual ~resource_base_t()
-    {
-    }
-
     /*!
       Clones an existing resource record object
     */
+		// TODO redesign??? use static factory method?
     virtual shared_resource_base_t clone() const
     {
         return shared_resource_base_t(new resource_base_t(*this));
@@ -401,7 +392,7 @@ class   resource_base_t : public request_base_t
       \param t Time to Live to assign to the resource_base_t.
       \return TTL value
     */
-    const uint32_t  ttl(const uint32_t t)
+    uint32_t  ttl(uint32_t t)
     {
         rr_ttl = t;
         return rr_ttl;
@@ -412,7 +403,7 @@ class   resource_base_t : public request_base_t
 
       \return TTL value
     */
-    const uint32_t ttl() const
+    uint32_t ttl() const
     {
         return rr_ttl;
     }
@@ -423,7 +414,7 @@ class   resource_base_t : public request_base_t
       \param t Payload length to assign to the resource_base_t.
       \return payload length
     */
-    const uint16_t  length(const uint16_t t)
+    uint16_t  length(uint16_t t)
     {
         rr_length = t;
         return rr_length;
@@ -434,7 +425,7 @@ class   resource_base_t : public request_base_t
 
       \return payload length
     */
-    const uint16_t  length() const
+    uint16_t length() const
     {
         return rr_length;
     }
@@ -495,6 +486,7 @@ class unknown_resource : public resource_base_t
     unknown_resource(const unknown_resource& o)
             : resource_base_t(o)
     {
+			// TODO rewrite, UB on deallocation!!!
         _data = boost::shared_ptr<uint8_t>( new uint8_t[length()] );
         memcpy( _data.get(), o._data.get(), length() );
     }
@@ -543,8 +535,9 @@ class unknown_resource : public resource_base_t
       \param buffer Buffer to decode the request into
       \param offset_map DNS label compression map for label/offset values
     */
-    virtual void decode(dns_buffer_t& buffer, rfc1035_414_t& offset_map)
+    virtual void decode(dns_buffer_t& buffer, rfc1035_414_t& /*offset_map*/)
     {
+			// TODO rewrite, UB!!!
         _data = boost::shared_ptr<uint8_t>( new uint8_t[length()] );
         for( size_t i = 0; i < length(); ++i )
             buffer.get( _data.get()[i] );
@@ -666,7 +659,7 @@ class a_resource : public resource_base_t
       \param buffer Buffer to decode the request into
       \param offset_map DNS label compression map for label/offset values
     */
-    virtual void decode(dns_buffer_t& buffer, rfc1035_414_t& offset_map)
+    virtual void decode(dns_buffer_t& buffer, rfc1035_414_t& /*offset_map*/)
     {
         buffer.get(rr_address);
     }
@@ -936,10 +929,6 @@ class soa_resource : public resource_base_t
     soa_resource(const std::string& s) :
 		  resource_base_t(s, type_soa), rr_serial(0), rr_refresh(0), rr_retry(0), rr_expire(0), rr_minttl(0) {;}
 
-    /// Virtual Destructor
-    virtual ~soa_resource()
-    {
-    }
 
     /*!
       Sets the Master Name
@@ -1013,7 +1002,7 @@ class soa_resource : public resource_base_t
       \param d Serial number to assign to the soa_resouce.
       \return Serial number
     */
-    const uint32_t serial_number(const uint32_t d)
+    uint32_t serial_number(uint32_t d)
     {
         rr_serial = d;
         return rr_serial;
@@ -1024,7 +1013,7 @@ class soa_resource : public resource_base_t
 
       \return Serial number
     */
-    const uint32_t serial_number() const
+    uint32_t serial_number() const
     {
         return rr_serial;
     }
@@ -1035,7 +1024,7 @@ class soa_resource : public resource_base_t
       \param d Refresh time to assign to the soa_resouce.
       \return Refresh time
     */
-    const uint32_t refresh(const uint32_t d)
+    uint32_t refresh(uint32_t d)
     {
         rr_refresh = d;
         return rr_refresh;
@@ -1046,7 +1035,7 @@ class soa_resource : public resource_base_t
 
       \return Refresh time
     */
-    const uint32_t refresh() const
+    uint32_t refresh() const
     {
         return rr_refresh;
     }
@@ -1057,7 +1046,7 @@ class soa_resource : public resource_base_t
       \param d Retry time to assign to the soa_resouce.
       \return Retry time
     */
-    const uint32_t retry(const uint32_t d)
+    uint32_t retry(uint32_t d)
     {
         rr_retry = d;
         return rr_retry;
@@ -1068,7 +1057,7 @@ class soa_resource : public resource_base_t
 
       \return Retry time
     */
-    const uint32_t retry() const
+    uint32_t retry() const
     {
         return rr_retry;
     }
@@ -1079,7 +1068,7 @@ class soa_resource : public resource_base_t
       \param d Exipiration time to assign to the soa_resouce.
       \return Exipiration time
     */
-    const uint32_t expire(const uint32_t d)
+    uint32_t expire(const uint32_t d)
     {
         rr_expire = d;
         return rr_expire;
@@ -1090,7 +1079,7 @@ class soa_resource : public resource_base_t
 
       \return Exipiration time
     */
-    const uint32_t expire() const
+    uint32_t expire() const
     {
         return rr_expire;
     }
@@ -1101,7 +1090,7 @@ class soa_resource : public resource_base_t
       \param d Minimum TTL to assign to the soa_resouce.
       \return Minimum TTL
     */
-    const uint32_t minttl(const uint32_t d)
+    uint32_t minttl(const uint32_t d)
     {
         rr_minttl = d;
         return rr_minttl;
@@ -1112,7 +1101,7 @@ class soa_resource : public resource_base_t
 
       \return Minimum TTL
     */
-    const uint32_t minttl() const
+    uint32_t minttl() const
     {
         return rr_minttl;
     }
@@ -1413,7 +1402,7 @@ class hinfo_resource : public resource_base_t
     /*
       \param buffer Buffer to decode the request into
     */
-    virtual void decode(dns_buffer_t& buffer, rfc1035_414_t& offset_map)
+    virtual void decode(dns_buffer_t& buffer, rfc1035_414_t& /*offset_map*/)
     {
         uint16_t len(0);
 
@@ -1446,11 +1435,7 @@ class mx_resource : public resource_base_t
     */
     mx_resource(const std::string& s) : resource_base_t(s, type_mx), rr_preference(0) {}
 
-    /// Virtual Destructor
-    virtual ~mx_resource()
-    {
-    }
-
+		
     /// Mail exchange(server) set function
     /*
       \param t Mail exchange(server) to assign to the mx_resource.
@@ -1459,7 +1444,6 @@ class mx_resource : public resource_base_t
     const std::string& exchange(const std::string& s)
     {
         return exchange(s.c_str());
-
     }
 
     /// Mail Exchange(server) get/set function
@@ -1468,7 +1452,7 @@ class mx_resource : public resource_base_t
       current mail exchange(server) only.
       \return Mail exchange(server)
     */
-    const std::string& exchange(const char* s=0)
+    const std::string& exchange(const char* s = nullptr)
     {
         if( s ) rr_exchange = s;
         return rr_exchange;
@@ -1480,7 +1464,7 @@ class mx_resource : public resource_base_t
       current preference value only.
       \return Preference value
     */
-    const uint16_t preference(const uint16_t d = 0xffff)
+    uint16_t preference(uint16_t d = 0xffff)
     {
         if( d != 0xffff ) rr_preference = d;
         return rr_preference;
@@ -1635,7 +1619,7 @@ class txt_resource : public resource_base_t
     /*
       \param buffer Buffer to decode the request into
     */
-    virtual void decode(dns_buffer_t& buffer, rfc1035_414_t& offset_map)
+    virtual void decode(dns_buffer_t& buffer, rfc1035_414_t& /*offset_map*/)
     {
         uint8_t  len;
         int savedpos = buffer.position();
@@ -1752,7 +1736,7 @@ class a6_resource : public resource_base_t
     /*
       \param buffer Buffer to decode the request into
     */
-    virtual void decode(dns_buffer_t& buffer, rfc1035_414_t& offset_map)
+    virtual void decode(dns_buffer_t& buffer, rfc1035_414_t& /*offset_map*/)
     {
         buffer.get(rr_address);
     }
@@ -1779,17 +1763,12 @@ class srv_resource : public resource_base_t
     */
     srv_resource(const std::string& s) : resource_base_t(s, type_srv) {;}
 
-    /// Virtual Destructor
-    virtual ~srv_resource()
-    {
-    }
-
     /// Priority value get/set function
     /*
       \param t Priority value to assign to the srv_resource. If left blank, will return the current priority value only.
       \return Priority value
     */
-    const uint16_t priority(const uint16_t d = 0xffff)
+    uint16_t priority(uint16_t d = 0xffff)
     {
         if( d != 0xffff ) rr_priority = d;
         return rr_priority;
@@ -1800,7 +1779,7 @@ class srv_resource : public resource_base_t
       \param t Weight value to assign to the srv_resource. If left blank, will return the current weight value only.
       \return Weight value
     */
-    const uint16_t weight(const uint16_t d = 0xffff)
+    uint16_t weight(uint16_t d = 0xffff)
     {
         if( d != 0xffff ) rr_weight = d;
         return rr_weight;
@@ -1811,7 +1790,7 @@ class srv_resource : public resource_base_t
       \param t Port value to assign to the srv_resource. If left blank, will return the current port value only.
       \return Port value
     */
-    const uint16_t port(const uint16_t d = 0xffff)
+    uint16_t port(uint16_t d = 0xffff)
     {
         if( d != 0xffff ) rr_port = d;
         return rr_port;
@@ -2088,7 +2067,7 @@ class message
       \param d Message id to assign to the message
       \return id
     */
-    const uint16_t id(const uint16_t d)
+    uint16_t id(const uint16_t d)
     {
         header.Id = d;
         return  header.Id;
@@ -2099,7 +2078,7 @@ class message
 
       \return id
     */
-    const uint16_t id() const
+    uint16_t id() const
     {
         return  header.Id;
     }
@@ -2110,7 +2089,7 @@ class message
       \param e Query action to assign to the message.
       \return query action
     */
-    const action_t action(const action_t e)
+    action_t action(action_t e)
     {
         (e == query) ?
                 header.bit_fields &= ~0x8000 :
@@ -2124,7 +2103,7 @@ class message
 
       \return query action
     */
-    const action_t action() const
+    action_t action() const
     {
         return (action_t)(header.bit_fields & 0x8000);
     }
@@ -2136,7 +2115,7 @@ class message
       \param oc Opcode to assign to the message.
       \return Opcode
     */
-    const opcode_t  opcode(const opcode_t oc)
+    opcode_t opcode(opcode_t oc)
     {
         switch( oc )
         {
@@ -2166,7 +2145,7 @@ class message
 
       \return Opcode
     */
-    const opcode_t  opcode() const
+    opcode_t  opcode() const
     {
         if( header.bit_fields & 0x1000 )
             return iquery;
@@ -2183,7 +2162,7 @@ class message
 
       \param authority True if the server answering is the authority
     */
-    void  authority(const bool authority)
+    void  authority(bool authority)
     {
         (authority) ? header.bit_fields |= 0x400 :
                 header.bit_fields &= ~0x400;
@@ -2194,7 +2173,7 @@ class message
 
       \return True if the server answering is the authority
     */
-    const bool is_authority() const
+    bool is_authority() const
     {
         return( header.bit_fields & 0x400 );
     }
@@ -2207,7 +2186,7 @@ class message
 
       \param  truncated True if the server is truncating
     */
-    void  truncated(const bool truncated)
+    void  truncated(bool truncated)
     {
         (truncated) ? header.bit_fields |= 0x200 :
                 header.bit_fields &= ~0x200;
@@ -2218,7 +2197,7 @@ class message
 
       \return True if the server is truncating the message
     */
-    const bool is_truncated() const  { return( header.bit_fields & 0x200 ); }
+    bool is_truncated() const  { return( header.bit_fields & 0x200 ); }
 
     /*!
       Sets the 'recursive' field.
@@ -2229,7 +2208,7 @@ class message
 
       \param  recursive True if the server should recursively seek an answer.
     */
-    void  recursive(const bool recursive)
+    void recursive(bool recursive)
     {
         (recursive) ? header.bit_fields |= 0x100 :
                 header.bit_fields &= ~0x100;
@@ -2240,7 +2219,7 @@ class message
 
       \return True if the server can recursively seek an answer.
     */
-    const bool is_recursive() const  { return( header.bit_fields & 0x100 ); }
+    bool is_recursive() const  { return( header.bit_fields & 0x100 ); }
 
     /*!
       Sets the 'recursion availability' field.
@@ -2251,7 +2230,7 @@ class message
 
       \param  recursion_avail True if the server can recursively seek an answer.
     */
-    void  recursion_avail(const bool recursion_avail)
+    void recursion_avail(bool recursion_avail)
     {
         (recursion_avail) ? header.bit_fields |= 0x80 :
                 header.bit_fields &= ~0x80;
@@ -2262,7 +2241,7 @@ class message
 
       \return True if the server can recursively seek an answer.
     */
-    const bool is_recursion_avail() const
+    bool is_recursion_avail() const
     {
         return( header.bit_fields & 0x80 );
     }
@@ -2273,7 +2252,7 @@ class message
       \param r Result code to assign to the message
       \return Result code
     */
-    const result_t result(const result_t r)
+    result_t result(result_t r)
     {
         switch( r )
         {
@@ -2312,7 +2291,7 @@ class message
 
       \return Result code
     */
-    const result_t result() const
+    result_t result() const
     {
         if( header.bit_fields & 0x01 )
             return format_error;

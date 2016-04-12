@@ -199,7 +199,7 @@ void server::handle_mon_accept(const boost::system::error_code &ec)
 
 
 void server::handle_mon_write_request(const boost::system::error_code &ec,
-                                      size_t sz)
+																			size_t)
 {
     if (ec == ba::error::operation_aborted) {
         return;
