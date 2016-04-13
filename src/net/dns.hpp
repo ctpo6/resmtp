@@ -19,12 +19,8 @@
 #include <net/network_array.hpp>
 #include <net/rfc1035_414.hpp>
 
-//using namespace boost;
-//using namespace boost::algorithm;
 
-namespace y {
-namespace net {
-namespace dns {
+namespace y { namespace net { namespace dns {
 
 // quick forward declarations
 class message;
@@ -343,17 +339,15 @@ class   resource_base_t : public request_base_t
 
       \param o resource_base_t to copy
     */
-    resource_base_t(const resource_base_t& o)
-            : request_base_t(o), rr_ttl(o.rr_ttl), rr_length(o.rr_length)
-    {}
+    resource_base_t(const resource_base_t& o) = default;
 
     /*!
       Sets the resource type and defaults the resource class to class_in.
 
       \param t Resource type to create object for
     */
-    resource_base_t(const type_t t)
-            : request_base_t(t,class_in), rr_ttl(0), rr_length(0)
+    resource_base_t(type_t t)
+            : request_base_t(t, class_in), rr_ttl(0), rr_length(0)
     {}
 
     /*!
@@ -362,8 +356,8 @@ class   resource_base_t : public request_base_t
       \param s Domain name to create object for
       \param t Resource type to create object for
     */
-    resource_base_t(const std::string& s, const type_t t)
-            : request_base_t(s,t,class_in), rr_ttl(0), rr_length(0)
+    resource_base_t(const std::string& s, type_t t)
+            : request_base_t(s, t, class_in), rr_ttl(0), rr_length(0)
     {}
 
     /*!
@@ -472,24 +466,18 @@ class unknown_resource : public resource_base_t
 {
   protected:
     /// Raw data for the unknown resource records.
-    boost::shared_ptr<uint8_t> _data;
+		std::vector<uint8_t> data_;
 
   public:
     /// Default contructor
-    unknown_resource() : resource_base_t() {;}
+    unknown_resource() = default;
 
     /*!
       Copy Constructor
 
       \param o unknown resource to copy from
     */
-    unknown_resource(const unknown_resource& o)
-            : resource_base_t(o)
-    {
-			// TODO rewrite, UB on deallocation!!!
-        _data = boost::shared_ptr<uint8_t>( new uint8_t[length()] );
-        memcpy( _data.get(), o._data.get(), length() );
-    }
+    unknown_resource(const unknown_resource& o) = default;
 
     /*!
       Copy Constructor
@@ -498,14 +486,10 @@ class unknown_resource : public resource_base_t
     */
     unknown_resource(const resource_base_t& o) : resource_base_t(o) { ; }
 
-    /// Virtual Destructor
-    virtual ~unknown_resource()
-    {
-    }
-
     /*!
       Clones an existing resource record object
     */
+		// TODO redesign
     virtual shared_resource_base_t clone() const
     {
         return shared_resource_base_t(new unknown_resource(*this));
@@ -524,9 +508,9 @@ class unknown_resource : public resource_base_t
     virtual void encode(dns_buffer_t& buffer, rfc1035_414_t& offset_map)
     {
         resource_base_t::encode(buffer, offset_map);
-
-        for( size_t i = 0; i < length(); ++i )
-            buffer.put( _data.get()[i] );
+        for (unsigned i = 0; i < data_.size(); ++i) {
+            buffer.put(data_[i]);
+				}
     }
 
     /*!
@@ -535,12 +519,12 @@ class unknown_resource : public resource_base_t
       \param buffer Buffer to decode the request into
       \param offset_map DNS label compression map for label/offset values
     */
-    virtual void decode(dns_buffer_t& buffer, rfc1035_414_t& /*offset_map*/)
+    virtual void decode(dns_buffer_t& buffer, rfc1035_414_t& offset_map)
     {
-			// TODO rewrite, UB!!!
-        _data = boost::shared_ptr<uint8_t>( new uint8_t[length()] );
-        for( size_t i = 0; i < length(); ++i )
-            buffer.get( _data.get()[i] );
+			data_.resize(length());
+			for (unsigned i = 0; i < data_.size(); ++i) {
+				buffer.get(data_[i]);
+			}
     }
 };
 
@@ -565,11 +549,6 @@ class a_resource : public resource_base_t
     a_resource(const std::string& s) :
 		  resource_base_t(s, type_a), rr_address(0)
 		{}
-
-    /// Virtual Destructor
-    virtual ~a_resource()
-    {
-    }
 
     /*!
       Sets the IP4 address from a ip::address_v4
@@ -622,7 +601,7 @@ class a_resource : public resource_base_t
 
       \param o a_resource to copy from
     */
-    a_resource(const a_resource& o) : resource_base_t(o), rr_address(o.rr_address) { ; }
+    a_resource(const a_resource& o) = default;
 
     /*!
       Copy Constructor
@@ -677,19 +656,14 @@ class ns_resource : public resource_base_t
 
   public:
     /// Default contructor
-    ns_resource() : resource_base_t(type_ns) {;}
+    ns_resource() : resource_base_t(type_ns) {}
 
     /*!
       Constructs a ns_resource from a string
 
       \param s Host name for the NS record
     */
-    ns_resource(const std::string& s) : resource_base_t(s, type_ns) {;}
-
-    /// Virtual Destructor
-    virtual ~ns_resource()
-    {
-    }
+    ns_resource(const std::string& s) : resource_base_t(s, type_ns) {}
 
     /*!
       Sets the nameserver from a string
@@ -741,7 +715,7 @@ class ns_resource : public resource_base_t
 
       \param o ns_resource to copy from
     */
-    ns_resource(const ns_resource& o) : resource_base_t(o), rr_nsdname(o.rr_nsdname) { ; }
+    ns_resource(const ns_resource& o) = default;
 
     /*!
       Copy Constructor
@@ -802,11 +776,6 @@ class cname_resource : public resource_base_t
     */
     cname_resource(const std::string& s) : resource_base_t(s, type_cname) {;}
 
-    /// Virtual Destructor
-    virtual ~cname_resource()
-    {
-    }
-
     /*!
       Sets the Canonical name
 
@@ -857,7 +826,7 @@ class cname_resource : public resource_base_t
 
       \param o cname_resource to copy from
     */
-    cname_resource(const cname_resource& o) : resource_base_t(o), rr_cname(o.rr_cname) { ; }
+    cname_resource(const cname_resource& o) = default;
 
     /*!
       Copy Constructor
@@ -1123,17 +1092,7 @@ class soa_resource : public resource_base_t
 
       \param o soa_resource to copy from
     */
-    soa_resource(const soa_resource& o)
-            : resource_base_t(o)
-    {
-        rr_mname = o.rr_mname;
-        rr_rname = o.rr_rname;
-        rr_serial = o.rr_serial;
-        rr_refresh = o.rr_refresh;
-        rr_retry = o.rr_retry;
-        rr_expire = o.rr_expire;
-        rr_minttl = o.rr_minttl;
-    }
+    soa_resource(const soa_resource& o) = default;
 
     /*!
       Copy Constructor
@@ -1206,11 +1165,6 @@ class ptr_resource : public resource_base_t
     */
     ptr_resource(const std::string& s) : resource_base_t(s, type_ptr) {;}
 
-    /// Virtual Destructor
-    virtual ~ptr_resource()
-    {
-    }
-
     /// Pointer set function
     /*
       \param t Pointer to assign to the ptr_resource.
@@ -1249,7 +1203,7 @@ class ptr_resource : public resource_base_t
     /*
       \param o ptr_resource to copy from
     */
-    ptr_resource(const ptr_resource& o) : resource_base_t(o), rr_ptrdname(o.rr_ptrdname) { ; }
+    ptr_resource(const ptr_resource& o) = default;
 
     /// Copy Constructor
     /*
@@ -1302,11 +1256,6 @@ class hinfo_resource : public resource_base_t
       \param s Host name for the PTR record
     */
     hinfo_resource(const std::string& s) : resource_base_t(s, type_hinfo) {;}
-
-    /// Virtual Destructor
-    virtual ~hinfo_resource()
-    {
-    }
 
     /// CPU description set function
     /*
@@ -1368,7 +1317,7 @@ class hinfo_resource : public resource_base_t
     /*
       \param o hinfo_resource to copy from
     */
-    hinfo_resource(const hinfo_resource& o) : resource_base_t(o), rr_cpu(o.rr_cpu), rr_os(o.rr_os) { ; }
+    hinfo_resource(const hinfo_resource& o) = default;
 
     /// Copy Constructor
     /*
@@ -1435,7 +1384,6 @@ class mx_resource : public resource_base_t
     */
     mx_resource(const std::string& s) : resource_base_t(s, type_mx), rr_preference(0) {}
 
-		
     /// Mail exchange(server) set function
     /*
       \param t Mail exchange(server) to assign to the mx_resource.
@@ -1486,7 +1434,7 @@ class mx_resource : public resource_base_t
     /*
       \param o mx_resource to copy from
     */
-    mx_resource(const mx_resource& o) : resource_base_t(o), rr_preference(o.rr_preference), rr_exchange(o.rr_exchange) { ; }
+    mx_resource(const mx_resource& o) = default;
 
     /// Copy Constructor
     /*
@@ -1545,11 +1493,6 @@ class txt_resource : public resource_base_t
     */
     txt_resource(const std::string& s) : resource_base_t(s, type_txt) {;}
 
-    /// Virtual Destructor
-    virtual ~txt_resource()
-    {
-    }
-
     /// Text string set function
     /*
       \param t Text string to assign to the txt_resource.
@@ -1588,7 +1531,7 @@ class txt_resource : public resource_base_t
     /*
       \param o txt_resource to copy from
     */
-    txt_resource(const txt_resource& o) : resource_base_t(o), rr_text(o.rr_text) { ; }
+    txt_resource(const txt_resource& o) = default;
 
     /// Copy Constructor
     /*
@@ -1660,11 +1603,6 @@ class a6_resource : public resource_base_t
     */
     a6_resource(const std::string& s) : resource_base_t(s, type_a6) {;}
 
-    /// Virtual Destructor
-    virtual ~a6_resource()
-    {
-    }
-
     /// Address set function
     /*
       \param t Address to assign to the a6_resource.
@@ -1704,7 +1642,7 @@ class a6_resource : public resource_base_t
     /*
       \param o a6_resource to copy from
     */
-    a6_resource(const a6_resource& o) : resource_base_t(o), rr_address(o.rr_address) { ; }
+    a6_resource(const a6_resource& o) = default;
 
     /// Copy Constructor
     /*
@@ -1834,14 +1772,13 @@ class srv_resource : public resource_base_t
     /*
       \param o srv_resource to copy from
     */
-    srv_resource(const srv_resource& o)
-            : resource_base_t(o), rr_priority(o.rr_priority), rr_weight(o.rr_weight), rr_port(o.rr_port), rr_target(o.rr_target) { ; }
+    srv_resource(const srv_resource& o) = default;
 
     /// Copy Constructor
     /*
       \param o resource_base_t to copy from
     */
-    srv_resource(const resource_base_t& o) : resource_base_t(o) { ; }
+    srv_resource(const resource_base_t& o) : resource_base_t(o) {}
 
 
     /// Encodes the srv resource into a memory buffer
