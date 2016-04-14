@@ -135,32 +135,13 @@ void smtp_client::start(const check_data_t& _data,
 #endif
 
 
-void smtp_client::continue_smtp_session(envelope &e,
-                                        complete_cb_t complete_cb)
-{
-  assert(m_proto_state == proto_state_t::after_data &&
-    "SMTP DATA command must be already sent");
-  
-  cb_complete = complete_cb;
-  
-  m_envelope = &e;
-  m_envelope->cleanup_answers();
-
-  m_data.m_result = check::CHK_ACCEPT;
-  m_data.m_answer.clear();
-  
-  // We have sent DATA command during the first part of the session
-  // while executing start_smtp_session() call.
-  // Not we will read the response and continue SMTP flow.
-  start_read_line();
-}
-
-
 void smtp_client::start_smtp_session(const check_data_t &_data,
                                      const vector<boost::asio::ip::address_v4> &dns_servers,
                                      envelope &envelope,
                                      complete_cb_t complete)
 {
+  PDBG("ENTER");
+  
   m_data = _data;
   cb_complete = complete;
 
@@ -177,8 +158,35 @@ void smtp_client::start_smtp_session(const check_data_t &_data,
 
   m_use_xclient = false;
   m_use_pipelining = false;
+  
+  session_start_ = true;
 
   start_with_next_backend();
+}
+
+
+void smtp_client::continue_smtp_session(envelope &e,
+                                        complete_cb_t complete_cb)
+{
+  PDBG("ENTER");
+  
+  assert(m_proto_state == proto_state_t::after_data &&
+    "SMTP DATA command must be already sent");
+  
+  cb_complete = complete_cb;
+  
+  m_envelope = &e;
+  m_envelope->cleanup_answers();
+
+  m_data.m_result = check::CHK_ACCEPT;
+  m_data.m_answer.clear();
+  
+  session_start_ = false;
+  
+  // We have sent DATA command during the first part of the session
+  // while executing start_smtp_session() call.
+  // Not we will read the response and continue SMTP flow.
+  start_read_line();
 }
 
 
@@ -607,6 +615,8 @@ bool smtp_client::process_answer(std::istream &_stream)
             break;
 
         case proto_state_t::after_data:
+          PDBG("proto_state_t::after_data");
+          
           if (session_start_) {
             // the first part of the session had succefully proceeded until this
             // point: return execution to the proxy frontend
@@ -802,6 +812,8 @@ void smtp_client::fault_all_backends()
 
 void smtp_client::session_start_success()
 {
+  PDBG("ENTER");
+  
   if (!cb_complete) return;
   
   m_data.m_result = check::CHK_ACCEPT;

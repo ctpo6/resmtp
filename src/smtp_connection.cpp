@@ -341,6 +341,10 @@ void smtp_connection::start_read()
   if (m_proto_state == STATE_BACKEND_SMTP_SESSION_START ||
       m_proto_state == STATE_BACKEND_SMTP_SESSION_CONTINUE) {
     // wait for backend SMTP client to complete
+    
+    // TODO in which cases to we get ehere?
+    PDBG("TODO state=%s", get_proto_state_name(m_proto_state));
+    
     m_timer.cancel();
     return;
   }
@@ -626,6 +630,8 @@ void smtp_connection::start_check_data()
 
 void smtp_connection::prepare_backend_smtp_session_start()
 {
+  PDBG("ENTER");
+  
   m_timer.cancel();
 
   m_check_data.m_session_id = m_session_id;
@@ -658,12 +664,16 @@ void smtp_connection::backend_smtp_session_start()
 
 void smtp_connection::backend_smtp_session_start_cb()
 {
+  PDBG("ENTER");
+  
   m_check_data = m_smtp_client->get_check_data();
 
   std::ostream response_stream(&m_response);
 
   switch (m_check_data.m_result) {
   case check::CHK_ACCEPT:
+    PDBG("check::CHK_ACCEPT");
+    
     m_proto_state = STATE_BLAST_FILE;
 
     // start incoming session timeout timer
@@ -673,6 +683,8 @@ void smtp_connection::backend_smtp_session_start_cb()
     break;
 
   case check::CHK_REJECT:
+    PDBG("check::CHK_REJECT");
+
     m_proto_state = STATE_HELLO;
     
     m_smtp_client->stop();
@@ -692,9 +704,14 @@ void smtp_connection::backend_smtp_session_start_cb()
     break;
 
   case check::CHK_DISCARD:
-    // TODO ???
+    // TODO can we get it here?
+    PDBG("TODO check::CHK_DISCARD");
+
+    // no break
 
   case check::CHK_TEMPFAIL:
+    PDBG("check::CHK_TEMPFAIL");
+
     m_proto_state = STATE_HELLO;
 
     m_smtp_client->stop();
@@ -752,6 +769,10 @@ void handle_parse_header(const header_iterator_range_t &name,
 
 void smtp_connection::prepare_backend_smtp_session_continue()
 {
+  PDBG("ENTER");
+  
+  m_timer.cancel();
+  
 	yconst_buffers& orig_m = m_envelope->orig_message_;
 	yconst_buffers& alt_m = m_envelope->altered_message_;
 	yconst_buffers& orig_h = m_envelope->orig_headers_;
@@ -883,6 +904,8 @@ void smtp_connection::backend_smtp_session_continue()
 
 void smtp_connection::backend_smtp_session_continue_cb()
 {
+  PDBG("ENTER");
+  
   if (m_smtp_client) {
     m_check_data = m_smtp_client->get_check_data();
     m_smtp_client->stop();
@@ -927,6 +950,11 @@ void smtp_connection::backend_smtp_session_continue_cb()
   }
 
   response_stream << ' ' << m_session_id << '-' << m_envelope->m_id << "\r\n";
+
+  // timer was stopped before backend SMTP session was started;
+  // start it again
+  m_timer_value = g::cfg().frontend_cmd_timeout;
+  restart_timeout();
 
   send_response(boost::bind(&smtp_connection::handle_write_request,
                             shared_from_this(),
@@ -1428,9 +1456,6 @@ bool smtp_connection::smtp_data(const string &_cmd, std::ostream &_response)
 
     m_envelope->orig_message_size_ = 0;
 
-    // stop timer because we will start backend SMTP session
-    m_timer.cancel();
-    
     m_proto_state = STATE_BACKEND_SMTP_SESSION_START;
 
     return true;

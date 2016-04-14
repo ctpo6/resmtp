@@ -83,6 +83,8 @@ protected:
 	// used to resolve backend server
 	y::net::dns::resolver m_resolver;
 
+  // true: session was started with start_smtp_session()
+  // false: session was continued with continue_smtp_session()
   bool session_start_;
   
 #ifdef RESMTP_LMTP_SUPPORT
