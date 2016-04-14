@@ -22,8 +22,9 @@ using std::vector;
 
 
 class smtp_client :
-public std::enable_shared_from_this<smtp_client>,
-private boost::noncopyable {
+	public std::enable_shared_from_this<smtp_client>,
+	private boost::noncopyable
+{
 public:
 
 	smtp_client(boost::asio::io_service &io_service,
@@ -40,39 +41,22 @@ public:
 						 const std::vector<std::string> &dns_servers);
 #endif
 
-	void start(const check_data_t &_data,
-						 complete_cb_t complete,
-						 envelope &envelope,
-						 const vector<boost::asio::ip::address_v4> &dns_servers);
+	// start SMTP session; execute commands until DATA
+	void start_smtp_session(const check_data_t &_data,
+    const vector<boost::asio::ip::address_v4> &dns_servers,
+    envelope &e,
+    complete_cb_t complete_cb);
+	
+	// continue session started with start_smtp_session()
+	void continue_smtp_session(envelope &e, 
+    complete_cb_t complete_cb);
 
 	void stop();
 
 
-	const check_data_t & check_data() const { return m_data;	}
+	const check_data_t & get_check_data() const { return m_data;	}
 
 protected:
-
-	void start_with_next_backend();
-
-	smtp_backend_manager &backend_mgr;
-
-	boost::asio::ip::tcp::socket m_socket;
-	boost::asio::io_service::strand strand_;
-
-	// used to resolve backend server
-	y::net::dns::resolver m_resolver;
-
-	bool m_lmtp;
-
-	bool m_use_xclient;
-	bool m_use_pipelining;
-
-	string m_read_buffer;
-
-	complete_cb_t cb_complete;
-
-	envelope *m_envelope = nullptr;
-
 
 	enum class proto_state_t {
 		start = 0,
@@ -90,6 +74,29 @@ protected:
 	};
 	// !!! update this function together with enum
 	static const char * get_proto_state_name(proto_state_t st);
+
+	smtp_backend_manager &backend_mgr;
+
+	boost::asio::ip::tcp::socket m_socket;
+	boost::asio::io_service::strand strand_;
+
+	// used to resolve backend server
+	y::net::dns::resolver m_resolver;
+
+  bool session_start_;
+  
+#ifdef RESMTP_LMTP_SUPPORT
+	bool m_lmtp;
+#endif  
+
+	bool m_use_xclient;
+	bool m_use_pipelining;
+
+	string m_read_buffer;
+
+	complete_cb_t cb_complete;
+
+	envelope *m_envelope;
 
 	proto_state_t m_proto_state;
 
@@ -110,6 +117,8 @@ protected:
 	uint32_t m_timer_value;
 	boost::asio::deadline_timer m_timer;
 
+  
+	void start_with_next_backend();
 
 	void do_stop();
 
@@ -119,9 +128,13 @@ protected:
 
 	bool process_answer(std::istream &_stream);
 
+  // handles connect to the server specified with IP address
 	void handle_simple_connect(const boost::system::error_code &ec);
+  
+  // handles connect to the server specified with symbolic name
 	void handle_connect(const boost::system::error_code &ec,
 											y::net::dns::resolver::iterator);
+  
 	void handle_resolve(const boost::system::error_code &ec,
 											y::net::dns::resolver::iterator);
 
@@ -145,7 +158,13 @@ protected:
 	// called when all backends are currently unavailable
 	void fault_all_backends();
 
-	void success();
+  // called if SMTP session started with smtp_session_start() has executed
+  // successfully all commands until DATA
+  void session_start_success();
+  
+  // called if SMTP session continued with smtp_session_continue() has executed
+  // successfully until it's quit
+	void session_success();
 
 	void on_backend_ip_address();
 	void on_backend_conn();

@@ -74,7 +74,7 @@ smtp_client::smtp_client(ba::io_service &io_service,
 }
 
 
-#if 0
+#ifdef RESMTP_LMTP_SUPPORT
 void smtp_client::start(const check_data_t& _data,
                         complete_cb_t complete,
                         envelope_ptr _envelope,
@@ -135,27 +135,50 @@ void smtp_client::start(const check_data_t& _data,
 #endif
 
 
-void smtp_client::start(const check_data_t &_data,
-                        complete_cb_t complete,
-                        envelope &envelope,
-                        const vector<boost::asio::ip::address_v4> &dns_servers)
+void smtp_client::continue_smtp_session(envelope &e,
+                                        complete_cb_t complete_cb)
 {
-    m_data = _data;
-    cb_complete = complete;
+  assert(m_proto_state == proto_state_t::after_data &&
+    "SMTP DATA command must be already sent");
+  
+  cb_complete = complete_cb;
+  
+  m_envelope = &e;
+  m_envelope->cleanup_answers();
 
-    m_envelope = &envelope;
-    m_envelope->cleanup_answers();
+  m_data.m_result = check::CHK_ACCEPT;
+  m_data.m_answer.clear();
+  
+  // We have sent DATA command during the first part of the session
+  // while executing start_smtp_session() call.
+  // Not we will read the response and continue SMTP flow.
+  start_read_line();
+}
 
-    for (const auto &addr: dns_servers) {
-        m_resolver.add_nameserver(addr);
-    }
 
-    m_lmtp = false;
+void smtp_client::start_smtp_session(const check_data_t &_data,
+                                     const vector<boost::asio::ip::address_v4> &dns_servers,
+                                     envelope &envelope,
+                                     complete_cb_t complete)
+{
+  m_data = _data;
+  cb_complete = complete;
 
-    m_use_xclient = false;
-    m_use_pipelining = false;
+  m_envelope = &envelope;
+  m_envelope->cleanup_answers();
 
-    start_with_next_backend();
+  for (const auto &addr: dns_servers) {
+      m_resolver.add_nameserver(addr);
+  }
+
+#ifdef RESMTP_LMTP_SUPPORT  
+  m_lmtp = false;
+#endif  
+
+  m_use_xclient = false;
+  m_use_pipelining = false;
+
+  start_with_next_backend();
 }
 
 
@@ -363,7 +386,8 @@ void smtp_client::start_read_line()
 }
 
 
-void smtp_client::handle_read_smtp_line(const bs::error_code &ec) {
+void smtp_client::handle_read_smtp_line(const bs::error_code &ec)
+{
     if (ec) {
         if (ec != ba::error::operation_aborted) {
             PDBG("call on_host_fail()");
@@ -393,7 +417,8 @@ void smtp_client::handle_read_smtp_line(const bs::error_code &ec) {
 }
 
 
-bool smtp_client::process_answer(std::istream &_stream) {
+bool smtp_client::process_answer(std::istream &_stream)
+{
     string line_buffer;
     line_buffer.reserve(1000);  // SMTP line can be up to 1000 chars
 
@@ -496,11 +521,16 @@ bool smtp_client::process_answer(std::istream &_stream) {
             // EHLO client.example.com
 
             m_timer_value = g::cfg().backend_cmd_timeout;
-
+            
+#ifdef RESMTP_LMTP_SUPPORT
             answer_stream << (m_lmtp ? "LHLO " : "EHLO ")
                           << ba::ip::host_name()
                           << "\r\n";
-
+#else
+            answer_stream << "EHLO "
+                          << ba::ip::host_name()
+                          << "\r\n";
+#endif            
             m_proto_state = proto_state_t::after_hello;
             break;
 
@@ -508,10 +538,15 @@ bool smtp_client::process_answer(std::istream &_stream) {
             // send:
             // EHLO spike.porcupine.org
 
+#ifdef RESMTP_LMTP_SUPPORT
             answer_stream << (m_lmtp ? "LHLO " : "EHLO ")
                           << m_data.m_helo_host
                           << "\r\n";
-
+#else
+            answer_stream << "EHLO "
+                          << m_data.m_helo_host
+                          << "\r\n";
+#endif
             m_proto_state = proto_state_t::after_hello_xclient;
             break;
 
@@ -572,9 +607,18 @@ bool smtp_client::process_answer(std::istream &_stream) {
             break;
 
         case proto_state_t::after_data:
+          if (session_start_) {
+            // the first part of the session had succefully proceeded until this
+            // point: return execution to the proxy frontend
+            session_start_success();
+            return false;
+          }
+          
+#ifdef RESMTP_LMTP_SUPPORT
             if (m_lmtp) {
                 m_current_rcpt = m_envelope->m_rcpt_list.begin();
             }
+#endif          
 
             m_timer_value = g::cfg().backend_data_timeout;
             restart_timeout();
@@ -593,7 +637,7 @@ bool smtp_client::process_answer(std::istream &_stream) {
         case proto_state_t::after_dot:
             m_timer_value = g::cfg().backend_cmd_timeout;
             restart_timeout();
-
+#ifdef RESMTP_LMTP_SUPPORT
             if (m_lmtp) {
                 m_current_rcpt->m_delivery_status = envelope::smtp_code_decode(code);
                 m_current_rcpt->m_remote_answer = line_buffer;
@@ -602,7 +646,10 @@ bool smtp_client::process_answer(std::istream &_stream) {
                     answer_stream << "QUIT\r\n";
                     m_proto_state = proto_state_t::after_quit;
                 }
-            } else {
+            } 
+            else
+#endif              
+            {
                 for(m_current_rcpt = m_envelope->m_rcpt_list.begin();
                     m_current_rcpt != m_envelope->m_rcpt_list.end();
                     ++m_current_rcpt) {
@@ -615,7 +662,7 @@ bool smtp_client::process_answer(std::istream &_stream) {
             break;
 
         case proto_state_t::after_quit:
-            success();
+            session_success();
             return false;
             break;
 
@@ -753,23 +800,42 @@ void smtp_client::fault_all_backends()
 }
 
 
-void smtp_client::success()
+void smtp_client::session_start_success()
 {
-    if (!cb_complete) return;
+  if (!cb_complete) return;
+  
+  m_data.m_result = check::CHK_ACCEPT;
 
-    m_data.m_result = report_rcpt(true, "success delivery", "");
+  // cancel timer because we will return execution to the frontend to
+  // receive the DATA part of mail, which can take some time
+  m_timer.cancel();
 
-    m_timer.cancel();
-    m_resolver.cancel();
-    try {
-        m_socket.close();
-    } catch (...) {}
+  m_resolver.cancel();
 
-    PLOG(r::log::debug, "call on_backend_conn_closed()");
-    g::mon().on_backend_conn_closed(backend_host.index);
+  m_socket.get_io_service().post(cb_complete);
+  cb_complete = nullptr;
+}
 
-    m_socket.get_io_service().post(cb_complete);
-    cb_complete = nullptr;
+
+void smtp_client::session_success()
+{
+  if (!cb_complete) return;
+
+  m_data.m_result = report_rcpt(true, "success delivery", "");
+
+  m_timer.cancel();
+  m_resolver.cancel();
+
+  try {
+    m_socket.close();
+  }
+  catch (...) {}
+
+  PLOG(r::log::debug, "call on_backend_conn_closed()");
+  g::mon().on_backend_conn_closed(backend_host.index);
+
+  m_socket.get_io_service().post(cb_complete);
+  cb_complete = nullptr;
 }
 
 

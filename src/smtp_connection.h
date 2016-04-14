@@ -70,8 +70,9 @@ private:
         STATE_HELLO,
         STATE_AFTER_MAIL,
         STATE_RCPT_OK,
+        STATE_BACKEND_SMTP_SESSION_START,
         STATE_BLAST_FILE,
-        STATE_CHECK_DATA
+        STATE_BACKEND_SMTP_SESSION_CONTINUE
     } proto_state_t;
     static const char * get_proto_state_name(proto_state_t st);
 
@@ -179,11 +180,17 @@ private:
     bool smtp_data(const string& _cmd, std::ostream &_response);
     bool smtp_starttls(const string& _cmd, std::ostream &_response);
 
-    void start_check_data();
-    void smtp_delivery_start();
-    void end_check_data();
+    void prepare_backend_smtp_session_start();
+    void backend_smtp_session_start();
+    void backend_smtp_session_start_cb();
+    
+    void prepare_backend_smtp_session_continue();
+    void backend_smtp_session_continue();
+    void backend_smtp_session_continue_cb();
+    
+#ifdef RESMTP_LMTP_SUPPORT    
     void end_lmtp_proto();
-    void smtp_delivery();
+#endif    
 
     void handle_timer(const bs::error_code &ec);
     void restart_timeout();

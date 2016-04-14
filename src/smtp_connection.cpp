@@ -256,11 +256,12 @@ void smtp_connection::start_proto()
                                          shared_from_this(),
                                          boost::asio::placeholders::error,
                                          false)));
-        } else {
+        }
+        else {
             send_response(boost::bind(&smtp_connection::handle_write_request,
                                       shared_from_this(),
                                       boost::asio::placeholders::error));
-		}
+        }
 	} else {
 		// log bad session for spamhaus
 		log_spamhaus(m_connected_ip.to_v4().to_string(),
@@ -335,44 +336,47 @@ void smtp_connection::handle_start_hello_write(
 }
 
 
-void smtp_connection::start_read() {
-    if (m_proto_state == STATE_CHECK_DATA) {
-        m_timer.cancel();               // wait for check to complete
-        return;
-    }
+void smtp_connection::start_read()
+{
+  if (m_proto_state == STATE_BACKEND_SMTP_SESSION_START ||
+      m_proto_state == STATE_BACKEND_SMTP_SESSION_CONTINUE) {
+    // wait for backend SMTP client to complete
+    m_timer.cancel();
+    return;
+  }
 
-    restart_timeout();
+  restart_timeout();
 
-    size_t unread_size = buffers.size() - m_envelope->orig_message_token_marker_size_;
+  size_t unread_size = buffers.size() - m_envelope->orig_message_token_marker_size_;
 
 #if 0
-    PDBG("read_pending=%d unread_size=%zu buffers.size()=%zu orig_message_token_marker_size=%zu",
-         read_pending,
-         unread_size,
-         buffers.size(),
-         m_envelope->orig_message_token_marker_size_);
+  PDBG("read_pending=%d unread_size=%zu buffers.size()=%zu orig_message_token_marker_size=%zu",
+       read_pending,
+       unread_size,
+       buffers.size(),
+       m_envelope->orig_message_token_marker_size_);
 #endif
 
-    if (unread_size) {
-        handle_read_helper(unread_size);
+  if (unread_size) {
+    handle_read_helper(unread_size);
+  }
+  else if (!read_pending) {
+    if (ssl_state_ == ssl_active) {
+      m_ssl_socket.async_read_some(buffers.prepare(512),
+                                   strand_.wrap(boost::bind(&smtp_connection::handle_read,
+                                                            shared_from_this(),
+                                                            boost::asio::placeholders::error,
+                                                            boost::asio::placeholders::bytes_transferred)));
     }
-    else if (!read_pending) {
-        if (ssl_state_ == ssl_active) {
-            m_ssl_socket.async_read_some(buffers.prepare(512),
-                    strand_.wrap(boost::bind(&smtp_connection::handle_read,
-                                             shared_from_this(),
-                                             boost::asio::placeholders::error,
-                                             boost::asio::placeholders::bytes_transferred)));
-        }
-        else {
-            socket().async_read_some(buffers.prepare(512),
-                    strand_.wrap(boost::bind(&smtp_connection::handle_read,
-                                             shared_from_this(),
-                                             boost::asio::placeholders::error,
-                                             boost::asio::placeholders::bytes_transferred)));
-        }
-        read_pending = true;
+    else {
+      socket().async_read_some(buffers.prepare(512),
+                               strand_.wrap(boost::bind(&smtp_connection::handle_read,
+                                                        shared_from_this(),
+                                                        boost::asio::placeholders::error,
+                                                        boost::asio::placeholders::bytes_transferred)));
     }
+    read_pending = true;
+  }
 }
 
 // Parses text as part of the message data from [b, e) input range.
@@ -419,8 +423,8 @@ bool smtp_connection::handle_read_data_helper(
     }
 
     if (eom_found) {
-        m_proto_state = STATE_CHECK_DATA;
-        io_service_.post(strand_.wrap(bind(&smtp_connection::start_check_data,
+        m_proto_state = STATE_BACKEND_SMTP_SESSION_CONTINUE;
+        io_service_.post(strand_.wrap(bind(&smtp_connection::prepare_backend_smtp_session_continue,
                                            shared_from_this())));
         parsed = read;
         return false;
@@ -430,51 +434,64 @@ bool smtp_connection::handle_read_data_helper(
 }
 
 // Parses and executes commands from [b, e) input range.
+
+
 /**
  * Returns:
  *   true, if futher input required and we have nothing to output
  *   false, otherwise
  * parsed: iterator pointing directly past the parsed and processed part of the input range;
  * read: iterator pointing directly past the last read character of the input range (anything in between [parsed, read) is a prefix of a command);
-*/
+ */
 bool smtp_connection::handle_read_command_helper(
-        const yconst_buffers_iterator& b,
-        const yconst_buffers_iterator& e,
-        yconst_buffers_iterator& parsed,
-        yconst_buffers_iterator& read) {
-    if ((read = std::find(b, e, '\n')) == e) {
-        return true;
+  const yconst_buffers_iterator& b,
+  const yconst_buffers_iterator& e,
+  yconst_buffers_iterator& parsed,
+  yconst_buffers_iterator& read)
+{
+  if ((read = std::find(b, e, '\n')) == e) {
+    return true;
+  }
+
+  string command(parsed, read);
+  parsed = ++read;
+
+  std::ostream os(&m_response);
+  bool res = execute_command(command, os);
+
+  if (res) {
+    if (m_proto_state == STATE_BACKEND_SMTP_SESSION_START) {
+      // if switched to this state, there is nothing to send;
+      // we need to start backend SMTP session instead
+      io_service_.post(strand_.wrap(bind(&smtp_connection::prepare_backend_smtp_session_start,
+                                         shared_from_this())));
     }
-
-    string command(parsed, read);
-    parsed = ++read;
-
-    std::ostream os(&m_response);
-    bool res = execute_command(command, os);
-
-    if (res) {
-        switch (ssl_state_) {
-        case ssl_none:
-        case ssl_active:
-            send_response(boost::bind(
-                &smtp_connection::handle_write_request,
-                shared_from_this(),
-                boost::asio::placeholders::error));
-            break;
-
-        case ssl_hand_shake:
-            boost::asio::async_write(socket(), m_response,
-                    strand_.wrap(boost::bind(&smtp_connection::handle_ssl_handshake, shared_from_this(),
-                                    boost::asio::placeholders::error)));
-            break;
-        }
-    } else {
-        send_response(boost::bind(&smtp_connection::handle_last_write_request,
+    else {
+      switch (ssl_state_) {
+      case ssl_none:
+      case ssl_active:
+        send_response(boost::bind(&smtp_connection::handle_write_request,
                                   shared_from_this(),
-                                  boost::asio::placeholders::error),
-                      true);
+                                  boost::asio::placeholders::error));
+        break;
+
+      case ssl_hand_shake:
+        boost::asio::async_write(socket(), m_response,
+                                 strand_.wrap(boost::bind(&smtp_connection::handle_ssl_handshake, shared_from_this(),
+                                                          boost::asio::placeholders::error)));
+        break;
+      }
     }
-    return false;
+  }
+  else {
+    send_response(boost::bind(&smtp_connection::handle_last_write_request,
+                              shared_from_this(),
+                              boost::asio::placeholders::error),
+                  // don't tarpit
+                  true
+      );
+  }
+  return false;
 }
 
 // Parses the first size characters of buffers.data().
@@ -537,8 +554,8 @@ void smtp_connection::handle_read(const boost::system::error_code &ec,
                  msg_count_sent);
 
             if (ec == ba::error::eof && !smtp_client_started) {
-                // log for spamhaus if we still hadn't do that
-                // clients closed tarpitted sessions are coming here,
+                // log for spamhaus if we still hadn't do that;
+                // clients closed tarpitted sessions come,
                 // but they are logged as normal sessions for now
                 // TODO maybe log as a bad-behaving session (without client host name)?
                 log_spamhaus(m_connected_ip.to_v4().to_string(),
@@ -575,32 +592,141 @@ void smtp_connection::handle_read(const boost::system::error_code &ec,
 }
 
 
+#if 0    
 void smtp_connection::start_check_data()
 {
-    m_timer.cancel();
+  m_timer.cancel();
 
-    m_check_data.m_session_id = m_session_id;
-    m_check_data.m_result = check::CHK_ACCEPT;
-    m_check_data.m_answer.clear();
-    // we will need client IP in the SMTP client for XCLIENT command
-    m_check_data.m_remote_ip = m_connected_ip.to_string();
-    m_check_data.m_remote_host = m_remote_host_name;
-    m_check_data.m_helo_host = m_helo_host;
+  m_check_data.m_session_id = m_session_id;
+  m_check_data.m_result = check::CHK_ACCEPT;
+  m_check_data.m_answer.clear();
+  // we will need client IP in the SMTP client for XCLIENT command
+  m_check_data.m_remote_ip = m_connected_ip.to_string();
+  m_check_data.m_remote_host = m_remote_host_name;
+  m_check_data.m_helo_host = m_helo_host;
 
-    if (g::cfg().m_message_size_limit &&
-            m_envelope->orig_message_size_ > g::cfg().m_message_size_limit) {
-        ++m_error_count;
+  if (g::cfg().m_message_size_limit &&
+      m_envelope->orig_message_size_ > g::cfg().m_message_size_limit) {
+    ++m_error_count;
 
-        m_check_data.m_result = check::CHK_REJECT;
-        m_check_data.m_answer =  "552 5.3.4 Message is too big;";
+    m_check_data.m_result = check::CHK_REJECT;
+    m_check_data.m_answer = "552 5.3.4 Message is too big;";
 
-        log(r::log::warning, "message size limit exceeded");
+    log(r::log::warning, "message size limit exceeded");
 
-        end_check_data();
-    } else {
-//        PDBG("call smtp_delivery_start()");
-        smtp_delivery_start();
+    end_check_data();
+  }
+  else {
+    //        PDBG("call smtp_delivery_start()");
+    prepare_backend_smtp_session_start();
+  }
+}
+#endif
+
+
+void smtp_connection::prepare_backend_smtp_session_start()
+{
+  m_timer.cancel();
+
+  m_check_data.m_session_id = m_session_id;
+  m_check_data.m_result = check::CHK_ACCEPT;
+  m_check_data.m_answer.clear();
+  // we will need client IP in the SMTP client for XCLIENT command
+  m_check_data.m_remote_ip = m_connected_ip.to_string();
+  m_check_data.m_remote_host = m_remote_host_name;
+  m_check_data.m_helo_host = m_helo_host;
+  m_check_data.tarpit = tarpit;
+
+  backend_smtp_session_start();
+}
+
+
+void smtp_connection::backend_smtp_session_start()
+{
+  if (m_smtp_client) {
+    m_smtp_client->stop();
+  }
+  m_smtp_client.reset(new smtp_client(io_service_, backend_mgr));
+
+  m_smtp_client->start_smtp_session(m_check_data,
+                                    g::cfg().dns_ip,
+                                    *m_envelope,
+                                    strand_.wrap(bind(&smtp_connection::backend_smtp_session_start_cb, shared_from_this())));
+  smtp_client_started = true;
+}
+
+
+void smtp_connection::backend_smtp_session_start_cb()
+{
+  m_check_data = m_smtp_client->get_check_data();
+
+  std::ostream response_stream(&m_response);
+
+  switch (m_check_data.m_result) {
+  case check::CHK_ACCEPT:
+    m_proto_state = STATE_BLAST_FILE;
+
+    // start incoming session timeout timer
+    m_timer_value = g::cfg().frontend_data_timeout;
+    
+    response_stream << "354 Enter mail data, end with <CRLF>.<CRLF>\r\n";
+    break;
+
+  case check::CHK_REJECT:
+    m_proto_state = STATE_HELLO;
+    
+    m_smtp_client->stop();
+    m_smtp_client.reset();
+    
+    m_timer_value = g::cfg().frontend_cmd_timeout;
+
+//            PDBG("close_status_t::fail");
+    close_status = close_status_t::fail;
+    
+    if (!m_check_data.m_answer.empty()) {
+      response_stream << m_check_data.m_answer;
     }
+    else {
+      response_stream << "550 " << boost::asio::ip::host_name();
+    }
+    break;
+
+  case check::CHK_DISCARD:
+    // TODO ???
+
+  case check::CHK_TEMPFAIL:
+    m_proto_state = STATE_HELLO;
+
+    m_smtp_client->stop();
+    m_smtp_client.reset();
+
+    m_timer_value = g::cfg().frontend_cmd_timeout;
+
+//            PDBG("close_status_t::fail");
+    close_status = close_status_t::fail;
+
+    if (!m_check_data.m_answer.empty()) {
+      response_stream << m_check_data.m_answer;
+    }
+    else {
+      response_stream << "451 4.7.1 Service unavailable - try again later";
+    }
+    break;
+  }
+
+  response_stream << ' ' << m_session_id << '-' << m_envelope->m_id << "\r\n";
+
+  // timer was stopped before backend SMTP session was started;
+  // start it again
+  restart_timeout();
+
+  send_response(boost::bind(&smtp_connection::handle_write_request,
+                            shared_from_this(),
+                            boost::asio::placeholders::error),
+                // do not tarpit because we have delayed incoming session by
+                // starting and executing backend session anyway
+                true
+    );
 }
 
 
@@ -624,16 +750,17 @@ void handle_parse_header(const header_iterator_range_t &name,
 }
 }
 
-void smtp_connection::smtp_delivery_start()
+void smtp_connection::prepare_backend_smtp_session_continue()
 {
 	yconst_buffers& orig_m = m_envelope->orig_message_;
 	yconst_buffers& alt_m = m_envelope->altered_message_;
 	yconst_buffers& orig_h = m_envelope->orig_headers_;
 	yconst_buffers& added_h = m_envelope->added_headers_;
 
+  // TODO why need this check?
 	if (m_check_data.m_result != check::CHK_ACCEPT) {
-		PDBG("call end_check_data()");
-		end_check_data();
+		PDBG("call backend_smtp_session_continue_cb()");
+		backend_smtp_session_continue_cb();
 		return;
 	}
 
@@ -713,7 +840,7 @@ void smtp_connection::smtp_delivery_start()
 	append(crlf, alt_m);
 	append(m_envelope->orig_message_body_beg_, ybuffers_end(orig_m), alt_m);
 
-#if 0   // LMTP support is turned off for now
+#ifdef RESMTP_LMTP_SUPPORT
         if (g::cfg().m_use_local_relay) {
             if (m_smtp_client)
                 m_smtp_client->stop();
@@ -731,86 +858,82 @@ void smtp_connection::smtp_delivery_start()
         }
 #endif
 
-		smtp_delivery();
+		backend_smtp_session_continue();
 }
 
+#ifdef RESMTP_LMTP_SUPPORT
 void smtp_connection::end_lmtp_proto()
 {
     m_envelope->remove_delivered_rcpt();
     if (m_envelope->m_rcpt_list.empty()) {
         end_check_data();
     } else {
-        smtp_delivery();
+        backend_smtp_session_continue();
     }
 }
+#endif
 
 
-void smtp_connection::smtp_delivery()
+void smtp_connection::backend_smtp_session_continue()
 {
-    if (m_smtp_client) {
-        m_smtp_client->stop();
-    }
-    m_smtp_client.reset(new smtp_client(io_service_, backend_mgr));
-
-    m_check_data.tarpit = tarpit;
-    m_smtp_client->start(
-        m_check_data,
-        strand_.wrap(bind(&smtp_connection::end_check_data, shared_from_this())),
-        *m_envelope,
-        g::cfg().dns_ip);
-    smtp_client_started = true;
+  m_smtp_client->continue_smtp_session(*m_envelope,
+                                       strand_.wrap(bind(&smtp_connection::backend_smtp_session_continue_cb, shared_from_this())));
 }
 
 
-void smtp_connection::end_check_data() {
-    if (m_smtp_client) {
-        m_check_data = m_smtp_client->check_data();
-        m_smtp_client->stop();
+void smtp_connection::backend_smtp_session_continue_cb()
+{
+  if (m_smtp_client) {
+    m_check_data = m_smtp_client->get_check_data();
+    m_smtp_client->stop();
+  }
+  m_smtp_client.reset();
+
+  m_proto_state = STATE_HELLO;
+
+  std::ostream response_stream(&m_response);
+
+  switch (m_check_data.m_result) {
+  case check::CHK_ACCEPT:
+  case check::CHK_DISCARD:
+    ++msg_count_sent;
+    g::mon().on_mail_delivered();
+    //            PDBG("close_status_t::ok");
+    close_status = close_status_t::ok;
+    response_stream << "250 2.0.0 Ok: queued on " << boost::asio::ip::host_name() << " as";
+    break;
+
+  case check::CHK_REJECT:
+    //            PDBG("close_status_t::fail");
+    close_status = close_status_t::fail;
+    if (!m_check_data.m_answer.empty()) {
+      response_stream << m_check_data.m_answer;
     }
-    m_smtp_client.reset();
-
-    m_proto_state = STATE_HELLO;
-
-    std::ostream response_stream(&m_response);
-
-    switch (m_check_data.m_result) {
-        case check::CHK_ACCEPT:
-        case check::CHK_DISCARD:
-            ++msg_count_sent;
-            g::mon().on_mail_delivered();
-//            PDBG("close_status_t::ok");
-            close_status = close_status_t::ok;
-            response_stream << "250 2.0.0 Ok: queued on " << boost::asio::ip::host_name() << " as";
-            break;
-
-        case check::CHK_REJECT:
-//            PDBG("close_status_t::fail");
-            close_status = close_status_t::fail;
-            if (!m_check_data.m_answer.empty()) {
-                response_stream << m_check_data.m_answer;
-            } else {
-                response_stream << "550 " << boost::asio::ip::host_name();
-            }
-            break;
-
-        case check::CHK_TEMPFAIL:
-//            PDBG("close_status_t::fail");
-            close_status = close_status_t::fail;
-            if (!m_check_data.m_answer.empty()) {
-                response_stream << m_check_data.m_answer;
-            } else {
-                response_stream << "451 4.7.1 Service unavailable - try again later";
-            }
-            break;
+    else {
+      response_stream << "550 " << boost::asio::ip::host_name();
     }
+    break;
 
-    response_stream << ' ' << m_session_id << '-' << m_envelope->m_id << "\r\n";
+  case check::CHK_TEMPFAIL:
+    //            PDBG("close_status_t::fail");
+    close_status = close_status_t::fail;
+    if (!m_check_data.m_answer.empty()) {
+      response_stream << m_check_data.m_answer;
+    }
+    else {
+      response_stream << "451 4.7.1 Service unavailable - try again later";
+    }
+    break;
+  }
 
-    // don't tarpit after receiving '.' from client
-    send_response(boost::bind(&smtp_connection::handle_write_request,
-                              shared_from_this(),
-                              boost::asio::placeholders::error),
-                  true);
+  response_stream << ' ' << m_session_id << '-' << m_envelope->m_id << "\r\n";
+
+  send_response(boost::bind(&smtp_connection::handle_write_request,
+                            shared_from_this(),
+                            boost::asio::placeholders::error),
+                // don't tarpit after receiving '.' from client
+                true
+    );
 }
 
 
@@ -1140,64 +1263,6 @@ bool is_invalid(char _elem) {
 }
 
 
-bool smtp_connection::smtp_rcpt(const string &_cmd,
-                                std::ostream &_response)
-{
-    if (m_proto_state != STATE_AFTER_MAIL && m_proto_state != STATE_RCPT_OK) {
-        PDBG("m_proto_state = %d", m_proto_state);
-        ++m_error_count;
-        _response << "503 5.5.4 Bad sequence of commands.\r\n";
-        return true;
-    }
-
-    if (strncasecmp( _cmd.c_str(), "to:", 3 ) != 0) {
-        ++m_error_count;
-        _response << "501 5.5.4 Wrong param.\r\n";
-        return true;
-    }
-
-    if (m_envelope->m_rcpt_list.size() >= m_max_rcpt_count) {
-        ++m_error_count;
-        _response << "452 4.5.3 Error: too many recipients\r\n";
-        return true;
-    }
-
-    string addr(util::trim(extract_addr(util::trim(_cmd.substr(3)))));
-
-    if (addr.empty()) {
-        ++m_error_count;
-        _response << "501 5.1.3 Bad recipient address syntax.\r\n";
-        return true;
-    }
-
-    std::string::size_type dog_pos = addr.find("@");
-    if (dog_pos == std::string::npos) {
-        ++m_error_count;
-        _response << "504 5.5.2 Recipient address rejected: need fully-qualified address\r\n";
-        return true;
-    }
-
-    if (std::count_if(addr.begin(), addr.end(), is_invalid) > 0) {
-        ++m_error_count;
-        _response << "501 5.1.3 Bad recipient address syntax.\r\n";
-        return true;
-    }
-
-#if 0 // original NwSMTP code; seems not correct
-    if (addr.find("%") != std::string::npos) {
-        ++m_error_count;
-        _response << "501 5.1.3 Bad recipient address syntax.\r\n";
-        return true;
-    }
-#endif
-
-    _response << "250 2.1.5 <" << addr << "> recipient ok\r\n";
-    m_envelope->add_recipient(std::move(addr));
-    m_proto_state = STATE_RCPT_OK;
-    return true;
-}
-
-
 bool smtp_connection::smtp_mail(const string &_cmd,
                                 std::ostream &_response)
 {
@@ -1267,6 +1332,64 @@ bool smtp_connection::smtp_mail(const string &_cmd,
 }
 
 
+bool smtp_connection::smtp_rcpt(const string &_cmd,
+                                std::ostream &_response)
+{
+    if (m_proto_state != STATE_AFTER_MAIL && m_proto_state != STATE_RCPT_OK) {
+        PDBG("m_proto_state = %d", m_proto_state);
+        ++m_error_count;
+        _response << "503 5.5.4 Bad sequence of commands.\r\n";
+        return true;
+    }
+
+    if (strncasecmp( _cmd.c_str(), "to:", 3 ) != 0) {
+        ++m_error_count;
+        _response << "501 5.5.4 Wrong param.\r\n";
+        return true;
+    }
+
+    if (m_envelope->m_rcpt_list.size() >= m_max_rcpt_count) {
+        ++m_error_count;
+        _response << "452 4.5.3 Error: too many recipients\r\n";
+        return true;
+    }
+
+    string addr(util::trim(extract_addr(util::trim(_cmd.substr(3)))));
+
+    if (addr.empty()) {
+        ++m_error_count;
+        _response << "501 5.1.3 Bad recipient address syntax.\r\n";
+        return true;
+    }
+
+    std::string::size_type dog_pos = addr.find("@");
+    if (dog_pos == std::string::npos) {
+        ++m_error_count;
+        _response << "504 5.5.2 Recipient address rejected: need fully-qualified address\r\n";
+        return true;
+    }
+
+    if (std::count_if(addr.begin(), addr.end(), is_invalid) > 0) {
+        ++m_error_count;
+        _response << "501 5.1.3 Bad recipient address syntax.\r\n";
+        return true;
+    }
+
+#if 0 // original NwSMTP code; seems not correct
+    if (addr.find("%") != std::string::npos) {
+        ++m_error_count;
+        _response << "501 5.1.3 Bad recipient address syntax.\r\n";
+        return true;
+    }
+#endif
+
+    _response << "250 2.1.5 <" << addr << "> recipient ok\r\n";
+    m_envelope->add_recipient(std::move(addr));
+    m_proto_state = STATE_RCPT_OK;
+    return true;
+}
+
+
 bool smtp_connection::smtp_data(const string &_cmd, std::ostream &_response)
 {
     if (m_proto_state != STATE_RCPT_OK) {
@@ -1282,15 +1405,8 @@ bool smtp_connection::smtp_data(const string &_cmd, std::ostream &_response)
         return true;
     }
 
-    _response << "354 Enter mail, end with \".\" on a line by itself\r\n";
-
-    m_proto_state = STATE_BLAST_FILE;
-    m_timer_value = g::cfg().frontend_data_timeout;
-    m_envelope->orig_message_size_ = 0;
-
     time_t now;
     time(&now);
-
     append(str(boost::format("Received: from %1% (%1% [%2%])\r\n\tby %3% (resmtp/Rambler) with %4% id %5%;\r\n\t%6%\r\n")
                % (m_remote_host_name.empty() ? "UNKNOWN" : m_remote_host_name.c_str())
                % m_connected_ip.to_string()
@@ -1309,6 +1425,13 @@ bool smtp_connection::smtp_data(const string &_cmd, std::ostream &_response)
 //                    % now
 //                ),
 //            m_envelope->added_headers_);
+
+    m_envelope->orig_message_size_ = 0;
+
+    // stop timer because we will start backend SMTP session
+    m_timer.cancel();
+    
+    m_proto_state = STATE_BACKEND_SMTP_SESSION_START;
 
     return true;
 }
@@ -1429,22 +1552,24 @@ void smtp_connection::log(r::log prio, const string &msg) noexcept
 
 const char * smtp_connection::get_proto_state_name(proto_state_t st)
 {
-    switch (st) {
-    case STATE_START:
-        return "START";
-    case STATE_HELLO:
-        return "HELLO";
-    case STATE_AFTER_MAIL:
-        return "AFTER_MAIL";
-    case STATE_RCPT_OK:
-        return "RCPT_OK";
-    case STATE_BLAST_FILE:
-        return "BLAST_FILE";
-    case STATE_CHECK_DATA:
-        return "CHECK_DATA";
-    }
-    assert(false && "update the switch() above");
-    return nullptr;
+  switch (st) {
+  case STATE_START:
+    return "START";
+  case STATE_HELLO:
+    return "HELLO";
+  case STATE_AFTER_MAIL:
+    return "AFTER_MAIL";
+  case STATE_RCPT_OK:
+    return "RCPT_OK";
+  case STATE_BLAST_FILE:
+    return "BLAST_FILE";
+  case STATE_BACKEND_SMTP_SESSION_START:
+    return "BACKEND_SMTP_SESSION_START";
+  case STATE_BACKEND_SMTP_SESSION_CONTINUE:
+    return "BACKEND_SMTP_SESSION_CONTINUE";
+  }
+  assert(false && "update the switch() above");
+  return nullptr;
 }
 
 
