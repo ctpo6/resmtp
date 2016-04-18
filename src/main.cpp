@@ -270,7 +270,7 @@ int main(int argc, char* argv[])
             }
 
             log_err(r::log::notice,
-                    str(boost::format("received signal: %1%, exiting:") % sig),
+                    str(boost::format("received signal: %1%, exiting") % sig),
                     !daemonized);
             break;
         }

@@ -1,3 +1,11 @@
+resmtp (0.7.0) unstable; urgency=low
+
+  * Optimize memory consumption: split SMTP session processing in two parts:
+    first, send recipient list to backend; continue the session with mail data 
+    if backend has accepted recipients
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Mon, 18 Apr 2016 15:55:00 +0300
+ 
 resmtp (0.6.4) unstable; urgency=low
 
   * Fixed use of boost::shared_ptr to store an array: use std::vector instead

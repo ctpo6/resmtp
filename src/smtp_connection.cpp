@@ -536,7 +536,7 @@ void smtp_connection::handle_read(const boost::system::error_code &ec,
     if (!ec) {
         if (size == 0) {
             // TODO investigate: is it really happens?
-            PDBG("size == 0");
+            PDBG("TODO size == 0");
 
             PDBG("close_status_t::fail");
             close_status = close_status_t::fail;
@@ -1134,40 +1134,42 @@ void smtp_connection::handle_ssl_handshake(const boost::system::error_code& ec)
 
 bool smtp_connection::execute_command(string cmd, std::ostream &os)
 {
-//    log(MSG_DEBUG,
-//        str(boost::format("execute command: '%1%'")
-//            % util::str_cleanup_crlf(cmd)));
+  log(r::log::debug,
+      str(boost::format("execute command: '%1%'")
+          % util::str_cleanup_crlf(cmd)));
 
-    // trim starting whitespace
-    string::size_type pos = cmd.find_first_not_of( " \t" );
-    if (pos != std::string::npos) {
-        cmd.erase(0, pos);
-    }
-    // trim trailing whitespace
-    pos = cmd.find_last_not_of( " \t\r\n" );
-    if (pos != string::npos) {
-        cmd.resize(pos + 1);
-    }
+  // trim starting whitespace
+  string::size_type pos = cmd.find_first_not_of(" \t");
+  if (pos != std::string::npos) {
+    cmd.erase(0, pos);
+  }
+  // trim trailing whitespace
+  pos = cmd.find_last_not_of(" \t\r\n");
+  if (pos != string::npos) {
+    cmd.resize(pos + 1);
+  }
 
-    // Split line into command and argument parts
-    string arg;
-    pos = cmd.find(' ');
-    if (pos != string::npos) {
-        arg = cmd.substr(pos + 1);
-        cmd.resize(pos);
-    }
+  // Split line into command and argument parts
+  string arg;
+  pos = cmd.find(' ');
+  if (pos != string::npos) {
+    arg = cmd.substr(pos + 1);
+    cmd.resize(pos);
+  }
 
-    std::transform(cmd.begin(), cmd.end(), cmd.begin(), ::tolower);
+  std::transform(cmd.begin(), cmd.end(), cmd.begin(), ::tolower);
 
-    auto func = smtp_command_handlers.find(cmd);
-    if (func != smtp_command_handlers.cend()) {
-        return (func->second)(this, arg, os);
-    } else {
-        ++m_error_count;
-        os << "502 5.5.2 Syntax error, command unrecognized.\r\n";
-    }
-
+  auto func = smtp_command_handlers.find(cmd);
+  if (func == smtp_command_handlers.cend()) {
+    // wrong command in input
+    PDBG("wrong command");
+    ++m_error_count;
+    os << "502 5.5.2 Syntax error, command unrecognized.\r\n";
     return true;
+  }
+
+  // execute command
+  return (func->second)(this, arg, os);
 }
 
 
@@ -1461,39 +1463,42 @@ bool smtp_connection::smtp_data(const string &_cmd, std::ostream &_response)
     return true;
 }
 
+
 void smtp_connection::stop()
 {
-	m_timer.cancel();
-	m_tarpit_timer.cancel();
+  m_timer.cancel();
+  m_tarpit_timer.cancel();
 
-	m_resolver.cancel();
+  m_resolver.cancel();
 
-    m_proto_state = STATE_START;
+  m_proto_state = STATE_START;
 
-    try {
-        socket().shutdown(boost::asio::ip::tcp::socket::shutdown_both);
-        socket().close();
-    } catch (...) {}
+  try {
+    socket().shutdown(boost::asio::ip::tcp::socket::shutdown_both);
+    socket().close();
+  }
+  catch (...) {
+  }
 
-    if (m_dnsbl_check) {
-        m_dnsbl_check->stop();
-        m_dnsbl_check.reset();
-    }
+  if (m_dnsbl_check) {
+    m_dnsbl_check->stop();
+    m_dnsbl_check.reset();
+  }
 
-    if (m_dnswl_check) {
-        m_dnswl_check->stop();
-        m_dnswl_check.reset();
-    }
+  if (m_dnswl_check) {
+    m_dnswl_check->stop();
+    m_dnswl_check.reset();
+  }
 
-    if (m_smtp_client) {
-        m_smtp_client->stop();
-        // timer handlers in smtp_client are called after returning from stop()
+  if (m_smtp_client) {
+    m_smtp_client->stop();
+    // timer handlers in smtp_client are called after returning from stop()
 #if 0
-        m_smtp_client.reset();
+    m_smtp_client.reset();
 #endif
-    }
+  }
 
-    on_connection_close();
+  on_connection_close();
 }
 
 

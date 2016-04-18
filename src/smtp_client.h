@@ -83,10 +83,8 @@ protected:
 	// used to resolve backend server
 	y::net::dns::resolver m_resolver;
 
-  // true: session was started with start_smtp_session()
-  // false: session was continued with continue_smtp_session()
-  bool session_start_;
-  
+	boost::asio::deadline_timer m_timer;
+
 #ifdef RESMTP_LMTP_SUPPORT
 	bool m_lmtp;
 #endif  
@@ -98,7 +96,7 @@ protected:
 
 	complete_cb_t cb_complete;
 
-	envelope *m_envelope;
+	envelope *m_envelope = nullptr;
 
 	proto_state_t m_proto_state;
 
@@ -117,7 +115,6 @@ protected:
 	envelope::rcpt_list_t::iterator m_current_rcpt;
 
 	uint32_t m_timer_value;
-	boost::asio::deadline_timer m_timer;
 
   
 	void start_with_next_backend();
