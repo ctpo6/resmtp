@@ -670,69 +670,39 @@ void smtp_connection::backend_smtp_session_start_cb()
 
   std::ostream response_stream(&m_response);
 
-  switch (m_check_data.m_result) {
-  case check::CHK_ACCEPT:
-    PDBG("check::CHK_ACCEPT");
-    
+  if (m_check_data.m_result == check::CHK_ACCEPT) {
     m_proto_state = STATE_BLAST_FILE;
 
     // start incoming session timeout timer
     m_timer_value = g::cfg().frontend_data_timeout;
     
     response_stream << "354 Enter mail data, end with <CRLF>.<CRLF>\r\n";
-    break;
-
-  case check::CHK_REJECT:
-    PDBG("check::CHK_REJECT");
-
-    m_proto_state = STATE_HELLO;
-    
-    m_smtp_client->stop();
-    m_smtp_client.reset();
-    
-    m_timer_value = g::cfg().frontend_cmd_timeout;
-
-//            PDBG("close_status_t::fail");
-    close_status = close_status_t::fail;
-    
-    if (!m_check_data.m_answer.empty()) {
-      response_stream << m_check_data.m_answer;
-    }
-    else {
-      response_stream << "550 " << boost::asio::ip::host_name();
-    }
-    break;
-
-  case check::CHK_DISCARD:
-    // TODO can we get it here?
-    PDBG("TODO check::CHK_DISCARD");
-
-    // no break
-
-  case check::CHK_TEMPFAIL:
-    PDBG("check::CHK_TEMPFAIL");
-
-    m_proto_state = STATE_HELLO;
-
-    m_smtp_client->stop();
-    m_smtp_client.reset();
-
-    m_timer_value = g::cfg().frontend_cmd_timeout;
-
-//            PDBG("close_status_t::fail");
-    close_status = close_status_t::fail;
-
-    if (!m_check_data.m_answer.empty()) {
-      response_stream << m_check_data.m_answer;
-    }
-    else {
-      response_stream << "451 4.7.1 Service unavailable - try again later";
-    }
-    break;
   }
+  else { // check::CHK_REJECT check::CHK_DISCARD check::CHK_TEMPFAIL
+    m_proto_state = STATE_HELLO;
+    
+    m_smtp_client->stop();
+    m_smtp_client.reset();
+    
+    m_timer_value = g::cfg().frontend_cmd_timeout;
 
-  response_stream << ' ' << m_session_id << '-' << m_envelope->m_id << "\r\n";
+    close_status = close_status_t::fail;
+    
+    if (!m_check_data.m_answer.empty()) {
+      response_stream << m_check_data.m_answer;
+    }
+    else {
+      if (m_check_data.m_result == check::CHK_REJECT) {
+        response_stream << "550 " << boost::asio::ip::host_name();
+      }
+      else {
+        response_stream << "451 4.7.1 Service unavailable - try again later";
+      }
+    }
 
+    response_stream << ' ' << m_session_id << '-' << m_envelope->m_id << "\r\n";
+  }
+  
   // timer was stopped before backend SMTP session was started;
   // start it again
   restart_timeout();

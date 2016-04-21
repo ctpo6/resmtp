@@ -1,3 +1,10 @@
+resmtp (0.7.1) unstable; urgency=low
+
+  * Fixed bug in sending response to DATA command, making some clients to send
+    mail twice
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Thu, 21 Apr 2016 17:16:00 +0300
+ 
 resmtp (0.7.0) unstable; urgency=low
 
   * Optimize memory consumption: split SMTP session processing in two parts:
