@@ -14,13 +14,24 @@ using namespace std;
 
 namespace util {
 
-string strf(const char* format, ...) {
-    char buf[400];
-    va_list ap;
-    va_start(ap, format);
-    vsnprintf(buf, sizeof(buf), format, ap);
-    va_end(ap);
-    return string{ buf };
+#define STRF_BUF_SIZE 500
+string strf(const char* format, ...)
+{
+  const int sz = STRF_BUF_SIZE;
+  string buf(sz, '\0');
+  
+  va_list ap;
+  va_start(ap, format);
+  int c = vsnprintf(const_cast<char *>(buf.data()), sz, format, ap);
+  va_end(ap);
+  
+  // make size() == strlen()
+  if (c < sz)
+    buf.resize(c);
+  else
+    buf.resize(sz - 1);   // trailing '\0'
+
+  return buf;
 }
 
 
