@@ -64,7 +64,7 @@ class network_array : public boost::array<uint8_t, N>
        @param p Sets the current caret position in the array. If left blank, it does not change the position, but only reports the position.
        @return The current caret position in the array
     */
-    const size_t  position(const size_t p=N+1)
+    size_t position(const size_t p=N+1)
     {
         if( p != N + 1 )  nap = p;
         return nap;
@@ -76,7 +76,7 @@ class network_array : public boost::array<uint8_t, N>
        @param l Sets the data length in the array. If left blank, it does not change the length, but only reports the length.
        @return The current length of the array
     */
-    const size_t  length(const size_t l=N+1)
+    size_t length(const size_t l=N+1)
     {
         if( l != N + 1 )  nal = l;
         return nal;

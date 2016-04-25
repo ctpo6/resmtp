@@ -74,7 +74,7 @@ class rfc1035_414_t
 
       \returns Number of bytes written
     */
-    const size_t write_label(const std::string& domain, dns_buffer_t & buffer)
+    size_t write_label(const std::string& domain, dns_buffer_t & buffer)
     {
 				using std::string;
 

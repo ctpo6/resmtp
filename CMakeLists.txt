@@ -7,27 +7,30 @@ project(resmtp)
 cmake_minimum_required(VERSION 2.8 FATAL_ERROR)
 
 # if CMAKE_BUILD_TYPE wasn't specified, make it equal to "Release"
-IF (CMAKE_BUILD_TYPE STREQUAL "")
-  set(CMAKE_BUILD_TYPE "Release")
-ENDIF ()
+IF (NOT CMAKE_BUILD_TYPE)
+	SET(
+		CMAKE_BUILD_TYPE
+		"RelWithDebInfo"
+		CACHE STRING
+		"Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel."
+		FORCE
+	)
+ENDIF()
 
 ################################################################################
 # Macroses
 ################################################################################
 
 # Standard CMake macroses
-INCLUDE(CheckIncludeFiles)
-INCLUDE(CheckCXXSourceCompiles)
-INCLUDE(CheckSymbolExists)
-INCLUDE(CheckLibraryExists)
+#INCLUDE(CheckIncludeFiles)
+#INCLUDE(CheckCXXSourceCompiles)
+#INCLUDE(CheckSymbolExists)
+#INCLUDE(CheckLibraryExists)
 INCLUDE(CheckCXXCompilerFlag)
 
 # User-defined macroses
 INCLUDE(cmake/ParseDebVersion.cmake)
-#INCLUDE(cmake/RenameModule.cmake)
-#INCLUDE(cmake/ConfigurePackage.cmake)
 INCLUDE(cmake/ConfigureLibrary.cmake)
-
 
 ################################################################################
 # C++11 compiler
@@ -59,38 +62,28 @@ message(STATUS "")
 ################################################################################
 # Compiler flags
 ################################################################################
-set(MY_C_FLAGS "-Wall -Wextra -Wno-parentheses -Wformat -Werror=format-security -Wno-unused-parameter -Wno-ignored-qualifiers")
-set(MY_CXX_FLAGS "-std=c++11")
+add_definitions(-DBOOST_THREAD_USE_LIB)
+
+set(MY_C_WARNING_FLAGS "-Werror -Wall -Wextra -Wredundant-decls -Wformat -Werror=format-security -Wno-parentheses -Wno-unused-parameter")
+set(MY_CXX_WARNING_FLAGS "-Werror -Wall -Wextra -Wredundant-decls -Woverloaded-virtual -Wnon-virtual-dtor -Wformat -Werror=format-security -Wno-parentheses -Wno-unused-parameter")
+
+set(CMAKE_C_FLAGS_DEBUG "-O0 -ggdb -D_DEBUG")
+set(CMAKE_CXX_FLAGS_DEBUG "-O0 -ggdb -D_DEBUG")
 
 set(CMAKE_C_FLAGS_RELEASE "-O2 -DNDEBUG")
 set(CMAKE_CXX_FLAGS_RELEASE "-O2 -DNDEBUG")
 
-add_definitions(-DBOOST_THREAD_USE_LIB)
+set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O2 -ggdb -DNDEBUG")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O2 -ggdb -DNDEBUG")
 
-IF (CMAKE_BUILD_TYPE MATCHES "Debug")
-  add_definitions(-D_DEBUG)
-ENDIF ()
-
-set(CMAKE_C_FLAGS "${MY_C_FLAGS} ${CMAKE_C_FLAGS}")
-set(CMAKE_CXX_FLAGS "${MY_C_FLAGS} ${MY_CXX_FLAGS} ${CMAKE_CXX_FLAGS}")
+set(CMAKE_C_FLAGS "${MY_C_WARNING_FLAGS} ${CMAKE_C_FLAGS}")
+set(CMAKE_CXX_FLAGS "-std=c++11 ${MY_CXX_WARNING_FLAGS} ${CMAKE_CXX_FLAGS}")
 
 # for static linking
 #set(CMAKE_EXE_LINKER_FLAGS "-static -static-libstdc++ -static-libgcc")
 
 message(STATUS "Build type: '${CMAKE_BUILD_TYPE}'")
 message(STATUS "")
-
-message(STATUS "C flags: ${CMAKE_C_FLAGS}")
-message(STATUS "CXX flags: ${CMAKE_CXX_FLAGS}")
-if (CMAKE_BUILD_TYPE MATCHES "Debug")
-  message(STATUS "C Debug flags: ${CMAKE_C_FLAGS_DEBUG}")
-  message(STATUS "CXX Debug flags: ${CMAKE_CXX_FLAGS_DEBUG}")
-elseif (CMAKE_BUILD_TYPE MATCHES "Release")
-  message(STATUS "C Release flags: ${CMAKE_C_FLAGS_RELEASE}")
-  message(STATUS "CXX Release flags: ${CMAKE_CXX_FLAGS_RELEASE}")
-endif ()
-message(STATUS "")
-
 
 ################################################################################
 # Version

@@ -1,3 +1,9 @@
+resmtp (0.7.2) unstable; urgency=low
+
+  * Project reworked to build dbg package
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Mon, 25 Apr 2016 15:13:00 +0300
+ 
 resmtp (0.7.1) unstable; urgency=low
 
   * Fixed bug in sending response to DATA command, making some clients to send

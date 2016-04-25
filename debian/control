@@ -2,10 +2,19 @@ Source: resmtp
 Section: mail
 Priority: extra
 Maintainer: Yuri Epstein <yuri.epstein@gmail.com>
-Build-Depends: debhelper, cmake, libssl-dev, libboost-all-dev
+Build-Depends: debhelper (>= 7.0.50~), cdbs, cmake, libssl-dev, libboost-all-dev
 Standards-Version: 3.9.5
 
 Package: resmtp
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, logrotate
 Description: SMTP frontend proxy server
+
+Package: resmtp-dbg
+Section: debug
+Architecture: any
+Priority: extra
+Depends: resmtp (= ${binary:Version}), ${misc:Depends}
+Description: SMTP frontend proxy server (debug symbols)
+
+

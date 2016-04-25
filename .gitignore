@@ -9,13 +9,16 @@ nbproject
 
 obj-x86_64-linux-gnu
 
+debian/resmtp/
+debian/resmtp-dbg/
+debian/tmp/
 debian/files
-debian/resmtp.debhelper.log
+debian/resmtp*.debhelper.log
 debian/resmtp.postinst.debhelper
 debian/resmtp.postrm.debhelper
 debian/resmtp.prerm.debhelper
-debian/resmtp.substvars
-debian/resmtp
+debian/resmtp*.substvars
+debian/stamp-makefile-*
 
 # debian package builder output files
 resmtp-graph_*

@@ -1,0 +1,3 @@
+/usr/sbin/resmtp
+/etc/logrotate.d/resmtp
+/etc/resmtp/resmtp.conf
