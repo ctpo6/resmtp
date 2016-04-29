@@ -1,5 +1,5 @@
-#ifndef _UTI_H_
-#define _UTI_H_
+#ifndef _UTIL_H_
+#define _UTIL_H_
 
 #include <cstring>
 #include <string>

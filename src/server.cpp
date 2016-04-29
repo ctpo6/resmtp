@@ -32,7 +32,8 @@ server::server(const server_parameters &cfg)
             m_ssl_context.set_verify_mode(ba::ssl::context::verify_none);
             m_ssl_context.set_options(
                         ba::ssl::context::default_workarounds |
-                        ba::ssl::context::no_sslv2 );
+                        ba::ssl::context::no_sslv2 |
+                        ba::ssl::context::no_sslv3);
             if (!cfg.m_tls_cert_file.empty()) {
                 m_ssl_context.use_certificate_chain_file(cfg.m_tls_cert_file);
             }

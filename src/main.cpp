@@ -130,6 +130,8 @@ int main(int argc, char* argv[])
     std::srand(std::time(nullptr));
 
     bool daemonized = false;
+    log_err(r::log::notice, "starting", !daemonized);
+    
     try {
         if (!g::cfg().parse_config(argc, argv)) {
             return 0;
@@ -241,8 +243,7 @@ int main(int argc, char* argv[])
             // continue execution
         }
 
-        log_err(r::log::notice,
-                "server successfully started", !daemonized);
+        log_err(r::log::notice, "successfully started", !daemonized);
 
         int sig;
         while (true) {

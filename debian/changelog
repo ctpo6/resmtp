@@ -1,3 +1,11 @@
+resmtp (0.7.3) unstable; urgency=low
+
+  * Disable SSLv3
+  * Improved logging
+  * Always compile debug logging
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Fri, 29 Apr 2016 16:14:00 +0300
+ 
 resmtp (0.7.2) unstable; urgency=low
 
   * Project reworked to build dbg package

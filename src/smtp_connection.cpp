@@ -29,7 +29,8 @@
 
 #undef PDBG
 #undef PLOG
-#ifdef _DEBUG
+//#ifdef _DEBUG
+#if 1
 #define PDBG(fmt, args...) log(r::log::debug, util::strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
 #define PLOG(prio, fmt, args...) log(prio, util::strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
 #else
@@ -461,7 +462,7 @@ bool smtp_connection::handle_read_command_helper(
   parsed = ++read;
 
   std::ostream os(&m_response);
-  bool res = execute_command(command, os);
+  bool res = execute_command(std::move(command), os);
 
   if (res) {
     if (m_proto_state == STATE_BACKEND_SMTP_SESSION_START) {
@@ -1087,18 +1088,21 @@ void smtp_connection::handle_last_write_request(
 
 void smtp_connection::handle_ssl_handshake(const boost::system::error_code& ec)
 {
-    if (!ec) {
-        ssl_state_ = ssl_active;
-        m_ssl_socket.async_handshake(boost::asio::ssl::stream_base::server,
-                strand_.wrap(boost::bind(&smtp_connection::handle_write_request, shared_from_this(),
-                                boost::asio::placeholders::error)));
-    } else {
-        if (ec != boost::asio::error::operation_aborted) {
-            PDBG("close_status_t::fail");
-            close_status = close_status_t::fail;
-            m_manager.stop(shared_from_this());
-        }
+  if (!ec) {
+    PDBG("!ec");
+    ssl_state_ = ssl_active;
+    m_ssl_socket.async_handshake(boost::asio::ssl::stream_base::server,
+                                 strand_.wrap(boost::bind(&smtp_connection::handle_write_request, shared_from_this(),
+                                                          boost::asio::placeholders::error)));
+  }
+  else {
+    PDBG("ec.message()=%s", ec.message().c_str());
+    if (ec != boost::asio::error::operation_aborted) {
+      PDBG("close_status_t::fail");
+      close_status = close_status_t::fail;
+      m_manager.stop(shared_from_this());
     }
+  }
 }
 
 
@@ -1128,6 +1132,10 @@ bool smtp_connection::execute_command(string cmd, std::ostream &os)
   }
 
   std::transform(cmd.begin(), cmd.end(), cmd.begin(), ::tolower);
+
+  log(r::log::debug,
+      str(boost::format("execute command (cleaned): '%1%'")
+          % cmd));
 
   auto func = smtp_command_handlers.find(cmd);
   if (func == smtp_command_handlers.cend()) {
@@ -1162,7 +1170,8 @@ bool smtp_connection::smtp_starttls(const string &, std::ostream &response)
     if (g::cfg().m_use_tls && !m_force_ssl) {
         ssl_state_ = ssl_hand_shake;
         response << "220 Go ahead\r\n";
-    } else {
+    } 
+    else {
         response << "502 5.5.2 Syntax error, command unrecognized.\r\n";
     }
     return true;
