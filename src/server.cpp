@@ -15,62 +15,73 @@ namespace ba = boost::asio;
 
 namespace resmtp {
 
+
 server::server(const server_parameters &cfg)
-    : m_io_service_pool_size(cfg.m_worker_count)
-    , m_io_service()
-    , m_ssl_context(m_io_service, ba::ssl::context::sslv23)
-    , mon_io_service()
-    , mon_acceptor(new acceptor_t(mon_io_service))
-    , mon_socket(mon_io_service)
-    , m_connection_manager(cfg.m_connection_count_limit,
-                           cfg.m_client_connection_count_limit)
-    , backend_mgr(cfg.backend_hosts, cfg.backend_port)
+  : m_io_service_pool_size(cfg.m_worker_count)
+  , m_io_service()
+  , m_ssl_context(m_io_service, ba::ssl::context::sslv23)
+  //    , m_ssl_context(m_io_service, ba::ssl::context::tlsv12_server)
+  , mon_io_service()
+  , mon_acceptor(new acceptor_t(mon_io_service))
+  , mon_socket(mon_io_service)
+  , m_connection_manager(cfg.m_connection_count_limit,
+                         cfg.m_client_connection_count_limit)
+  , backend_mgr(cfg.backend_hosts, cfg.backend_port)
 {
-    if (cfg.m_use_tls) {
-        try {
-//            m_ssl_context.set_verify_mode(ba::ssl::context::verify_peer | ba::ssl::context::verify_client_once);
-            m_ssl_context.set_verify_mode(ba::ssl::context::verify_none);
-            m_ssl_context.set_options(
-                        ba::ssl::context::default_workarounds |
-                        ba::ssl::context::no_sslv2 |
-                        ba::ssl::context::no_sslv3);
-            if (!cfg.m_tls_cert_file.empty()) {
-                m_ssl_context.use_certificate_chain_file(cfg.m_tls_cert_file);
-            }
-            if (!cfg.m_tls_key_file.empty()) {
-                m_ssl_context.use_private_key_file(cfg.m_tls_key_file, ba::ssl::context::pem);
-            }
-        } catch (std::exception const &e) {
-            throw std::runtime_error(str(boost::format(
-                "failed to load TLS key / certificate file: file='%1%', error='%2%'")
-                % cfg.m_tls_key_file
-                % e.what()));
-        }
+  if (cfg.m_use_tls) {
+    //        m_ssl_context.set_verify_mode(ba::ssl::context::verify_peer | ba::ssl::context::verify_client_once);
+    m_ssl_context.set_verify_mode(ba::ssl::context::verify_none);
+    m_ssl_context.set_options(
+                              ba::ssl::context::default_workarounds |
+                              ba::ssl::context::no_sslv2 |
+                              ba::ssl::context::no_sslv3);
+    SSL_CTX_set_options(m_ssl_context.native_handle(), SSL_OP_CIPHER_SERVER_PREFERENCE);
 
-        for(auto &s: cfg.m_ssl_listen_points) {
-            setup_acceptor(s, true);
-        }
+    const char * ciphers = "ALL:+HIGH:!LOW:!MEDIUM:!EXPORT:!aNULL:!3DES:!ADH:!RC4:@STRENGTH";
+    if (SSL_CTX_set_cipher_list(m_ssl_context.native_handle(), ciphers) == 0) {
+      throw std::runtime_error(str(boost::format("failed to set TLS ciphers: '%1%'")
+                                   % ciphers));
     }
 
-    if (!setup_mon_acceptor(cfg.mon_listen_point)) {
-        throw std::runtime_error("failed to setup monitoring connection acceptor");
+    try {
+      if (!cfg.m_tls_cert_file.empty()) {
+        m_ssl_context.use_certificate_chain_file(cfg.m_tls_cert_file);
+      }
+      if (!cfg.m_tls_key_file.empty()) {
+        m_ssl_context.use_private_key_file(cfg.m_tls_key_file, ba::ssl::context::pem);
+      }
+    }
+    catch (const boost::system::system_error &e) {
+      throw std::runtime_error(str(boost::format("failed to load TLS key / certificate file: key='%1%' cert='%2%', error='%3%'")
+                                   % cfg.m_tls_key_file
+                                   % cfg.m_tls_cert_file
+                                   % e.what()));
     }
 
-    m_acceptors.reserve(cfg.m_listen_points.size());
-    for(auto &s: cfg.m_listen_points) {
-        setup_acceptor(s, false);
+    for (auto &s : cfg.m_ssl_listen_points) {
+      setup_acceptor(s, true);
     }
-    if (m_acceptors.empty()) {
-        throw std::runtime_error("failed to setup any SMTP connection acceptor");
-    }
+  }
 
-    if (cfg.m_gid && setgid(cfg.m_gid) == -1) {
-        throw std::runtime_error("failed to change process group id");
-    }
+  if (!setup_mon_acceptor(cfg.mon_listen_point)) {
+    throw std::runtime_error("failed to setup monitoring connection acceptor");
+  }
 
-    if (cfg.m_uid && setuid(cfg.m_uid) == -1) {
-        throw std::runtime_error("failed to change process user id");
-    }
+  m_acceptors.reserve(cfg.m_listen_points.size());
+  for (auto &s : cfg.m_listen_points) {
+    setup_acceptor(s, false);
+  }
+  if (m_acceptors.empty()) {
+    throw std::runtime_error("failed to setup any SMTP connection acceptor");
+  }
+
+  if (cfg.m_gid && setgid(cfg.m_gid) == -1) {
+    throw std::runtime_error("failed to change process group id");
+  }
+
+  if (cfg.m_uid && setuid(cfg.m_uid) == -1) {
+    throw std::runtime_error("failed to change process user id");
+  }
 }
 
 

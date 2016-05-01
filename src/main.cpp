@@ -126,11 +126,10 @@ bool set_limits()
 
 int main(int argc, char* argv[])
 {
+    bool daemonized = false;
+
     std::set_terminate(cxx_exception_handler);
     std::srand(std::time(nullptr));
-
-    bool daemonized = false;
-    log_err(r::log::notice, "starting", !daemonized);
     
     try {
         if (!g::cfg().parse_config(argc, argv)) {
