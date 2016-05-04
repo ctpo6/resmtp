@@ -263,92 +263,97 @@ void validate(boost::any &v,
 }
 
 
-bool server_parameters::init_dns_settings() noexcept
+void server_parameters::init_dns_settings()
 {
-    if (dns_ip_str.empty()) {
-        // get host configured DNS servers addresses using libresolv
-        static struct __res_state rs;
-        if (res_ninit(&rs) != 0 || rs.nscount <= 0) {
-            return false;
-        }
-        dns_ip.reserve(rs.nscount);
-        for (int i = 0; i < rs.nscount; ++i) {
-            dns_ip.emplace_back((unsigned long)htonl(rs.nsaddr_list[i].sin_addr.s_addr));
-        }
+  dns_ip.clear();
+  
+  if (dns_ip_str.empty()) {
+    // get host configured DNS servers addresses using libresolv
+    static struct __res_state rs;
+    if (res_ninit(&rs) != 0 || rs.nscount <= 0) {
+      throw std::runtime_error("failed to obtain DNS server settings: the argument for option 'dns_ip' is also empty");
     }
-    else {
-        // get DNS servers addresses from cfg
-        dns_ip.reserve(dns_ip_str.size());
-        for (const auto &s: dns_ip_str) {
-            boost::system::error_code ec;
-            auto addr(ba::ip::address_v4::from_string(s, ec));
-            if (ec) {
-                return false;   // failed to init from str
-            }
-            dns_ip.push_back(addr);
-        }
+    dns_ip.reserve(rs.nscount);
+    for (int i = 0; i < rs.nscount; ++i) {
+      dns_ip.emplace_back((unsigned long) htonl(rs.nsaddr_list[i].sin_addr.s_addr));
     }
-    return true;
+  }
+  else {
+    // get DNS servers addresses from cfg
+    dns_ip.reserve(dns_ip_str.size());
+    for (const auto &s : dns_ip_str) {
+      boost::system::error_code ec;
+      auto addr(ba::ip::address_v4::from_string(s, ec));
+      if (ec) {
+        throw std::runtime_error(util::strf("the argument for option 'dns_ip' is invalid: %s", s.c_str()));
+      }
+      dns_ip.push_back(addr);
+    }
+  }
 }
 
 
-bool server_parameters::init_white_ip_settings() noexcept
+void server_parameters::init_white_ip_settings()
 {
-    if (white_ip_str.empty()) return true; // nothing to do
+  white_ip.clear();
+  if (white_ip_str.empty()) return; // nothing to do
 
-    white_ip.reserve(white_ip_str.size());
-    for (const auto &s: white_ip_str) {
-        boost::system::error_code ec;
-        auto addr(ba::ip::address_v4::from_string(s, ec));
-        if (ec) {
-            return false;   // failed to init from str
-        }
-        white_ip.push_back(addr);
+  white_ip.reserve(white_ip_str.size());
+  for (const auto &s : white_ip_str) {
+    boost::system::error_code ec;
+    auto addr(ba::ip::address_v4::from_string(s, ec));
+    if (ec) {
+      throw std::runtime_error(util::strf("the argument for option 'white_ip' is invalid: %s", s.c_str()));
     }
-    return true;
+    white_ip.push_back(addr);
+  }
 }
 
-
-bool server_parameters::init_backend_hosts_settings() noexcept
+void server_parameters::init_backend_hosts_settings()
 {
-    using namespace boost;
-    backend_hosts.reserve(backend_hosts_str.size());
+  using namespace boost;
+  
+  backend_hosts.clear();
+  backend_hosts.reserve(backend_hosts_str.size());
 
-    for(auto &s: backend_hosts_str) {
-        tokenizer<char_separator<char>> t(s, char_separator<char>(" \t"));
+  for (auto &s : backend_hosts_str) {
+    tokenizer<char_separator<char>> t(s, char_separator<char>(" \t"));
 
-        // get host name
-        auto it = t.begin();
-        string host_name(*it++);
+    // get host name
+    auto it = t.begin();
+    string host_name(*it++);
 
-        // get host weight
-        uint32_t weight = 100;
-        if (it != t.end()) {
-            try {
-                weight = boost::lexical_cast<uint32_t>(*it);
-            } catch (const boost::bad_lexical_cast &e) {
-                return false;
-            }
-            if (weight > 100) {
-                return false;
-            }
-        }
-        if (!weight) {  // by assigning weight == 0 host is disabled
-            continue;
-        }
-
-        backend_hosts.emplace_back(std::move(host_name), weight);
+    // get host weight
+    uint32_t weight = 100;
+    if (it != t.end()) {
+      try {
+        weight = boost::lexical_cast<uint32_t>(*it);
+      }
+      catch (const boost::bad_lexical_cast &e) {
+        weight = 101; // make it >100 to be processed as error below
+      }
+      if (weight > 100) {
+        throw std::runtime_error(util::strf("the argument for option 'backend_host' is invalid: %s %s",
+                                            host_name.c_str(),
+                                            it->c_str()));
+      }
+    }
+    if (!weight) { // by assigning weight == 0 host is disabled
+      continue;
     }
 
-    // return error if no active (i.e. weight > 0) hosts were specified
-    return !backend_hosts.empty();
+    backend_hosts.emplace_back(std::move(host_name), weight);
+  }
+
+  if (backend_hosts.empty()) {
+    // no enabled hosts (i.e. with weight > 0)
+    throw std::runtime_error("no enabled backend hosts (check 'backend_host' entries)");
+  }
 }
 
 
 bool server_parameters::parse_config(int argc, char * argv[])
 {
-    string config_file;
-
     bpo::options_description common_opt;
     common_opt.add_options()
             ("log,l", bpo::value<log_value>(&log_level), "log level: crit, err, warning, notice, info, debug, buffers")
@@ -357,10 +362,11 @@ bool server_parameters::parse_config(int argc, char * argv[])
 
     bpo::options_description command_line_opt("Command line options");
     command_line_opt.add_options()
-            ("version,v", "print version")
             ("help,h", "print help")
+            ("version,v", "print version")
+            ("check,C", "check config only (not thoroughly indeed)")
             ("foreground,f", "run at foreground (don't daemonize)")
-            ("config,c", bpo::value<std::string>(&config_file)->default_value(def_config_file), "path to configuration file")
+            ("config,c", bpo::value<std::string>(&config_file_)->default_value(def_config_file), "path to configuration file")
             ;
     command_line_opt.add(common_opt);
 
@@ -440,7 +446,7 @@ bool server_parameters::parse_config(int argc, char * argv[])
 
     m_foreground = (vm.count("foreground") != 0);
 
-    std::ifstream ifs(config_file.c_str());
+    std::ifstream ifs(config_file_.c_str());
     if (!ifs) {
         throw std::runtime_error("can't open config file");
     }
@@ -467,6 +473,18 @@ bool server_parameters::parse_config(int argc, char * argv[])
         }
     }
 #endif
+
+    // initialize white IP settings
+    init_white_ip_settings();
+    // initialize DNS servers settings
+    init_dns_settings();
+    // initialize backend hosts settings
+    init_backend_hosts_settings();
+    
+    if (vm.count("check")) {
+        cout << "config check (" << config_file_ << "): ok" << endl;
+        return false;
+    }
 
     return true;
 }

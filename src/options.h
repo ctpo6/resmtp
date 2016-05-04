@@ -64,11 +64,14 @@ struct server_parameters {
     };
 
 
-    // don't daemonize
+    string config_file_ = def_config_file;
+
+      // don't daemonize
     bool m_foreground;
 
     // value of this variable is mapped to syslog priority
     log_value log_level;
+    
 
     string m_pid_file;
 
@@ -166,9 +169,9 @@ struct server_parameters {
     // on error throws exception
     bool parse_config(int argc, char* argv[]);
 
-    bool init_dns_settings() noexcept;
-    bool init_white_ip_settings() noexcept;
-    bool init_backend_hosts_settings() noexcept;
+    void init_dns_settings();
+    void init_white_ip_settings();
+    void init_backend_hosts_settings();
 };
 
 #endif
