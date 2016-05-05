@@ -40,6 +40,8 @@ SSD="start-stop-daemon --pidfile $PIDFILE --name $NAME --oknodo"
 
 do_start()
 {
+	ulimit -c unlimited
+	ulimit -n 400000
 	mkdir -m755 -p $RUNDIR
 	chown $USER:$GROUP $RUNDIR
 	$SSD --start --exec $DAEMON \

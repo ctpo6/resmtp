@@ -13,8 +13,11 @@
 using namespace std;
 namespace ba = boost::asio;
 
-namespace resmtp {
+//static void ssl_info_cb(const SSL *ssl, int where, int ret)
+//{
+//}
 
+namespace resmtp {
 
 server::server(const server_parameters &cfg)
   : m_io_service_pool_size(cfg.m_worker_count)
@@ -30,12 +33,15 @@ server::server(const server_parameters &cfg)
 {
   if (cfg.m_use_tls) {
     //        m_ssl_context.set_verify_mode(ba::ssl::context::verify_peer | ba::ssl::context::verify_client_once);
+    SSL_CTX *ssl_ctx = m_ssl_context.native_handle();
+//    SSL_CTX_set_info_callback(ssl_ctx, ssl_info_cb);
+    
     m_ssl_context.set_verify_mode(ba::ssl::context::verify_none);
     m_ssl_context.set_options(
                               ba::ssl::context::default_workarounds |
                               ba::ssl::context::no_sslv2 |
                               ba::ssl::context::no_sslv3);
-    SSL_CTX_set_options(m_ssl_context.native_handle(), SSL_OP_CIPHER_SERVER_PREFERENCE);
+    SSL_CTX_set_options(ssl_ctx, SSL_OP_CIPHER_SERVER_PREFERENCE);
 
     const char * ciphers = "ALL:+HIGH:!LOW:!MEDIUM:!EXPORT:!aNULL:!3DES:!ADH:!RC4:@STRENGTH";
     if (SSL_CTX_set_cipher_list(m_ssl_context.native_handle(), ciphers) == 0) {

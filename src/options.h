@@ -72,7 +72,6 @@ struct server_parameters {
     // value of this variable is mapped to syslog priority
     log_value log_level;
     
-
     string m_pid_file;
 
     // number of SMTP connections worker threads

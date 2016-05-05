@@ -1,3 +1,22 @@
+resmtp (0.8.3) unstable; urgency=low
+
+  * Don't count connections from IP if disabled in config
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Thu, 5 May 2016 15:45:00 +0300
+ 
+resmtp (0.8.2) unstable; urgency=low
+
+  * Fix: smtp_connection_manager::RESERVE_SIZE = 200000
+  * Fix: don't set file limits inside resmtp code, moved to init.d script
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Thu, 5 May 2016 13:13:00 +0300
+ 
+resmtp (0.8.1) unstable; urgency=low
+
+  * Don't handle SIGSEGV
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Thu, 5 May 2016 12:22:00 +0300
+ 
 resmtp (0.8.0) unstable; urgency=low
 
   * Implemented option -C (--check): check config file

@@ -108,16 +108,6 @@ void cxx_exception_handler()
   exit(1);
 }
 
-bool set_limits()
-{
-  struct rlimit64 rl;
-  rl.rlim_cur = RLIMIT_OFILE_VALUE;
-  rl.rlim_max = RLIMIT_OFILE_VALUE;
-  if (setrlimit64(RLIMIT_OFILE, &rl) == -1) {
-    return false;
-  }
-  return true;
-}
 }
 
 
@@ -189,12 +179,6 @@ int main(int argc, char* argv[])
     sigset_t old_mask;
     pthread_sigmask(SIG_BLOCK, &new_mask, &old_mask);
 
-    if (!set_limits()) {
-      throw std::runtime_error(
-                               str(boost::format("failed to set limits: RLIMIT_OFILE(%1%)")
-                                   % RLIMIT_OFILE_VALUE));
-    }
-
     resmtp::server server(g::cfg());
 
     // Daemonize as late as possible, so as to be able to copy fatal error to stderr in case the server can't start
@@ -234,7 +218,6 @@ int main(int argc, char* argv[])
       sigaddset(&wait_mask, SIGQUIT);
       sigaddset(&wait_mask, SIGTERM);
       sigaddset(&wait_mask, SIGHUP);
-      sigaddset(&wait_mask, SIGSEGV);
       pthread_sigmask(SIG_BLOCK, &wait_mask, 0);
       sigwait(&wait_mask, &sig);
 
@@ -242,12 +225,6 @@ int main(int argc, char* argv[])
         log_err(r::log::notice, "received SIGHUP", !daemonized);
         g::logsph().recreate_log_file();
         continue;
-      }
-
-      if (sig == SIGSEGV) {
-        cerr << "received SIGSEGV signal\n";
-        print_backtrace();
-        exit(1);
       }
 
       log_err(r::log::notice,

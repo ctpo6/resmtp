@@ -12,7 +12,7 @@
 using namespace std;
 
 
-const uint32_t smtp_connection_manager::RESERVE_SIZE = 100000;
+const uint32_t smtp_connection_manager::RESERVE_SIZE = 200000;
 
 
 smtp_connection_manager::smtp_connection_manager(
@@ -22,7 +22,9 @@ smtp_connection_manager::smtp_connection_manager(
     , max_sessions_per_ip(max_sess_per_ip)
 {
     connections.reserve(max(max_sessions, RESERVE_SIZE));
-    m_ip_count.reserve(max(max_sessions, RESERVE_SIZE));
+    if (max_sessions_per_ip) {
+      m_ip_count.reserve(max(max_sessions, RESERVE_SIZE));
+    }
 }
 
 
@@ -74,6 +76,7 @@ void smtp_connection_manager::stop_all()
     decltype(connections) tmp;
     tmp.swap(connections);
     connections.reserve(max(max_sessions, RESERVE_SIZE));   // for possible further usage
+    
     m_ip_count.clear();
 
     lock.unlock();
@@ -85,35 +88,39 @@ void smtp_connection_manager::stop_all()
 }
 
 
-uint32_t smtp_connection_manager::ip_count_inc(
-        const boost::asio::ip::address &addr) {
-    auto it = m_ip_count.find(addr.to_v4().to_ulong());
-    if (it == m_ip_count.end()) {
-        m_ip_count.insert(ip_connection_map_t::value_type(addr.to_v4().to_ulong(), 1));
-        return 1;
-    }
-    return ++(it->second);
+uint32_t smtp_connection_manager::ip_count_inc(const boost::asio::ip::address &addr)
+{
+  if (!max_sessions_per_ip) return 0;
+  
+  auto it = m_ip_count.find(addr.to_v4().to_ulong());
+  if (it == m_ip_count.end()) {
+    m_ip_count.insert(ip_connection_map_t::value_type(addr.to_v4().to_ulong(), 1));
+    return 1;
+  }
+  return ++(it->second);
 }
 
 
-uint32_t smtp_connection_manager::ip_count_dec(
-        const boost::asio::ip::address &addr)
+uint32_t smtp_connection_manager::ip_count_dec(const boost::asio::ip::address &addr)
 {
-    auto it = m_ip_count.find(addr.to_v4().to_ulong());
-    assert(it != m_ip_count.end()
-            && it->second != 0
-            && "error in IP count decrement logic");
-    uint32_t r = --(it->second);
-    if (!r) {
-        m_ip_count.erase(it);
-    }
-    return r;
+  if (!max_sessions_per_ip) return 0;
+  
+  auto it = m_ip_count.find(addr.to_v4().to_ulong());
+  assert(it != m_ip_count.end()
+          && it->second != 0
+          && "error in IP count decrement logic");
+  uint32_t r = --(it->second);
+  if (!r) {
+      m_ip_count.erase(it);
+  }
+  return r;
 }
 
 
-uint32_t smtp_connection_manager::get_ip_count(
-        const boost::asio::ip::address &addr) const
+uint32_t smtp_connection_manager::get_ip_count(const boost::asio::ip::address &addr) const
 {
-    auto it = m_ip_count.find(addr.to_v4().to_ulong());
-    return it != m_ip_count.end() ? it->second : 0;
+  if (!max_sessions_per_ip) return 0;
+  
+  auto it = m_ip_count.find(addr.to_v4().to_ulong());
+  return it != m_ip_count.end() ? it->second : 0;
 }
