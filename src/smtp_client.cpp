@@ -985,7 +985,7 @@ void smtp_client::on_backend_conn()
 
     g::mon().on_backend_conn(backend_host.index);
 
-    m_timer_value = g::cfg().backend_connect_timeout;
+    m_timer_value = g::cfg().backend_cmd_timeout;
     start_read_line();
 }
 
