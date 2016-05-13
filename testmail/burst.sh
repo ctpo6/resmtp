@@ -4,7 +4,7 @@
 # Send mails in bursts with a timeout between them
 #
 
-MAIL_FILE="./mail.txt"
+MAIL_FILE="./mail1.txt"
 
 print_usage()
 {
@@ -17,7 +17,8 @@ print_usage()
 
 do_send_mail()
 {
-	mailx -r "yuri.epstein@rambler.ru" -s "test" -S smtp="resmtp.mail.rambler.ru:25" 25volt@25volt.ru < $MAIL_FILE
+#	mailx -r "yuri.epstein@rambler.ru" -s "test" -S smtp="resmtp.mail.rambler.ru:25" -S smtp-use-starttls -S ssl-verify=ignore xyu@resmtp.mail.rambler.ru < $MAIL_FILE
+	mailx -r "yuri.epstein@rambler.ru" -s "test" -S smtp="resmtp.mail.rambler.ru:25" -S smtp-use-starttls -S ssl-verify=ignore 25volt@25volt.ru < $MAIL_FILE
 }
 
 
