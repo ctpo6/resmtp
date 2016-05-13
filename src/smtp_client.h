@@ -62,7 +62,9 @@ protected:
   // used to resolve backend server
   y::net::dns::resolver m_resolver;
 
+#ifdef RESMTP_LMTP_SUPPORT  
   bool m_lmtp;
+#endif  
 
   bool m_use_xclient;
   bool m_use_pipelining;

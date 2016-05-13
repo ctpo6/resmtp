@@ -74,7 +74,7 @@ smtp_client::smtp_client(ba::io_service &io_service,
 }
 
 
-#if 0
+#ifdef RESMTP_LMTP_SUPPORT
 void smtp_client::start(const check_data_t& _data,
                         complete_cb_t complete,
                         envelope_ptr _envelope,
@@ -150,7 +150,9 @@ void smtp_client::start(const check_data_t &_data,
         m_resolver.add_nameserver(addr);
     }
 
+#ifdef RESMTP_LMTP_SUPPORT    
     m_lmtp = false;
+#endif    
 
     m_use_xclient = false;
     m_use_pipelining = false;
@@ -492,26 +494,28 @@ bool smtp_client::process_answer(std::istream &_stream) {
 
         switch (m_proto_state) {
         case proto_state_t::connected:
-            // send:
-            // EHLO client.example.com
 
             m_timer_value = g::cfg().backend_cmd_timeout;
 
+#ifdef RESMTP_LMTP_SUPPORT
             answer_stream << (m_lmtp ? "LHLO " : "EHLO ")
                           << ba::ip::host_name()
                           << "\r\n";
-
+#else
+            answer_stream << "EHLO " << ba::ip::host_name() << "\r\n";
+#endif            
             m_proto_state = proto_state_t::after_hello;
             break;
 
         case proto_state_t::after_xclient:
-            // send:
-            // EHLO spike.porcupine.org
-
+          
+#ifdef RESMTP_LMTP_SUPPORT
             answer_stream << (m_lmtp ? "LHLO " : "EHLO ")
                           << m_data.m_helo_host
                           << "\r\n";
-
+#else
+            answer_stream << "EHLO " << m_data.m_helo_host << "\r\n";
+#endif            
             m_proto_state = proto_state_t::after_hello_xclient;
             break;
 
@@ -572,9 +576,12 @@ bool smtp_client::process_answer(std::istream &_stream) {
             break;
 
         case proto_state_t::after_data:
+          
+#ifdef RESMTP_LMTP_SUPPORT
             if (m_lmtp) {
                 m_current_rcpt = m_envelope->m_rcpt_list.begin();
             }
+#endif            
 
             m_timer_value = g::cfg().backend_data_timeout;
             restart_timeout();
@@ -593,7 +600,8 @@ bool smtp_client::process_answer(std::istream &_stream) {
         case proto_state_t::after_dot:
             m_timer_value = g::cfg().backend_cmd_timeout;
             restart_timeout();
-
+            
+#ifdef RESMTP_LMTP_SUPPORT
             if (m_lmtp) {
                 m_current_rcpt->m_delivery_status = envelope::smtp_code_decode(code);
                 m_current_rcpt->m_remote_answer = line_buffer;
@@ -602,7 +610,10 @@ bool smtp_client::process_answer(std::istream &_stream) {
                     answer_stream << "QUIT\r\n";
                     m_proto_state = proto_state_t::after_quit;
                 }
-            } else {
+            } 
+            else 
+#endif              
+            {
                 for(m_current_rcpt = m_envelope->m_rcpt_list.begin();
                     m_current_rcpt != m_envelope->m_rcpt_list.end();
                     ++m_current_rcpt) {
