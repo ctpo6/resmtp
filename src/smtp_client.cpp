@@ -13,8 +13,7 @@
 
 #undef PDBG
 #undef PLOG
-//#ifdef _DEBUG
-#if 1
+#ifdef _DEBUG
 #define PDBG(fmt, args...) log(r::log::debug, util::strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
 #define PLOG(prio, fmt, args...) log(prio, util::strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
 #else
@@ -75,7 +74,7 @@ smtp_client::smtp_client(ba::io_service &io_service,
 }
 
 
-#ifdef RESMTP_LMTP_SUPPORT
+#if 0
 void smtp_client::start(const check_data_t& _data,
                         complete_cb_t complete,
                         envelope_ptr _envelope,
@@ -136,63 +135,27 @@ void smtp_client::start(const check_data_t& _data,
 #endif
 
 
-void smtp_client::start_smtp_session(const check_data_t &_data,
-                                     const vector<boost::asio::ip::address_v4> &dns_servers,
-                                     envelope &envelope,
-                                     complete_cb_t complete)
+void smtp_client::start(const check_data_t &_data,
+                        complete_cb_t complete,
+                        envelope &envelope,
+                        const vector<boost::asio::ip::address_v4> &dns_servers)
 {
-  m_data = _data;
-  cb_complete = complete;
+    m_data = _data;
+    cb_complete = complete;
 
-  m_envelope = &envelope;
-  m_envelope->cleanup_answers();
+    m_envelope = &envelope;
+    m_envelope->cleanup_answers();
 
-  PDBG("ENTER");
+    for (const auto &addr: dns_servers) {
+        m_resolver.add_nameserver(addr);
+    }
 
-  for (const auto &addr: dns_servers) {
-      m_resolver.add_nameserver(addr);
-  }
+    m_lmtp = false;
 
-#ifdef RESMTP_LMTP_SUPPORT  
-  m_lmtp = false;
-#endif  
+    m_use_xclient = false;
+    m_use_pipelining = false;
 
-  m_use_xclient = false;
-  m_use_pipelining = false;
-  
-  start_with_next_backend();
-}
-
-
-void smtp_client::continue_smtp_session(envelope &e,
-                                        complete_cb_t complete_cb)
-{
-  assert(m_proto_state == proto_state_t::after_data &&
-    "SMTP DATA command must be already sent");
-
-  cb_complete = complete_cb;
-  
-  m_envelope = &e;
-  m_envelope->cleanup_answers();
-
-  PDBG("ENTER");
-  
-  m_data.m_result = check::CHK_ACCEPT;
-  m_data.m_answer.clear();
-  
-  m_timer_value = g::cfg().backend_data_timeout;
-  restart_timeout();
-
-  m_proto_state = proto_state_t::after_dot;
-
-  // write message data; '.' will be written from handle_write_data_request()
-  ba::async_write(m_socket,
-                  m_envelope->altered_message_,
-                  strand_.wrap(boost::bind(
-                                           &smtp_client::handle_write_data_request,
-                                           shared_from_this(),
-                                           _1,
-                                           _2)));
+    start_with_next_backend();
 }
 
 
@@ -346,27 +309,27 @@ void smtp_client::handle_connect(const bs::error_code &ec,
 void smtp_client::handle_write_data_request(const bs::error_code &ec,
                                             size_t sz)
 {
-  if (ec) {
-    if (ec != ba::error::operation_aborted) {
-      PDBG("call on_host_fail()");
-      backend_mgr.on_host_fail(backend_host,
-                               smtp_backend_manager::host_status::fail_connect);
-      //            start_with_next_backend();
-      fault(string("ERROR: write failed: ") + ec.message(), "");
+    if (ec) {
+        if (ec != ba::error::operation_aborted) {
+            PDBG("call on_host_fail()");
+            backend_mgr.on_host_fail(backend_host,
+                                     smtp_backend_manager::host_status::fail_connect);
+//            start_with_next_backend();
+            fault(string("ERROR: write failed: ") + ec.message(), "");
+        }
+        return;
     }
-    return;
-  }
 
-  std::ostream answer_stream(&client_request);
-  answer_stream << ".\r\n";
+    std::ostream answer_stream(&client_request);
+    answer_stream << ".\r\n";
 
-  ba::async_write(m_socket,
-                  client_request,
-                  strand_.wrap(boost::bind(&smtp_client::handle_write_request,
-                                           shared_from_this(),
-                                           _1,
-                                           _2,
-                                           log_request_helper(client_request))));
+    ba::async_write(m_socket,
+                    client_request,
+                    strand_.wrap(boost::bind(&smtp_client::handle_write_request,
+                                             shared_from_this(),
+                                             _1,
+                                             _2,
+                                             log_request_helper(client_request))));
 }
 
 
@@ -390,319 +353,280 @@ void smtp_client::handle_write_request(const bs::error_code &ec,
 
 void smtp_client::start_read_line()
 {
-  PDBG("ENTER");
-  restart_timeout();
-  ba::async_read_until(m_socket,
-                       backend_response,
-                       "\n",
-                       strand_.wrap(boost::bind(&smtp_client::handle_read_smtp_line,
-                                                shared_from_this(),
-                                                ba::placeholders::error)));
+    restart_timeout();
+    ba::async_read_until(m_socket,
+            backend_response,
+            "\n",
+            strand_.wrap(boost::bind(&smtp_client::handle_read_smtp_line,
+                                     shared_from_this(),
+                                     ba::placeholders::error)));
 }
 
 
-void smtp_client::handle_read_smtp_line(const bs::error_code &ec)
-{
-  if (ec) {
-    PDBG("ec=%d ec.message()=%s", ec.value(), ec.message().c_str());
-    if (ec != ba::error::operation_aborted) {
-      PDBG("call on_host_fail()");
-      backend_mgr.on_host_fail(backend_host,
-                               smtp_backend_manager::host_status::fail_connect);
-      fault(string("ERROR: write failed: ") + ec.message(), "");
+void smtp_client::handle_read_smtp_line(const bs::error_code &ec) {
+    if (ec) {
+        if (ec != ba::error::operation_aborted) {
+            PDBG("call on_host_fail()");
+            backend_mgr.on_host_fail(backend_host,
+                                     smtp_backend_manager::host_status::fail_connect);
+            fault(string("ERROR: write failed: ") + ec.message(), "");
+        }
+        return;
     }
-    return;
-  }
 
-  std::istream is(&backend_response);
-  if (!process_answer(is)) {
-    return;
-  }
-
-  log(r::log::buffers,
-      str(boost::format("<<< %1%")
-          % util::str_cleanup_crlf(util::str_from_buf(client_request))));
-  ba::async_write(m_socket,
-                  client_request,
-                  strand_.wrap(boost::bind(&smtp_client::handle_write_request,
-                                           shared_from_this(),
-                                           _1,
-                                           _2,
-                                           log_request_helper(client_request))));
-}
-
-
-bool smtp_client::process_answer(std::istream &_stream)
-{
-  string line_buffer;
-  line_buffer.reserve(1000); // SMTP line can be up to 1000 chars
-
-  while (std::getline(_stream, line_buffer)) {
-    if (_stream.eof() || _stream.fail() || _stream.bad()) {
-      m_line_buffer = line_buffer;
-      start_read_line();
-      return false;
+    std::istream is(&backend_response);
+    if (!process_answer(is)) {
+        return;
     }
 
     log(r::log::buffers,
-        str(boost::format(">>> %1%")
-            % util::str_cleanup_crlf(line_buffer)));
+        str(boost::format("<<< %1%")
+            % util::str_cleanup_crlf(util::str_from_buf(client_request))));
+    ba::async_write(
+        m_socket,
+        client_request,
+        strand_.wrap(boost::bind(&smtp_client::handle_write_request,
+                                 shared_from_this(),
+                                 _1,
+                                 _2,
+                                 log_request_helper(client_request))));
+}
 
-    if (!m_line_buffer.empty()) {
-      m_line_buffer += line_buffer;
-      line_buffer.swap(m_line_buffer);
-      m_line_buffer.clear();
-    }
 
-    // extract state code
-    uint32_t code = 0xffffffff;
-    try {
-      if (line_buffer.size() >= 3) {
-        code = boost::lexical_cast<uint32_t>(line_buffer.substr(0, 3));
-      }
-    }
-    catch (const boost::bad_lexical_cast &) {
-    }
-    if (code == 0xffffffff) {
-      //            backend_mgr.on_host_fail(backend_host,
-      //                                     smtp_backend_manager::host_status::fail);
-      //            start_with_next_backend();
-      fault("ERROR: invalid SMTP state code", line_buffer);
-      return false;
-    }
+bool smtp_client::process_answer(std::istream &_stream) {
+    string line_buffer;
+    line_buffer.reserve(1000);  // SMTP line can be up to 1000 chars
 
-    // check state code
-    const char *p_err_str = nullptr;
-    switch (m_proto_state) {
-    case proto_state_t::connected:
-      if (code != 220) p_err_str = "invalid greeting";
-      break;
-    case proto_state_t::after_hello:
-      if (code != 250) p_err_str = "invalid answer on EHLO command";
-      break;
-    case proto_state_t::after_xclient:
-      if (code != 220) p_err_str = "invalid XCLIENT greeting";
-      break;
-    case proto_state_t::after_hello_xclient:
-      if (code != 250) p_err_str = "invalid answer on XCLIENT EHLO command";
-      break;
-    case proto_state_t::after_mail:
-      if (code != 250) p_err_str = "invalid answer on MAIL command";
-      break;
-    case proto_state_t::after_rcpt:
-      if (code != 250) p_err_str = "invalid answer on RCPT command";
-      break;
-    case proto_state_t::after_data:
-      if (code != 354) p_err_str = "invalid answer on DATA command";
-      break;
-    case proto_state_t::after_dot:
-      if (code != 250) p_err_str = "invalid answer on DOT";
-      break;
-    case proto_state_t::after_quit:
+    while (std::getline(_stream, line_buffer)) {
+        if (_stream.eof() || _stream.fail() || _stream.bad()) {
+            m_line_buffer = line_buffer;
+            start_read_line();
+            return false;
+        }
+
+        log(r::log::buffers,
+            str(boost::format(">>> %1%")
+                % util::str_cleanup_crlf(line_buffer)));
+
+        if (!m_line_buffer.empty()) {
+            m_line_buffer += line_buffer;
+            line_buffer.swap(m_line_buffer);
+            m_line_buffer.clear();
+        }
+
+        // extract state code
+        uint32_t code = 0xffffffff;
+        try {
+            if (line_buffer.size() >= 3) {
+                code = boost::lexical_cast<uint32_t>(line_buffer.substr(0, 3));
+            }
+        } catch (const boost::bad_lexical_cast &) {}
+        if (code == 0xffffffff) {
+//            backend_mgr.on_host_fail(backend_host,
+//                                     smtp_backend_manager::host_status::fail);
+//            start_with_next_backend();
+            fault("ERROR: invalid SMTP state code", line_buffer);
+            return false;
+        }
+
+        // check state code
+        const char *p_err_str = nullptr;
+        switch (m_proto_state) {
+        case proto_state_t::connected:
+            if (code != 220) p_err_str = "invalid greeting";
+            break;
+        case proto_state_t::after_hello:
+            if (code != 250) p_err_str = "invalid answer on EHLO command";
+            break;
+        case proto_state_t::after_xclient:
+            if (code != 220) p_err_str = "invalid XCLIENT greeting";
+            break;
+        case proto_state_t::after_hello_xclient:
+            if (code != 250) p_err_str = "invalid answer on XCLIENT EHLO command";
+            break;
+        case proto_state_t::after_mail:
+            if (code != 250) p_err_str = "invalid answer on MAIL command";
+            break;
+        case proto_state_t::after_rcpt:
+            if (code != 250) p_err_str = "invalid answer on RCPT command";
+            break;
+        case proto_state_t::after_data:
+            if (code != 354) p_err_str = "invalid answer on DATA command";
+            break;
+        case proto_state_t::after_dot:
+            if (code != 250) p_err_str = "invalid answer on DOT";
+            break;
+        case proto_state_t::after_quit:
 #if 0
-      if (code != 221) p_err_str = "invalid answer on QUIT command";
+            if (code != 221) p_err_str = "invalid answer on QUIT command";
 #endif
-      break;
-    default:
-      assert(false && "debug the code");
-    }
-    if (p_err_str) {
-      //            backend_mgr.on_host_fail(backend_host,
-      //                                     smtp_backend_manager::host_status::fail);
-      //            start_with_next_backend();
-      fault(string("ERROR: ") + p_err_str, line_buffer);
-      return false;
-    }
-
-
-    if (m_proto_state == proto_state_t::after_hello) {
-      if (line_buffer.find("XCLIENT") != string::npos) {
-        m_use_xclient = true;
-      }
-      if (line_buffer.find("PIPELINING") != string::npos) {
-        m_use_pipelining = true;
-      }
-    }
-
-
-    if (line_buffer.length() > 3 && line_buffer[3] == '-') {
-      continue;
-    }
-
-
-    std::ostream answer_stream(&client_request);
-
-    switch (m_proto_state) {
-    case proto_state_t::connected:
-      // send:
-      // EHLO client.example.com
-
-      m_timer_value = g::cfg().backend_cmd_timeout;
-
-#ifdef RESMTP_LMTP_SUPPORT
-      answer_stream << (m_lmtp ? "LHLO " : "EHLO ")
-        << ba::ip::host_name()
-        << "\r\n";
-#else
-      answer_stream << "EHLO "
-        << ba::ip::host_name()
-        << "\r\n";
-#endif            
-      m_proto_state = proto_state_t::after_hello;
-      break;
-
-    case proto_state_t::after_xclient:
-      // send:
-      // EHLO spike.porcupine.org
-
-#ifdef RESMTP_LMTP_SUPPORT
-      answer_stream << (m_lmtp ? "LHLO " : "EHLO ")
-        << m_data.m_helo_host
-        << "\r\n";
-#else
-      answer_stream << "EHLO "
-        << m_data.m_helo_host
-        << "\r\n";
-#endif
-      m_proto_state = proto_state_t::after_hello_xclient;
-      break;
-
-    case proto_state_t::after_hello:
-    case proto_state_t::after_hello_xclient:
-      if (m_proto_state == proto_state_t::after_hello && m_use_xclient) {
-        // send:
-        // XCLIENT HELO=spike.porcupine.org ADDR=168.100.189.2 NAME=spike.porcupine.org
-        // or
-        // XCLIENT HELO=spike.porcupine.org ADDR=168.100.189.2 NAME=[UNAVAILABLE]
-        answer_stream << "XCLIENT PROTO=ESMTP HELO=" << m_data.m_helo_host
-          << " ADDR=" << m_data.m_remote_ip
-          << " NAME=" << (m_data.m_remote_host.empty() ? "[UNAVAILABLE]" : m_data.m_remote_host.c_str())
-          << "\r\n";
-        m_proto_state = proto_state_t::after_xclient;
-      }
-      else {
-        answer_stream << "MAIL FROM:<" << m_envelope->m_sender << ">\r\n";
-        if (m_use_pipelining) {
-          for (m_current_rcpt = m_envelope->m_rcpt_list.begin();
-               m_current_rcpt != m_envelope->m_rcpt_list.end();
-               ++m_current_rcpt) {
-            answer_stream << "RCPT TO:<" << m_current_rcpt->m_name << ">\r\n";
-          }
-          answer_stream << "DATA\r\n";
+            break;
+        default:
+            assert(false && "debug the code");
+        }
+        if (p_err_str) {
+//            backend_mgr.on_host_fail(backend_host,
+//                                     smtp_backend_manager::host_status::fail);
+//            start_with_next_backend();
+            fault(string("ERROR: ") + p_err_str, line_buffer);
+            return false;
         }
 
-        m_proto_state = proto_state_t::after_mail;
-      }
 
-      break;
-
-    case proto_state_t::after_mail:
-      m_current_rcpt = m_envelope->m_rcpt_list.begin();
-      // TODO: move this check to the start()?
-      if (m_current_rcpt == m_envelope->m_rcpt_list.end()) {
-        fault("ERROR: invalid recipient list", line_buffer);
-        return false;
-      }
-
-      if (!m_use_pipelining) {
-        answer_stream << "RCPT TO: <" << m_current_rcpt->m_name << ">\r\n";
-      }
-
-      m_proto_state = proto_state_t::after_rcpt;
-      break;
-
-    case proto_state_t::after_rcpt:
-      if (++m_current_rcpt == m_envelope->m_rcpt_list.end()) {
-        if (!m_use_pipelining) {
-          answer_stream << "DATA\r\n";
+        if (m_proto_state == proto_state_t::after_hello) {
+            if (line_buffer.find("XCLIENT") != string::npos) {
+                m_use_xclient = true;
+            }
+            if (line_buffer.find("PIPELINING") != string::npos) {
+                m_use_pipelining = true;
+            }
         }
-        m_proto_state = proto_state_t::after_data;
-      }
-      else {
-        if (!m_use_pipelining) {
-          answer_stream << "RCPT TO: <" << m_current_rcpt->m_name << ">\r\n";
+
+
+        if (line_buffer.length() > 3 && line_buffer[3] == '-') {
+            continue;
         }
-      }
-      break;
 
-    case proto_state_t::after_data:
-      PDBG("proto_state_t::after_data");
 
-      // the first part of the session had succefully proceeded until this
-      // point: return execution to the proxy frontend
-      session_start_success();
-      return false;
+        std::ostream answer_stream(&client_request);
 
-#ifdef RESMTP_LMTP_SUPPORT
-      if (m_lmtp) {
-        m_current_rcpt = m_envelope->m_rcpt_list.begin();
-      }
-#endif          
+        switch (m_proto_state) {
+        case proto_state_t::connected:
+            // send:
+            // EHLO client.example.com
 
-      // after splitting SMTP session execution, this code was moved to
-      // continut_smtp_session()
-#if 0
-      m_timer_value = g::cfg().backend_data_timeout;
-      restart_timeout();
+            m_timer_value = g::cfg().backend_cmd_timeout;
 
-      m_proto_state = proto_state_t::after_dot;
-      ba::async_write(m_socket,
-                      m_envelope->altered_message_,
-                      strand_.wrap(boost::bind(
-                                               &smtp_client::handle_write_data_request,
-                                               shared_from_this(),
-                                               _1,
-                                               _2)));
-      return false;
-#endif
+            answer_stream << (m_lmtp ? "LHLO " : "EHLO ")
+                          << ba::ip::host_name()
+                          << "\r\n";
 
-      break;
+            m_proto_state = proto_state_t::after_hello;
+            break;
 
-    case proto_state_t::after_dot:
-      PDBG("proto_state_t::after_dot");
+        case proto_state_t::after_xclient:
+            // send:
+            // EHLO spike.porcupine.org
 
-      m_timer_value = g::cfg().backend_cmd_timeout;
-      restart_timeout();
+            answer_stream << (m_lmtp ? "LHLO " : "EHLO ")
+                          << m_data.m_helo_host
+                          << "\r\n";
 
-#ifdef RESMTP_LMTP_SUPPORT
-      if (m_lmtp) {
-        m_current_rcpt->m_delivery_status = envelope::smtp_code_decode(code);
-        m_current_rcpt->m_remote_answer = line_buffer;
+            m_proto_state = proto_state_t::after_hello_xclient;
+            break;
 
-        if (++m_current_rcpt == m_envelope->m_rcpt_list.end()) {
-          answer_stream << "QUIT\r\n";
-          m_proto_state = proto_state_t::after_quit;
+        case proto_state_t::after_hello:
+        case proto_state_t::after_hello_xclient:
+            if (m_proto_state == proto_state_t::after_hello && m_use_xclient) {
+                // send:
+                // XCLIENT HELO=spike.porcupine.org ADDR=168.100.189.2 NAME=spike.porcupine.org
+                // or
+                // XCLIENT HELO=spike.porcupine.org ADDR=168.100.189.2 NAME=[UNAVAILABLE]
+                answer_stream << "XCLIENT PROTO=ESMTP HELO=" << m_data.m_helo_host
+                              << " ADDR=" << m_data.m_remote_ip
+                              << " NAME=" << (m_data.m_remote_host.empty() ? "[UNAVAILABLE]" : m_data.m_remote_host.c_str())
+                              << "\r\n";
+                m_proto_state = proto_state_t::after_xclient;
+            } else {
+                answer_stream << "MAIL FROM:<" << m_envelope->m_sender << ">\r\n";
+                if (m_use_pipelining) {
+                    for(m_current_rcpt = m_envelope->m_rcpt_list.begin();
+                        m_current_rcpt != m_envelope->m_rcpt_list.end();
+                        ++m_current_rcpt) {
+                        answer_stream << "RCPT TO:<" << m_current_rcpt->m_name << ">\r\n";
+                    }
+                    answer_stream << "DATA\r\n";
+                }
+
+                m_proto_state = proto_state_t::after_mail;
+            }
+
+            break;
+
+        case proto_state_t::after_mail:
+            m_current_rcpt = m_envelope->m_rcpt_list.begin();
+            // TODO: move this check to the start()?
+            if (m_current_rcpt == m_envelope->m_rcpt_list.end()) {
+                fault("ERROR: invalid recipient list", line_buffer);
+                return false;
+            }
+
+            if (!m_use_pipelining) {
+                answer_stream << "RCPT TO: <" << m_current_rcpt->m_name << ">\r\n";
+            }
+
+            m_proto_state = proto_state_t::after_rcpt;
+            break;
+
+        case proto_state_t::after_rcpt:
+            if (++m_current_rcpt == m_envelope->m_rcpt_list.end()) {
+                if (!m_use_pipelining) {
+                    answer_stream << "DATA\r\n";
+                }
+                m_proto_state = proto_state_t::after_data;
+            } else {
+                if (!m_use_pipelining) {
+                    answer_stream << "RCPT TO: <" << m_current_rcpt->m_name << ">\r\n";
+                }
+            }
+            break;
+
+        case proto_state_t::after_data:
+            if (m_lmtp) {
+                m_current_rcpt = m_envelope->m_rcpt_list.begin();
+            }
+
+            m_timer_value = g::cfg().backend_data_timeout;
+            restart_timeout();
+
+            m_proto_state = proto_state_t::after_dot;
+            ba::async_write(m_socket,
+                            m_envelope->altered_message_,
+                            strand_.wrap(boost::bind(
+                                             &smtp_client::handle_write_data_request,
+                                             shared_from_this(),
+                                             _1,
+                                             _2)));
+            return false;
+            break;
+
+        case proto_state_t::after_dot:
+            m_timer_value = g::cfg().backend_cmd_timeout;
+            restart_timeout();
+
+            if (m_lmtp) {
+                m_current_rcpt->m_delivery_status = envelope::smtp_code_decode(code);
+                m_current_rcpt->m_remote_answer = line_buffer;
+
+                if (++m_current_rcpt == m_envelope->m_rcpt_list.end()) {
+                    answer_stream << "QUIT\r\n";
+                    m_proto_state = proto_state_t::after_quit;
+                }
+            } else {
+                for(m_current_rcpt = m_envelope->m_rcpt_list.begin();
+                    m_current_rcpt != m_envelope->m_rcpt_list.end();
+                    ++m_current_rcpt) {
+                    m_current_rcpt->m_delivery_status = envelope::smtp_code_decode(code);
+                    m_current_rcpt->m_remote_answer = line_buffer;
+                }
+                answer_stream << "QUIT\r\n";
+                m_proto_state = proto_state_t::after_quit;
+            }
+            break;
+
+        case proto_state_t::after_quit:
+            success();
+            return false;
+            break;
+
+        default:
+            assert(false && "debug the code!!!");
         }
-      }
-      else
-#endif              
-      {
-        for (m_current_rcpt = m_envelope->m_rcpt_list.begin();
-             m_current_rcpt != m_envelope->m_rcpt_list.end();
-             ++m_current_rcpt) {
-          m_current_rcpt->m_delivery_status = envelope::smtp_code_decode(code);
-          m_current_rcpt->m_remote_answer = line_buffer;
-        }
-        answer_stream << "QUIT\r\n";
-        m_proto_state = proto_state_t::after_quit;
-      }
-      break;
 
-    case proto_state_t::after_quit:
-      PDBG("proto_state_t::after_quit");
-
-      session_success();
-      return false;
-      break;
-
-    default:
-      assert(false && "debug the code!!!");
+        line_buffer.clear();
     }
 
-    line_buffer.clear();
-  }
-
-  return true;
+    return true;
 }
 
 
@@ -829,46 +753,23 @@ void smtp_client::fault_all_backends()
 }
 
 
-void smtp_client::session_start_success()
+void smtp_client::success()
 {
-  PDBG("ENTER");
-  
-  if (!cb_complete) return;
-  
-  m_data.m_result = check::CHK_ACCEPT;
+    if (!cb_complete) return;
 
-  // cancel timer because we will return execution to the frontend to
-  // receive the DATA part of mail, which can take some time
-  m_timer.cancel();
+    m_data.m_result = report_rcpt(true, "success delivery", "");
 
-  m_resolver.cancel();
+    m_timer.cancel();
+    m_resolver.cancel();
+    try {
+        m_socket.close();
+    } catch (...) {}
 
-  m_socket.get_io_service().post(cb_complete);
-  cb_complete = nullptr;
-}
+    PLOG(r::log::debug, "call on_backend_conn_closed()");
+    g::mon().on_backend_conn_closed(backend_host.index);
 
-
-void smtp_client::session_success()
-{
-  PDBG("ENTER");
-  
-  if (!cb_complete) return;
-
-  m_data.m_result = report_rcpt(true, "success delivery", "");
-
-  m_timer.cancel();
-  m_resolver.cancel();
-
-  try {
-    m_socket.close();
-  }
-  catch (...) {}
-
-  PLOG(r::log::debug, "call on_backend_conn_closed()");
-  g::mon().on_backend_conn_closed(backend_host.index);
-
-  m_socket.get_io_service().post(cb_complete);
-  cb_complete = nullptr;
+    m_socket.get_io_service().post(cb_complete);
+    cb_complete = nullptr;
 }
 
 
@@ -985,7 +886,7 @@ void smtp_client::on_backend_conn()
 
     g::mon().on_backend_conn(backend_host.index);
 
-    m_timer_value = g::cfg().backend_cmd_timeout;
+    m_timer_value = g::cfg().backend_connect_timeout;
     start_read_line();
 }
 
@@ -995,6 +896,6 @@ void smtp_client::log(r::log prio, const string &msg) noexcept
     g::log().msg(prio,
                  str(boost::format("%1%-%2%-BACK: %3%")
                      % m_data.m_session_id
-                     % (m_envelope ? m_envelope->m_id : string())
+                     % m_envelope->m_id
                      % msg));
 }
