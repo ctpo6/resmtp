@@ -22,3 +22,7 @@ debian/stamp-makefile-*
 
 # debian package builder output files
 resmtp-graph_*
+
+# testmail
+testmail/g
+testmail/*.txt
