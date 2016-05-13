@@ -13,7 +13,8 @@
 
 #undef PDBG
 #undef PLOG
-#ifdef _DEBUG
+//#ifdef _DEBUG
+#if 1
 #define PDBG(fmt, args...) log(r::log::debug, util::strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
 #define PLOG(prio, fmt, args...) log(prio, util::strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
 #else

@@ -29,7 +29,8 @@
 
 #undef PDBG
 #undef PLOG
-#ifdef _DEBUG
+//#ifdef _DEBUG
+#if 1
 #define PDBG(fmt, args...) log(r::log::debug, util::strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
 #define PLOG(prio, fmt, args...) log(prio, util::strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
 #else
@@ -1284,7 +1285,7 @@ bool smtp_connection::smtp_data(const string &_cmd, std::ostream &_response)
         return true;
     }
 
-    _response << "354 Enter mail, end with \".\" on a line by itself\r\n";
+    _response << "354 Enter mail data, end with <CRLF>.<CRLF>\r\n";
 
     m_proto_state = STATE_BLAST_FILE;
     m_timer_value = g::cfg().frontend_data_timeout;
