@@ -450,7 +450,7 @@ bool smtp_connection::handle_read_command_helper(
     parsed = ++read;
 
     std::ostream os(&m_response);
-    bool res = execute_command(command, os);
+    bool res = execute_command(std::move(command), os);
 
     if (res) {
         switch (ssl_state_) {
@@ -761,56 +761,58 @@ void smtp_connection::smtp_delivery()
     smtp_client_started = true;
 }
 
-
-void smtp_connection::end_check_data() {
-    if (m_smtp_client) {
-        m_check_data = m_smtp_client->check_data();
-        m_smtp_client->stop();
-    }
+void smtp_connection::end_check_data()
+{
+  if (m_smtp_client) {
+    m_check_data = m_smtp_client->check_data();
+    m_smtp_client->stop();
     m_smtp_client.reset();
+  }
 
-    m_proto_state = STATE_HELLO;
+  m_proto_state = STATE_HELLO;
 
-    std::ostream response_stream(&m_response);
+  std::ostream response_stream(&m_response);
 
-    switch (m_check_data.m_result) {
-        case check::CHK_ACCEPT:
-        case check::CHK_DISCARD:
-            ++msg_count_sent;
-            g::mon().on_mail_delivered();
-//            PDBG("close_status_t::ok");
-            close_status = close_status_t::ok;
-            response_stream << "250 2.0.0 Ok: queued on " << boost::asio::ip::host_name() << " as";
-            break;
+  switch (m_check_data.m_result) {
+  case check::CHK_ACCEPT:
+  case check::CHK_DISCARD:
+    ++msg_count_sent;
+    g::mon().on_mail_delivered();
+    //            PDBG("close_status_t::ok");
+    close_status = close_status_t::ok;
+    response_stream << "250 2.0.0 Ok: queued on " << boost::asio::ip::host_name() << " as";
+    break;
 
-        case check::CHK_REJECT:
-//            PDBG("close_status_t::fail");
-            close_status = close_status_t::fail;
-            if (!m_check_data.m_answer.empty()) {
-                response_stream << m_check_data.m_answer;
-            } else {
-                response_stream << "550 " << boost::asio::ip::host_name();
-            }
-            break;
-
-        case check::CHK_TEMPFAIL:
-//            PDBG("close_status_t::fail");
-            close_status = close_status_t::fail;
-            if (!m_check_data.m_answer.empty()) {
-                response_stream << m_check_data.m_answer;
-            } else {
-                response_stream << "451 4.7.1 Service unavailable - try again later";
-            }
-            break;
+  case check::CHK_REJECT:
+    //            PDBG("close_status_t::fail");
+    close_status = close_status_t::fail;
+    if (!m_check_data.m_answer.empty()) {
+      response_stream << m_check_data.m_answer;
     }
+    else {
+      response_stream << "550 " << boost::asio::ip::host_name();
+    }
+    break;
 
-    response_stream << ' ' << m_session_id << '-' << m_envelope->m_id << "\r\n";
+  case check::CHK_TEMPFAIL:
+    //            PDBG("close_status_t::fail");
+    close_status = close_status_t::fail;
+    if (!m_check_data.m_answer.empty()) {
+      response_stream << m_check_data.m_answer;
+    }
+    else {
+      response_stream << "451 4.7.1 Service unavailable - try again later";
+    }
+    break;
+  }
 
-    // don't tarpit after receiving '.' from client
-    send_response(boost::bind(&smtp_connection::handle_write_request,
-                              shared_from_this(),
-                              boost::asio::placeholders::error),
-                  true);
+  response_stream << ' ' << m_session_id << '-' << m_envelope->m_id << "\r\n";
+
+  // don't tarpit after receiving '.' from client
+  send_response(boost::bind(&smtp_connection::handle_write_request,
+                            shared_from_this(),
+                            boost::asio::placeholders::error),
+                true);
 }
 
 
