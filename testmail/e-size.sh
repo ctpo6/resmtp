@@ -48,7 +48,7 @@ if {[llength $argv] != 1} {
 set data_size [lindex $argv 0]
 
 if {![string is integer $data_size] || $data_size < 1} {
-	puts "The <size> param must be positive integer"
+	puts "The <size> param must be a positive integer"
 	exit 1
 }
 

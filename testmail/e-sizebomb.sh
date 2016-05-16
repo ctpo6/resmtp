@@ -1,7 +1,14 @@
 #!/usr/bin/expect -f
 
-proc run_test {} {
-	spawn ./g 3 100000
+proc run_test {sz} {
+	puts "*********************************************************************"
+	puts "* test: $sz"
+	puts "*********************************************************************"
+
+	set chunk_size 100000
+	set cur_size 0
+
+	spawn ./g 3 $chunk_size
 	wait
 
 	set f [open out.txt]
@@ -27,13 +34,19 @@ proc run_test {} {
 	send "From: <yuri.epstein@rambler.ru>\r"
 	send "To: <25volt@25volt.ru>\r"
 	send "Subject: bomb\r\r"
-	
+
 	# size bomb
-	while 1 {
+	while {$sz == 0 || $cur_size < $sz} {
 		send "$fdata"
 		send "\r"
+		
 		# without sleep script crashes (internal buffers overflow?)
 		sleep 1
+
+		# cur_size += chunk_size
+		set cur_size [expr {$cur_size + $chunk_size}]	
+
+		puts "**** $cur_size"
 	}
 	
 	send "\r.\r"
@@ -44,5 +57,18 @@ proc run_test {} {
 }
 
 
-run_test
+if {[llength $argv] != 1} {
+	puts "usage: e-sizebomb.sh <size>"
+	puts "    <size> - bomb size, bytes; 0 - unlimited"
+	exit 1
+}
+
+set bomb_size [lindex $argv 0]
+
+if {![string is integer $bomb_size] || $bomb_size < 0} {
+	puts "The <size> param must be equal or greater than 0"
+	exit 1
+}
+
+run_test $bomb_size
 
