@@ -977,15 +977,6 @@ void smtp_connection::handle_write_request(const bs::error_code &ec)
 void smtp_connection::handle_last_write_request(
         const boost::system::error_code &ec)
 {
-#if 0
-    // socket will be closed in stop()
-    if (!ec) {
-        try {
-            socket().shutdown(boost::asio::ip::tcp::socket::shutdown_both);
-            socket().close();
-        } catch (...) {}
-    }
-#endif
     if (ec != boost::asio::error::operation_aborted) {
         if (ec) {
             PDBG("close_status_t::fail");
@@ -1343,108 +1334,102 @@ bool smtp_connection::smtp_data(const string &_cmd, std::ostream &_response)
 
 void smtp_connection::stop()
 {
-	m_timer.cancel();
-	m_tarpit_timer.cancel();
+  m_timer.cancel();
+  m_tarpit_timer.cancel();
 
-	m_resolver.cancel();
+  m_resolver.cancel();
 
-    m_proto_state = STATE_START;
+  m_proto_state = STATE_START;
 
-    try {
-        socket().shutdown(boost::asio::ip::tcp::socket::shutdown_both);
-        socket().close();
-    } catch (...) {}
+  bs::error_code ec;
+  socket().shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
+  socket().close(ec);
 
-    if (m_dnsbl_check) {
-        m_dnsbl_check->stop();
-        m_dnsbl_check.reset();
-    }
+  if (m_dnsbl_check) {
+    m_dnsbl_check->stop();
+    m_dnsbl_check.reset();
+  }
 
-    if (m_dnswl_check) {
-        m_dnswl_check->stop();
-        m_dnswl_check.reset();
-    }
+  if (m_dnswl_check) {
+    m_dnswl_check->stop();
+    m_dnswl_check.reset();
+  }
 
-    if (m_smtp_client) {
-        m_smtp_client->stop();
-        // timer handlers in smtp_client are called after returning from stop()
+  if (m_smtp_client) {
+    m_smtp_client->stop();
+    // timer handlers in smtp_client are called after returning from stop()
 #if 0
-        m_smtp_client.reset();
+    m_smtp_client.reset();
 #endif
-    }
+  }
 
-    on_connection_close();
+  on_connection_close();
 }
-
 
 void smtp_connection::handle_timer(const boost::system::error_code &ec)
 {
-    if (ec) {   // timer was canceled in stop()
-        return;
-    }
+  if (ec) { // timer was canceled in stop()
+    return;
+  }
 
-    PDBG("close_status_t::fail");
-    close_status = close_status_t::fail;
+  PDBG("close_status_t::fail");
+  close_status = close_status_t::fail;
 
-    std::ostream response_stream(&m_response);
-    response_stream << "421 4.4.2 "
-                    << boost::asio::ip::host_name()
-                    << " Error: timeout exceeded\r\n";
+  std::ostream response_stream(&m_response);
+  response_stream << "421 4.4.2 "
+    << boost::asio::ip::host_name()
+    << " Error: timeout exceeded\r\n";
 
-    if (m_proto_state == STATE_BLAST_FILE) {
-        log(r::Log::pstrf(r::log::debug,
-                          "timeout after DATA (%zu bytes) from %s[%s]",
-                          buffers.size(),
-                          m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str(),
-                          m_connected_ip.to_string().c_str()));
-    } 
-    else {
-        const char *state_desc = "";
-        switch (m_proto_state)
-        {
-        case STATE_START:
-            state_desc = "START";
-            break;
-        case STATE_AFTER_MAIL:
-            state_desc = "MAIL FROM";
-            break;
-        case STATE_RCPT_OK:
-            state_desc = "RCPT TO";
-            break;
-        case STATE_HELLO:
-        default:
-            state_desc = "HELO";
-            break;
-        }
-        log(r::Log::pstrf(r::log::debug,
-                          "timeout after %s from %s[%s]",
-                          state_desc,
-                          m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str(),
-                          m_connected_ip.to_string().c_str()));
-    }
-
-    log(r::Log::pstrf(r::log::notice,
-                      "%s[%s] REJECT: timeout; from=<%s> tarpit=%d",
+  if (m_proto_state == STATE_BLAST_FILE) {
+    log(r::Log::pstrf(r::log::debug,
+                      "timeout after DATA (%zu bytes) from %s[%s]",
+                      buffers.size(),
                       m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str(),
-                      m_connected_ip.to_v4().to_string().c_str(),
-                      m_envelope ? m_envelope->m_sender.c_str() : "",
-                      tarpit));
+                      m_connected_ip.to_string().c_str()));
+  }
+  else {
+    const char *state_desc = "";
+    switch (m_proto_state) {
+    case STATE_START:
+      state_desc = "START";
+      break;
+    case STATE_AFTER_MAIL:
+      state_desc = "MAIL FROM";
+      break;
+    case STATE_RCPT_OK:
+      state_desc = "RCPT TO";
+      break;
+    case STATE_HELLO:
+    default:
+      state_desc = "HELO";
+      break;
+    }
+    log(r::Log::pstrf(r::log::debug,
+                      "timeout after %s from %s[%s]",
+                      state_desc,
+                      m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str(),
+                      m_connected_ip.to_string().c_str()));
+  }
 
-    send_response(boost::bind(&smtp_connection::handle_last_write_request,
-                              shared_from_this(),
-                              boost::asio::placeholders::error),
-                  true);
+  log(r::Log::pstrf(r::log::notice,
+                    "%s[%s] REJECT: timeout; from=<%s> tarpit=%d",
+                    m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str(),
+                    m_connected_ip.to_v4().to_string().c_str(),
+                    m_envelope ? m_envelope->m_sender.c_str() : "",
+                    tarpit));
+
+  send_response(boost::bind(&smtp_connection::handle_last_write_request,
+                            shared_from_this(),
+                            boost::asio::placeholders::error),
+                true);
 }
-
 
 void smtp_connection::restart_timeout()
 {
-    m_timer.expires_from_now(boost::posix_time::seconds(m_timer_value));
-    m_timer.async_wait(
-        strand_.wrap(boost::bind(&smtp_connection::handle_timer,
-                        shared_from_this(), boost::asio::placeholders::error)));
+  m_timer.expires_from_now(boost::posix_time::seconds(m_timer_value));
+  m_timer.async_wait(strand_.wrap(boost::bind(&smtp_connection::handle_timer,
+                                              shared_from_this(), boost::asio::placeholders::error)));
 }
-
 
 const char * smtp_connection::get_proto_state_name(proto_state_t st)
 {
@@ -1466,28 +1451,27 @@ const char * smtp_connection::get_proto_state_name(proto_state_t st)
     return nullptr;
 }
 
-
-void smtp_connection::log_spamhaus(
-        const string &client_host_address,
-        const string &helo,
-        const string &client_host_name)
+void smtp_connection::log_spamhaus(const string &client_host_address,
+                                   const string &helo,
+                                   const string &client_host_name)
 {
-    if (g::cfg().spamhaus_log_file.empty()) return;
+  if (g::cfg().spamhaus_log_file.empty()) return;
 
-    if (!spamhaus_log_pending) return;
+  if (!spamhaus_log_pending) return;
 
-    if (client_host_name.empty()) {
-        g::logsph().msg(str(boost::format("%1% %2% %3%")
-            % client_host_address
-            % (!helo.empty() ? helo : client_host_address)
-            % time(nullptr)));
-    } else {
-        g::logsph().msg(str(boost::format("%1% %2% %3% %4%")
-            % client_host_address
-            % (!helo.empty() ? helo : client_host_address)
-            % time(nullptr)
-            % client_host_name));
-    }
+  if (client_host_name.empty()) {
+    g::logsph().msg(str(boost::format("%1% %2% %3%")
+                        % client_host_address
+                        % (!helo.empty() ? helo : client_host_address)
+                        % time(nullptr)));
+  }
+  else {
+    g::logsph().msg(str(boost::format("%1% %2% %3% %4%")
+                        % client_host_address
+                        % (!helo.empty() ? helo : client_host_address)
+                        % time(nullptr)
+                        % client_host_name));
+  }
 
-    spamhaus_log_pending = false;
+  spamhaus_log_pending = false;
 }

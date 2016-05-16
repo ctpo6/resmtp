@@ -730,9 +730,8 @@ void smtp_client::fault(string log_msg, string remote_answer)
     m_timer.cancel();
     m_resolver.cancel();
 
-    try {
-        m_socket.close();
-    } catch (...) {}
+    bs::error_code ec;
+    m_socket.close(ec);
 
     PLOG(r::log::debug, "call on_backend_conn_closed()");
     g::mon().on_backend_conn_closed(backend_host.index);
@@ -751,9 +750,6 @@ void smtp_client::fault_backend()
 
     assert(!m_socket.is_open()
            && "socket must not be open here - debug the code!!!");
-//    try {
-//        m_socket.close();
-//    } catch (...) {}
 }
 
 
@@ -783,9 +779,9 @@ void smtp_client::success()
 
     m_timer.cancel();
     m_resolver.cancel();
-    try {
-        m_socket.close();
-    } catch (...) {}
+    
+    bs::error_code ec;
+    m_socket.close(ec);
 
     PLOG(r::log::debug, "call on_backend_conn_closed()");
     g::mon().on_backend_conn_closed(backend_host.index);
@@ -801,9 +797,8 @@ void smtp_client::do_stop()
     m_resolver.cancel();
 
     // TODO is it really needed here???
-    try {
-        m_socket.close();
-    } catch(...) {}
+    bs::error_code ec;
+    m_socket.close(ec);
 }
 
 
