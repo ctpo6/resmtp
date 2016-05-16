@@ -75,15 +75,15 @@ std::string str_cleanup_crlf(std::string s) {
     return s;
 }
 
-
 std::string rev_order_av4_str(const boost::asio::ip::address_v4& a,
-                              const std::string& d) {
-    return str(boost::format("%1%.%2%.%3%.%4%.%5%")
-               % static_cast<int>(a.to_bytes()[3])
-            % static_cast<int>(a.to_bytes()[2])
-            % static_cast<int>(a.to_bytes()[1])
-            % static_cast<int>(a.to_bytes()[0])
-            % d);
+                              const std::string& d)
+{
+  return str(boost::format("%1%.%2%.%3%.%4%.%5%")
+             % static_cast<int> (a.to_bytes()[3])
+             % static_cast<int> (a.to_bytes()[2])
+             % static_cast<int> (a.to_bytes()[1])
+             % static_cast<int> (a.to_bytes()[0])
+             % d);
 }
 
 

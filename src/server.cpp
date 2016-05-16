@@ -4,11 +4,10 @@
 
 #include <boost/algorithm/string/compare.hpp>
 #include <boost/bind.hpp>
-#include <boost/format.hpp>
-#include <boost/lexical_cast.hpp>
 #include <boost/thread/thread.hpp>
 
 #include "global.h"
+#include "util.h"
 
 using namespace std;
 namespace ba = boost::asio;
@@ -45,8 +44,7 @@ server::server(const server_parameters &cfg)
 
     const char * ciphers = "ALL:+HIGH:!LOW:!MEDIUM:!EXPORT:!aNULL:!3DES:!ADH:!RC4:@STRENGTH";
     if (SSL_CTX_set_cipher_list(m_ssl_context.native_handle(), ciphers) == 0) {
-      throw std::runtime_error(str(boost::format("failed to set TLS ciphers: '%1%'")
-                                   % ciphers));
+      throw std::runtime_error(util::strf("failed to set TLS ciphers: '%s'", ciphers));
     }
 
     try {
@@ -58,10 +56,10 @@ server::server(const server_parameters &cfg)
       }
     }
     catch (const boost::system::system_error &e) {
-      throw std::runtime_error(str(boost::format("failed to load TLS key / certificate file: key='%1%' cert='%2%', error='%3%'")
-                                   % cfg.m_tls_key_file
-                                   % cfg.m_tls_cert_file
-                                   % e.what()));
+      throw std::runtime_error(util::strf("failed to load TLS key / certificate file: key='%s' cert='%s', error='%s'",
+                                          cfg.m_tls_key_file.c_str(),
+                                          cfg.m_tls_cert_file.c_str(),
+                                          e.what()));
     }
 
     for (auto &s : cfg.m_ssl_listen_points) {
@@ -255,22 +253,24 @@ void server::handle_accept(acceptor_t *acceptor,
         try {
             conn->start(force_ssl);
             // TODO what really can be thrown here???
-        } catch (const boost::system::system_error &e) {
+        }
+        catch (const boost::system::system_error &e) {
             if (e.code() != ba::error::not_connected) {
-                g::log().msg(log::crit,
-                             str(boost::format("connection start exception: %1%")
-                                 % e.what()));
+                g::log().msg(Log::pstrf(log::crit,
+                                        "connection start exception: %s",
+                                        e.what()));
             }
         }
         conn.reset(new smtp_connection(m_io_service,
                                        m_connection_manager,
                                        backend_mgr,
                                        m_ssl_context));
-    } else {
+    }
+    else {
         if (ec != ba::error::not_connected) {
-            g::log().msg(log::crit,
-                      str(boost::format("accept failed: %1%")
-                          % ec.message()));
+            g::log().msg(Log::pstrf(log::crit,
+                                    "accept failed: %s",
+                                    ec.message().c_str()));
         }
     }
 

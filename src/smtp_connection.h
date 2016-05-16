@@ -201,11 +201,12 @@ private:
     void on_connection_tarpitted();
     void on_connection_close();
 
-    void log(resmtp::log prio, const std::string &msg) noexcept;
-
     void log_spamhaus(const string &client_host_address,
                       const string &helo,
                       const string &client_host_name);
+
+    void log(resmtp::log prio, const std::string &msg) noexcept;
+    void log(const std::pair<resmtp::log, string> &msg) noexcept;
 };
 
 typedef std::shared_ptr<smtp_connection> smtp_connection_ptr;

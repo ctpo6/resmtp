@@ -11,23 +11,43 @@
 #include "util.h"
 
 
-#undef PDBG
-#undef PLOG
-//#ifdef _DEBUG
-#if 1
-#define PDBG(fmt, args...) log(r::log::debug, util::strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
-#define PLOG(prio, fmt, args...) log(prio, util::strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
-#else
-#define PDBG(fmt, args...)
-#define PLOG(prio, fmt, args...)
-#endif
-
-
 using namespace std;
 using namespace y::net;
 namespace ba = boost::asio;
 namespace bs = boost::system;
 namespace r = resmtp;
+
+
+#undef PDBG
+#undef PLOG
+#define PDBG(fmt, args...) log(r::log::debug, r::Log::strf(r::log::debug, "%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
+#define PLOG(prio, fmt, args...) log(prio, r::Log::strf(prio, "%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
+
+
+void smtp_client::log(r::log prio, const string &msg) noexcept
+{
+  // not very nice, but it helps to avoid useless strings construction
+  if (r::Log::isEnabled(prio)) {
+    g::log().msg(prio,
+                 str(boost::format("%1%-%2%-BACK: %3%")
+                     % m_data.m_session_id
+                     % m_envelope->m_id
+                     % msg));
+  }
+}
+
+
+void smtp_client::log(const std::pair<resmtp::log, string> &msg) noexcept
+{
+  // not very nice, but it helps to avoid useless strings construction
+  if (r::Log::isEnabled(msg.first)) {
+    g::log().msg(msg.first,
+                 str(boost::format("%1%-%2%-BACK: %3%")
+                     % m_data.m_session_id
+                     % m_envelope->m_id
+                     % msg.second));
+  }
+}
 
 
 namespace {
@@ -191,8 +211,9 @@ void smtp_client::start_with_next_backend()
                                      ba::placeholders::error)));
     } else {
         // backend_host.host_name is a symbolic name, need to resolve
-        log(r::log::debug,
-            str(boost::format("resolving %1%") % backend_host.host_name));
+        log(r::Log::pstrf(r::log::debug,
+                          "resolving %s",
+                          backend_host.host_name.c_str()));
         m_resolver.async_resolve(
             backend_host.host_name,
             dns::type_a,
@@ -215,11 +236,11 @@ void smtp_client::handle_resolve(const bs::error_code &ec,
                     backend_host.port);
         backend_host_ip = ep.address().to_string();
         on_backend_ip_address();
-        log(r::log::debug,
-            str(boost::format("connecting %1%[%2%]:%3%")
-                % backend_host.host_name
-                % backend_host_ip
-                % backend_host.port));
+        log(r::Log::pstrf(r::log::debug,
+                          "connecting %s[%s]:%u",
+                          backend_host.host_name.c_str(),
+                          backend_host_ip.c_str(),
+                          (unsigned)backend_host.port));
         m_socket.async_connect(ep,
             strand_.wrap(boost::bind(&smtp_client::handle_connect,
                                      shared_from_this(),
@@ -227,9 +248,9 @@ void smtp_client::handle_resolve(const bs::error_code &ec,
                                      ++it)));
     } else {
         if (ec != ba::error::operation_aborted) {
-            log(r::log::crit,
-                str(boost::format("failed to resolve backend host %1%")
-                    % backend_host.host_name));
+            log(r::Log::pstrf(r::log::crit,
+                              "failed to resolve backend host %s",
+                              backend_host.host_name.c_str()));
 
             PDBG("call on_host_fail()");
             backend_mgr.on_host_fail(backend_host,
@@ -240,72 +261,73 @@ void smtp_client::handle_resolve(const bs::error_code &ec,
     }
 }
 
+void smtp_client::handle_simple_connect(const bs::error_code &ec)
+{
+  if (!ec) {
+    on_backend_conn();
+  }
+  else {
+    if (ec != ba::error::operation_aborted) {
+      log(r::Log::pstrf(r::log::crit,
+                        "failed to connect to %s[%s]:%u",
+                        backend_host.host_name.c_str(),
+                        backend_host_ip.c_str(),
+                        (unsigned)backend_host.port));
 
-void smtp_client::handle_simple_connect(const bs::error_code &ec) {
-    if (!ec) {
-        on_backend_conn();
-    } else {
-        if (ec != ba::error::operation_aborted) {
-            log(r::log::crit,
-                str(boost::format("failed to connect to %1%[%2%]:%3%")
-                    % backend_host.host_name
-                    % backend_host_ip
-                    % backend_host.port));
-
-            PDBG("call on_host_fail()");
-            backend_mgr.on_host_fail(backend_host,
-                                     smtp_backend_manager::host_status::fail_connect);
-            fault_backend();
-            start_with_next_backend();
-        }
+      PDBG("call on_host_fail()");
+      backend_mgr.on_host_fail(backend_host,
+                               smtp_backend_manager::host_status::fail_connect);
+      fault_backend();
+      start_with_next_backend();
     }
+  }
 }
-
 
 void smtp_client::handle_connect(const bs::error_code &ec,
                                  dns::resolver::iterator it)
 {
-    if (!ec) {
-        on_backend_conn();
-        return;
-    } else if (ec == ba::error::operation_aborted) {
-        return;
-    } else if (it != dns::resolver::iterator()) {     // if not last address
-        log(r::log::crit,
-            str(boost::format("failed to connect to %1%[%2%]:%3%")
-                % backend_host.host_name
-                % backend_host_ip
-                % backend_host.port));
+  if (!ec) {
+    on_backend_conn();
+    return;
+  }
+  else if (ec == ba::error::operation_aborted) {
+    return;
+  }
+  else if (it != dns::resolver::iterator()) { // if not last address
+    log(r::Log::pstrf(r::log::crit,
+                      "failed to connect to %s[%s]:%u",
+                      backend_host.host_name.c_str(),
+                      backend_host_ip.c_str(),
+                      (unsigned)backend_host.port));
 
-        ba::ip::tcp::endpoint point(
-                    boost::dynamic_pointer_cast<dns::a_resource>(*it)->address(),
-                    backend_host.port);
-        backend_host_ip = point.address().to_string();
+    ba::ip::tcp::endpoint point(boost::dynamic_pointer_cast<dns::a_resource>(*it)->address(),
+                                backend_host.port);
+    backend_host_ip = point.address().to_string();
 
-        log(r::log::debug,
-            str(boost::format("connecting to %1%[%2%]:%3%")
-                % backend_host.host_name
-                % backend_host_ip
-                % backend_host.port));
+    log(r::Log::pstrf(r::log::debug,
+                      "connecting to %s[%s]:%u",
+                      backend_host.host_name.c_str(),
+                      backend_host_ip.c_str(),
+                      (unsigned)backend_host.port));
 
-        m_socket.async_connect(point,
-            strand_.wrap(boost::bind(&smtp_client::handle_connect,
-                                     shared_from_this(),
-                                     ba::placeholders::error,
-                                     ++it)));
-        return;
-    }
+    m_socket.async_connect(point,
+                           strand_.wrap(boost::bind(&smtp_client::handle_connect,
+                                                    shared_from_this(),
+                                                    ba::placeholders::error,
+                                                    ++it)));
+    return;
+  }
 
-    // all IP adresses of the host were tried out
-    log(r::log::alert,
-        str(boost::format("ERROR: failed to connect to all IP adresses of backend host %1%")
-            % backend_host.host_name));
+  // all IP adresses of the host were tried out
+  log(r::Log::pstrf(r::log::alert,
+                    "ERROR: failed to connect to all IP adresses of backend host %s",
+                    backend_host.host_name.c_str()));
 
-    PDBG("call on_host_fail()");
-    backend_mgr.on_host_fail(backend_host,
-                             smtp_backend_manager::host_status::fail_connect);
-    fault_backend();
-    start_with_next_backend();
+  PDBG("call on_host_fail()");
+  backend_mgr.on_host_fail(backend_host,
+                           smtp_backend_manager::host_status::fail_connect);
+  fault_backend();
+  start_with_next_backend();
 }
 
 
@@ -317,8 +339,9 @@ void smtp_client::handle_write_data_request(const bs::error_code &ec,
             PDBG("call on_host_fail()");
             backend_mgr.on_host_fail(backend_host,
                                      smtp_backend_manager::host_status::fail_connect);
-//            start_with_next_backend();
-            fault(string("ERROR: write failed: ") + ec.message(), "");
+            fault(util::strf("ERROR: write failed: %s",
+                             ec.message().c_str()),
+                  string());
         }
         return;
     }
@@ -345,8 +368,8 @@ void smtp_client::handle_write_request(const bs::error_code &ec,
             PDBG("call on_host_fail()");
             backend_mgr.on_host_fail(backend_host,
                                      smtp_backend_manager::host_status::fail_connect);
-//            start_with_next_backend();
-            fault(string("ERROR: write failed: ") + ec.message(), "");
+            fault(util::strf("ERROR: write failed: %s", ec.message().c_str()),
+                  string());
         }
     } else {
         start_read_line();
@@ -365,34 +388,38 @@ void smtp_client::start_read_line()
                                      ba::placeholders::error)));
 }
 
-
-void smtp_client::handle_read_smtp_line(const bs::error_code &ec) {
-    if (ec) {
-        if (ec != ba::error::operation_aborted) {
-            PDBG("call on_host_fail()");
-            backend_mgr.on_host_fail(backend_host,
-                                     smtp_backend_manager::host_status::fail_connect);
-            fault(string("ERROR: write failed: ") + ec.message(), "");
-        }
-        return;
+void smtp_client::handle_read_smtp_line(const bs::error_code &ec)
+{
+  if (ec) {
+    if (ec != ba::error::operation_aborted) {
+      PDBG("call on_host_fail()");
+      backend_mgr.on_host_fail(backend_host,
+                               smtp_backend_manager::host_status::fail_connect);
+      fault(util::strf("ERROR: write failed: %s", ec.message().c_str()),
+            string());
     }
+    return;
+  }
 
-    std::istream is(&backend_response);
-    if (!process_answer(is)) {
-        return;
-    }
+  std::istream is(&backend_response);
+  if (!process_answer(is)) {
+    return;
+  }
 
+  if (r::Log::isEnabled(r::log::buffers)) { // to avoid expensive string operations
     log(r::log::buffers,
         str(boost::format("<<< %1%")
             % util::str_cleanup_crlf(util::str_from_buf(client_request))));
-    ba::async_write(
-        m_socket,
-        client_request,
-        strand_.wrap(boost::bind(&smtp_client::handle_write_request,
-                                 shared_from_this(),
-                                 _1,
-                                 _2,
-                                 log_request_helper(client_request))));
+  }
+
+  ba::async_write(
+                  m_socket,
+                  client_request,
+                  strand_.wrap(boost::bind(&smtp_client::handle_write_request,
+                                           shared_from_this(),
+                                           _1,
+                                           _2,
+                                           log_request_helper(client_request))));
 }
 
 
@@ -407,9 +434,11 @@ bool smtp_client::process_answer(std::istream &_stream) {
             return false;
         }
 
-        log(r::log::buffers,
-            str(boost::format(">>> %1%")
-                % util::str_cleanup_crlf(line_buffer)));
+        if (r::Log::isEnabled(r::log::buffers)) {
+          log(r::log::buffers,
+              str(boost::format(">>> %1%")
+                  % util::str_cleanup_crlf(line_buffer)));
+        }
 
         if (!m_line_buffer.empty()) {
             m_line_buffer += line_buffer;
@@ -661,46 +690,27 @@ check::chk_status smtp_client::report_rcpt(bool success,
         accept = accept && rcpt_success;
 
         if (rcpt_success) {
-            log(r::log::notice,
-                str(boost::format("%1%[%2%] OK: tarpit=%3% helo=%4% from=<%5%> to=<%6%> relay=%7%")
-                    % (m_data.m_remote_host.empty() ? "[UNAVAILABLE]" : m_data.m_remote_host.c_str())
-                    % m_data.m_remote_ip
-                    % m_data.tarpit
-                    % m_data.m_helo_host
-                    % m_envelope->m_sender
-                    % rcpt.m_name
-                    % backend_host.host_name));
-#if 0
-                str(boost::format("report: to=<%1%>, relay=%2%[%3%]:%4%, delay=%5%, status=ok (%6%)")
-                          % rcpt.m_name
-                          % backend_host.host_name
-                          % backend_host_ip
-                          % backend_host.port
-                          % m_envelope->m_timer.mark()
-                          % remote));
-#endif
-        } else {
-            log(r::log::notice,
-                str(boost::format("%1%[%2%] FAIL: tarpit=%3% helo=%4% from=<%5%> to=<%6%> relay=%7% (%8%)")
-                    % (m_data.m_remote_host.empty() ? "[UNAVAILABLE]" : m_data.m_remote_host.c_str())
-                    % m_data.m_remote_ip
-                    % m_data.tarpit
-                    % m_data.m_helo_host
-                    % m_envelope->m_sender
-                    % rcpt.m_name
-                    % backend_host.host_name
-                    % remote));
-#if 0
-            log(r::log::notice,
-                str(boost::format("report: to=<%1%>, relay=%2%[%3%]:%4%, delay=%5%, status=fail (%6%) (%7%)")
-                          % rcpt.m_name
-                          % backend_host.host_name
-                          % backend_host_ip
-                          % backend_host.port
-                          % m_envelope->m_timer.mark()
-                          % log_msg
-                          % remote));
-#endif
+            log(r::Log::pstrf(r::log::notice,
+                              "%s[%s] OK: tarpit=%d helo=%s from=<%s> to=<%s> relay=%s",
+                              m_data.m_remote_host.empty() ? "[UNAVAILABLE]" : m_data.m_remote_host.c_str(),
+                              m_data.m_remote_ip.c_str(),
+                              m_data.tarpit,
+                              m_data.m_helo_host.c_str(),
+                              m_envelope->m_sender.c_str(),
+                              rcpt.m_name.c_str(),
+                              backend_host.host_name.c_str()));
+        }
+        else {
+            log(r::Log::pstrf(r::log::notice,
+                              "%s[%s] FAIL: tarpit=%d helo=%s from=<%s> to=<%s> relay=%s (%s)",
+                              m_data.m_remote_host.empty() ? "[UNAVAILABLE]" : m_data.m_remote_host.c_str(),
+                              m_data.m_remote_ip.c_str(),
+                              m_data.tarpit,
+                              m_data.m_helo_host.c_str(),
+                              m_envelope->m_sender.c_str(),
+                              rcpt.m_name.c_str(),
+                              backend_host.host_name.c_str(),
+                              remote.c_str()));
         }
         remote.clear();
     }
@@ -769,7 +779,7 @@ void smtp_client::success()
 {
     if (!cb_complete) return;
 
-    m_data.m_result = report_rcpt(true, "success delivery", "");
+    m_data.m_result = report_rcpt(true, "success delivery", string());
 
     m_timer.cancel();
     m_resolver.cancel();
@@ -810,30 +820,31 @@ void smtp_client::stop()
 #endif
 }
 
-
 void smtp_client::handle_timer(const bs::error_code &ec)
 {
-    if (ec) {
-        return;
-    }
+  if (ec) {
+    return;
+  }
 
-    if (m_proto_state == proto_state_t::start) {
-        log(r::log::debug,
-            str(boost::format("backend host resolve timeout %1%")
-                % backend_host.host_name));
+  if (m_proto_state == proto_state_t::start) {
+    log(r::Log::pstrf(r::log::debug,
+                      "backend host resolve timeout %s",
+                      backend_host.host_name.c_str()));
 
-        PDBG("call on_host_fail()");
-        backend_mgr.on_host_fail(backend_host,
-                                 smtp_backend_manager::host_status::fail_resolve);
-        fault_backend();
-        start_with_next_backend();
-    } else {
-        PDBG("call on_host_fail()");
-        backend_mgr.on_host_fail(backend_host,
-                                 smtp_backend_manager::host_status::fail_connect);
-        fault(str(boost::format("ERROR: backend host connection timeout (state=%1%)")
-                  % get_proto_state_name(m_proto_state)), "");
-    }
+    PDBG("call on_host_fail()");
+    backend_mgr.on_host_fail(backend_host,
+                             smtp_backend_manager::host_status::fail_resolve);
+    fault_backend();
+    start_with_next_backend();
+  }
+  else {
+    PDBG("call on_host_fail()");
+    backend_mgr.on_host_fail(backend_host,
+                             smtp_backend_manager::host_status::fail_connect);
+    fault(util::strf("ERROR: backend host connection timeout (state=%s)",
+                     get_proto_state_name(m_proto_state)),
+          string());
+  }
 }
 
 
@@ -890,24 +901,14 @@ void smtp_client::on_backend_conn()
 {
     m_proto_state = proto_state_t::connected;
 
-    log(r::log::debug,
-        str(boost::format("connect %1%[%2%]:%3%")
-            % backend_host.host_name
-            % backend_host_ip
-            % backend_host.port));
+    log(r::Log::pstrf(r::log::debug,
+                      "connect %s[%s]:%u",
+                      backend_host.host_name.c_str(),
+                      backend_host_ip.c_str(),
+                      (unsigned)backend_host.port));
 
     g::mon().on_backend_conn(backend_host.index);
 
     m_timer_value = g::cfg().backend_connect_timeout;
     start_read_line();
-}
-
-
-void smtp_client::log(r::log prio, const string &msg) noexcept
-{
-    g::log().msg(prio,
-                 str(boost::format("%1%-%2%-BACK: %3%")
-                     % m_data.m_session_id
-                     % m_envelope->m_id
-                     % msg));
 }

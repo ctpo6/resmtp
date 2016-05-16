@@ -15,9 +15,9 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 #include <boost/asio.hpp>
-#include <boost/format.hpp>
 #include <boost/thread.hpp>
 
 #include "global.h"
@@ -30,14 +30,21 @@ using namespace std;
 namespace r = resmtp;
 
 namespace {
-const uint32_t RLIMIT_OFILE_VALUE = 100000;
 
 void log_err(r::log prio, string s, bool copy_to_stderr)
 {
-  if (copy_to_stderr) {
+  if (copy_to_stderr && r::Log::isEnabled(prio)) {
     cerr << s << endl;
   }
   g::log().msg(prio, std::move(s));
+}
+
+void log_err(const std::pair<r::log, string> &p, bool copy_to_stderr)
+{
+  if (copy_to_stderr && r::Log::isEnabled(p.first)) {
+    cerr << p.second << endl;
+  }
+  g::log().msg(p);
 }
 
 void free_deleter(char *ptr)
@@ -146,20 +153,22 @@ int main(int argc, char* argv[])
   }
 
   for (const auto &addr : g::cfg().white_ip) {
-    g::log().msg(r::log::info,
-                 str(boost::format("white IP: %1%") % addr.to_string()));
+    g::log().msg(r::Log::pstrf(r::log::info,
+                               "white IP: %s",
+                               addr.to_string().c_str()));
   }
 
   for (const auto &addr : g::cfg().dns_ip) {
-    g::log().msg(r::log::info,
-                 str(boost::format("DNS server: %1%") % addr.to_string()));
+    g::log().msg(r::Log::pstrf(r::log::info,
+                               "DNS server: %s",
+                               addr.to_string().c_str()));
   }
 
   for (auto &b : g::cfg().backend_hosts) {
-    g::log().msg(r::log::info,
-                 str(boost::format("backend host: %1% %2%")
-                     % b.host_name
-                     % b.weight));
+    g::log().msg(r::Log::pstrf(r::log::info,
+                               "backend host: %s %u",
+                               b.host_name.c_str(),
+                               b.weight));
   }
 
   boost::thread t_log;
@@ -168,9 +177,8 @@ int main(int argc, char* argv[])
   try {
     if (!g::cfg().m_ip_config_file.empty()) {
       if (!g_ip_config.load(g::cfg().m_ip_config_file)) {
-        throw std::runtime_error(
-                                 str(boost::format("can't load IP restriction file: %1%")
-                                     % g::cfg().m_ip_config_file));
+        throw std::runtime_error(util::strf("can't load IP restriction file: %s",
+                                            g::cfg().m_ip_config_file.c_str()));
       }
     }
 
@@ -199,10 +207,9 @@ int main(int argc, char* argv[])
     server.run();
 
     if (!g::pid_file().create(g::cfg().m_pid_file)) {
-      log_err(r::log::err,
-              str(boost::format("can't create PID file: %1% (%2%)")
-                  % g::cfg().m_pid_file
-                  % strerror(errno)),
+      log_err(r::Log::pstrf(r::log::err,
+                            "can't create PID file: %s",
+                            g::cfg().m_pid_file.c_str()),
               !daemonized);
       // continue execution
     }
@@ -227,8 +234,9 @@ int main(int argc, char* argv[])
         continue;
       }
 
-      log_err(r::log::notice,
-              str(boost::format("received signal: %1%, exiting") % sig),
+      log_err(r::Log::pstrf(r::log::notice,
+                            "received signal: %d, exiting",
+                            sig),
               !daemonized);
       break;
     }
@@ -255,9 +263,9 @@ int main(int argc, char* argv[])
       // SIGTERM; server seems to be stopped immediately, never reaching this
       // line;
       // SIGINT has the same problem too
-      log_err(r::log::notice,
-              str(boost::format("stop server: finished in %1% seconds")
-                  % (std::time(nullptr) - t0)),
+      log_err(r::Log::pstrf(r::log::notice,
+                            "stop server: finished in %u seconds",
+                            static_cast<unsigned>(std::time(nullptr) - t0)),
               !daemonized);
   }
   catch (const std::exception &e) {
@@ -276,9 +284,7 @@ int main(int argc, char* argv[])
   g::log().stop();
   t_spamhaus_log.join();
 
-  log_err(r::log::notice,
-          str(boost::format("exit: %1%") % rval),
-          !daemonized);
+  log_err(r::Log::pstrf(r::log::notice, "exit: %d", rval), !daemonized);
   t_log.join();
 
   return rval;

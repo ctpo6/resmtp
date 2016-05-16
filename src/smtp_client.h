@@ -3,6 +3,7 @@
 
 #include <functional>
 #include <memory>
+#include <utility>
 
 #include <boost/asio.hpp>
 #include <boost/asio/ssl.hpp>
@@ -153,6 +154,7 @@ protected:
   void on_backend_conn();
 
   void log(resmtp::log prio, const string &msg) noexcept;
+  void log(const std::pair<resmtp::log, string> &msg) noexcept;
 };
 
 typedef std::shared_ptr<smtp_client> smtp_client_ptr;

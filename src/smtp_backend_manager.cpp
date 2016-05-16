@@ -97,10 +97,10 @@ smtp_backend_manager::backend_host smtp_backend_manager::get_backend_host()
         // unlock mtx
     }
 
-    g::log().msg(r::log::debug,
-              str(boost::format("selected backend host: %1% %2%")
-                  % hosts[idx].host_name
-                  % hosts[idx].weight));
+    g::log().msg(r::Log::pstrf(r::log::debug,
+                               "selected backend host: %s %u",
+                               hosts[idx].host_name.c_str(),
+                               hosts[idx].weight));
 
     return backend_host(idx, hosts[idx].host_name, port);
 }

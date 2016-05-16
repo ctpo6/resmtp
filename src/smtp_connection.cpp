@@ -27,21 +27,40 @@
 #include "util.h"
 
 
-#undef PDBG
-#undef PLOG
-//#ifdef _DEBUG
-#if 1
-#define PDBG(fmt, args...) log(r::log::debug, util::strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
-#define PLOG(prio, fmt, args...) log(prio, util::strf("%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
-#else
-#define PDBG(fmt, args...)
-#define PLOG(prio, fmt, args...)
-#endif
-
-
 using namespace std;
 using namespace y::net;
 namespace r = resmtp;
+
+
+#undef PDBG
+#undef PLOG
+#define PDBG(fmt, args...) log(r::log::debug, r::Log::strf(r::log::debug, "%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
+#define PLOG(prio, fmt, args...) log(prio, r::Log::strf(prio, "%s:%d %s: " fmt, __FILE__, __LINE__, __func__, ##args))
+
+
+void smtp_connection::log(r::log prio, const string &msg) noexcept
+{
+  // not very nice, but it helps to avoid useless strings construction
+  if (r::Log::isEnabled(prio)) {
+    g::log().msg(prio,
+                 str(boost::format("%1%-%2%-FRONT: %3%")
+                     % m_session_id
+                     % m_envelope->m_id
+                     % msg));
+  }
+}
+
+void smtp_connection::log(const std::pair<resmtp::log, string> &msg) noexcept
+{
+  // not very nice, but it helps to avoid useless strings construction
+  if (r::Log::isEnabled(msg.first)) {
+    g::log().msg(msg.first,
+                 str(boost::format("%1%-%2%-FRONT: %3%")
+                     % m_session_id
+                     % m_envelope->m_id
+                     % msg.second));
+  }
+}
 
 
 const smtp_connection::proto_map_t smtp_connection::smtp_command_handlers {
@@ -102,8 +121,9 @@ void smtp_connection::start(bool force_ssl)
     m_session_id = envelope::generate_new_id();
 
     m_connected_ip = socket().remote_endpoint().address();
-    log(r::log::info,
-        str(boost::format("**** CONNECT %1%") % m_connected_ip.to_string()));
+    log(r::Log::pstrf(r::log::info,
+                      "**** CONNECT %s",
+                      m_connected_ip.to_string().c_str()));
 
     m_max_rcpt_count = g::cfg().m_max_rcpt_count;
     // if specified, get the number of recipients for specific IP
@@ -119,8 +139,9 @@ void smtp_connection::start(bool force_ssl)
     // skip IP resolve for pre-configured white IPs as they must be from
     // the internal network
     if (is_address_white(m_connected_ip)) {
-        log(r::log::info,
-            str(boost::format("whitelisted: %1%") % m_connected_ip.to_string()));
+        log(r::Log::pstrf(r::log::info,
+                          "whitelisted: %s",
+                          m_connected_ip.to_string().c_str()));
         is_blacklisted = false;
         is_whitelisted = true;
         start_proto();
@@ -152,10 +173,10 @@ void smtp_connection::handle_back_resolve(
         return;
     }
 
-    log(r::log::info,
-        str(boost::format("resolve %1%: %2%")
-            % m_connected_ip.to_string()
-            % (m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str())));
+    log(r::Log::pstrf(r::log::info,
+                      "resolve %s: %s",
+                      m_connected_ip.to_string().c_str(),
+                      m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str()));
 
     // DNSBL check is off
     if (g::cfg().dnsbl_hosts.empty()) {
@@ -219,8 +240,9 @@ void smtp_connection::handle_dnswl_check()
         is_whitelisted = m_dnswl_check->get_status(wl_status_str);
         m_dnswl_check->stop();
         m_dnswl_check.reset();
-        log(r::log::debug,
-            str(boost::format("wl_status_str:%1%") % wl_status_str));
+        log(r::Log::pstrf(r::log::debug,
+                          "wl_status_str:%s",
+                          wl_status_str.c_str()));
     } else {
         is_whitelisted = false;
     }
@@ -236,56 +258,59 @@ void smtp_connection::handle_dnswl_check()
     start_proto();
 }
 
-
 void smtp_connection::start_proto()
 {
-    restart_timeout();
+  restart_timeout();
 
-    std::ostream response_stream(&m_response);
-    string error;
-    // returns false on connections number exceeding limits
-    if (m_manager.start(shared_from_this(), error)) {
-        // send a greeting msg
+  std::ostream response_stream(&m_response);
+  string error;
+  // returns false on connections number exceeding limits
+  if (m_manager.start(shared_from_this(), error)) {
+    // send a greeting msg
 
-        response_stream << "220 " << boost::asio::ip::host_name() << " "
-                        << (g::cfg().m_smtp_banner.empty() ? "Ok" : g::cfg().m_smtp_banner) << "\r\n";
+    response_stream << "220 " << boost::asio::ip::host_name() << " "
+      << (g::cfg().m_smtp_banner.empty() ? "Ok" : g::cfg().m_smtp_banner) << "\r\n";
 
-        if (m_force_ssl) {
-            ssl_state_ = ssl_active;
-            m_ssl_socket.async_handshake(boost::asio::ssl::stream_base::server,
-                strand_.wrap(boost::bind(&smtp_connection::handle_start_hello_write,
-                                         shared_from_this(),
-                                         boost::asio::placeholders::error,
-                                         false)));
-        } else {
-            send_response(boost::bind(&smtp_connection::handle_write_request,
-                                      shared_from_this(),
-                                      boost::asio::placeholders::error));
-		}
-	} else {
-		// log bad session for spamhaus
-		log_spamhaus(m_connected_ip.to_v4().to_string(),
-					 m_helo_host,
-					 string());
-		log(r::log::notice,
-			str(boost::format("%1%[%2%] REJECT: %3%")
-				% (m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str())
-				% m_connected_ip.to_v4().to_string()
-				% error));
-        response_stream << error;
-
-        if (m_force_ssl) {
-            ssl_state_ = ssl_active;
-    	    m_ssl_socket.async_handshake(boost::asio::ssl::stream_base::server,
-            	    strand_.wrap(boost::bind(&smtp_connection::handle_start_hello_write, shared_from_this(),
-                                boost::asio::placeholders::error, true)));
-        } else {
-            send_response(boost::bind(&smtp_connection::handle_last_write_request,
-                                      shared_from_this(),
-                                      boost::asio::placeholders::error),
-                          true);
-        }
+    if (m_force_ssl) {
+      ssl_state_ = ssl_active;
+      m_ssl_socket.async_handshake(boost::asio::ssl::stream_base::server,
+                                   strand_.wrap(boost::bind(&smtp_connection::handle_start_hello_write,
+                                                            shared_from_this(),
+                                                            boost::asio::placeholders::error,
+                                                            false)));
     }
+    else {
+      send_response(boost::bind(&smtp_connection::handle_write_request,
+                                shared_from_this(),
+                                boost::asio::placeholders::error));
+    }
+  }
+  else {
+    // log bad session for spamhaus
+    log_spamhaus(m_connected_ip.to_v4().to_string(),
+                 m_helo_host,
+                 string());
+    log(r::Log::pstrf(r::log::notice,
+                      "%s[%s] REJECT: %s",
+                      m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str(),
+                      m_connected_ip.to_v4().to_string().c_str(),
+                      error.c_str()));
+    
+    response_stream << error;
+
+    if (m_force_ssl) {
+      ssl_state_ = ssl_active;
+      m_ssl_socket.async_handshake(boost::asio::ssl::stream_base::server,
+                                   strand_.wrap(boost::bind(&smtp_connection::handle_start_hello_write, shared_from_this(),
+                                                            boost::asio::placeholders::error, true)));
+    }
+    else {
+      send_response(boost::bind(&smtp_connection::handle_last_write_request,
+                                shared_from_this(),
+                                boost::asio::placeholders::error),
+                    true);
+    }
+  }
 }
 
 
@@ -295,14 +320,13 @@ void smtp_connection::on_connection_tarpitted()
     g::mon().on_conn_tarpitted();
 }
 
-
 void smtp_connection::on_connection_close()
 {
-    g::mon().on_conn_closed(close_status, tarpit);
-    log(r::log::info,
-        str(boost::format("**** DISCONNECT status=%1% tarpit=%2%")
-            % resmtp::monitor::get_conn_close_status_name(close_status)
-            % tarpit));
+  g::mon().on_conn_closed(close_status, tarpit);
+  log(r::Log::pstrf(r::log::info,
+                    "**** DISCONNECT status=%s tarpit=%d",
+                    r::monitor::get_conn_close_status_name(close_status),
+                    tarpit));
 }
 
 
@@ -485,8 +509,10 @@ void smtp_connection::handle_read_helper(std::size_t size)
     yconst_buffers_iterator b = ybuffers_begin(bufs);
     yconst_buffers_iterator e = b + size;
 
-    log(r::log::buffers,
-        str(boost::format(">>> %1%") % util::str_cleanup_crlf(string(b, e))));
+    if (r::Log::isEnabled(r::log::buffers)) {
+      log(r::log::buffers,
+          str(boost::format(">>> %1%") % util::str_cleanup_crlf(string(b, e))));
+    }
 
     yconst_buffers_iterator bb = b + m_envelope->orig_message_token_marker_size_;
     assert (bb < e);
@@ -546,16 +572,17 @@ void smtp_connection::handle_read(const boost::system::error_code &ec,
                              m_helo_host,
                              m_remote_host_name);
 
-                log(r::log::notice,
-                    str(boost::format("%1%[%2%] REJECT: client closed connection; from=<%3%> tarpit=%4%")
-                        % (m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str())
-                        % m_connected_ip.to_v4().to_string()
-                        % (m_envelope ? m_envelope->m_sender.c_str() : "")
-                        % tarpit));
+                log(r::Log::pstrf(r::log::notice,
+                                  "%s[%s] REJECT: client closed connection; from=<%s> tarpit=%d",
+                                  m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str(),
+                                  m_connected_ip.to_v4().to_string().c_str(),
+                                  m_envelope ? m_envelope->m_sender.c_str() : "",
+                                  tarpit));
 
                 PDBG("close_status_t::fail_client_closed_connection");
                 close_status = close_status_t::fail_client_closed_connection;
-            } else {
+            } 
+            else {
                 // TODO investigate & rework???
                 // this is a workaround for the case when connection is closed before
                 // we receive the QUIT command
@@ -680,11 +707,14 @@ void smtp_connection::smtp_delivery_start()
 
 		append(str(boost::format("Message-Id: %1%\r\n") % message_id_str), added_h);
 
-		log(r::log::info,
-			str(boost::format("message-id=%1%") % message_id_str));
-	} else {
-		log(r::log::info,
-			str(boost::format("message-id=%1%") % message_id));
+		log(r::Log::pstrf(r::log::info,
+                     "message-id=%s",
+                     message_id_str.c_str()));
+	}
+  else {
+		log(r::Log::pstrf(r::log::info,
+                     "message-id=%s",
+                     string(message_id.begin(), message_id.end()).c_str()));
 	}
 
 	if (unique_h.find("date") == unique_h.end()) {
@@ -845,79 +875,78 @@ void smtp_connection::send_response(
                     handler)));
 }
 
-
 void smtp_connection::send_response2(
-        const boost::system::error_code &ec,
-        boost::function<void(const boost::system::error_code &)> handler)
+                                     const boost::system::error_code &ec,
+                                     boost::function<void(const boost::system::error_code &) > handler)
 {
-    if (ec) {   // tarpit timer was canceled in stop()
-        return;
+  if (ec) { // tarpit timer was canceled in stop()
+    return;
+  }
+
+  // check that the client hasn't sent something before receiving greeting msg
+  // don't check whitelisted hosts
+  if (!is_whitelisted
+      && g::cfg().m_socket_check
+      && m_proto_state == STATE_START) {
+    bool empty;
+    try {
+      empty = check_socket_read_buffer_is_empty();
+    }
+    catch (const bs::system_error &e) {
+      // client closed the connection
+      PDBG("close_status_t::fail");
+      close_status = close_status_t::fail;
+      m_manager.stop(shared_from_this());
+      return;
     }
 
-    // check that the client hasn't sent something before receiving greeting msg
-    // don't check whitelisted hosts
-    if (!is_whitelisted
-            && g::cfg().m_socket_check
-            && m_proto_state == STATE_START) {
-        bool empty;
-        try {
-            empty = check_socket_read_buffer_is_empty();
-        } catch (const bs::system_error &e) {
-            // TODO this log remove when finished investigating the cause
-            // client quickly closed the connection by itself?
-            PLOG(r::log::crit,
-                 "EXCEPTION: check_socket_read_buffer_is_empty '%s'",
-                 e.code().message().c_str());
+    if (!empty) {
+      // log for spamhaus if we still hadn't do that
+      // log as a bad behaving session (without client host name)
+      log_spamhaus(m_connected_ip.to_v4().to_string(),
+                   string(),
+                   string());
 
-            PDBG("close_status_t::fail");
-            close_status = close_status_t::fail;
-            m_manager.stop(shared_from_this());
-            return;
-        }
+      log(r::Log::pstrf(r::log::notice,
+                        "%s[%s] REJECT: client wrote to socket before greeting; tarpit=%d",
+                        m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str(),
+                        m_connected_ip.to_v4().to_string().c_str(),
+                        tarpit));
 
-        if (!empty) {
-            // log for spamhaus if we still hadn't do that
-            // log as a bad behaving session (without client host name)
-            log_spamhaus(m_connected_ip.to_v4().to_string(),
-                         string(),
-                         string());
+      PDBG("close_status_t::fail_client_early_write");
+      close_status = close_status_t::fail_client_early_write;
 
-            log(r::log::notice,
-                str(boost::format("%1%[%2%] REJECT: client wrote to socket before greeting; tarpit=%3%")
-                    % (m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str())
-                    % m_connected_ip.to_v4().to_string()
-                    % tarpit));
+      // don't kick off, gracefully close the session instead
 
-            PDBG("close_status_t::fail_client_early_write");
-            close_status = close_status_t::fail_client_early_write;
+      std::ostream response_stream(&m_response);
+      response_stream << "554 5.7.1 Service unavailable\r\n";
 
-            // don't kick off, gracefully close the session instead
-
-            std::ostream response_stream(&m_response);
-            response_stream << "554 5.7.1 Service unavailable\r\n";
-
-            // substitute the handler with handle_last_write_request()
-            handler = boost::bind(
-                        &smtp_connection::handle_last_write_request,
-                        shared_from_this(),
-                        boost::asio::placeholders::error);
-        }
+      // substitute the handler with handle_last_write_request()
+      handler = boost::bind(
+                            &smtp_connection::handle_last_write_request,
+                            shared_from_this(),
+                            boost::asio::placeholders::error);
     }
+  }
 
-	log(r::log::buffers,
-		str(boost::format("<<< %1%")
-			% util::str_cleanup_crlf(util::str_from_buf(m_response))));
-	if(ssl_state_ == ssl_active) {
-        ba::async_write(
-            m_ssl_socket,
-            m_response,
-            strand_.wrap(boost::bind(handler, boost::asio::placeholders::error)));
-    } else {
-        ba::async_write(
-            socket(),
-            m_response,
-            strand_.wrap(boost::bind(handler, boost::asio::placeholders::error)));
-    }
+  if (r::Log::isEnabled(r::log::buffers)) {
+    log(r::log::buffers,
+        str(boost::format("<<< %1%")
+          % util::str_cleanup_crlf(util::str_from_buf(m_response))));
+  }
+  
+  if (ssl_state_ == ssl_active) {
+    ba::async_write(
+                    m_ssl_socket,
+                    m_response,
+                    strand_.wrap(boost::bind(handler, boost::asio::placeholders::error)));
+  }
+  else {
+    ba::async_write(
+                    socket(),
+                    m_response,
+                    strand_.wrap(boost::bind(handler, boost::asio::placeholders::error)));
+  }
 }
 
 
@@ -986,10 +1015,6 @@ void smtp_connection::handle_ssl_handshake(const boost::system::error_code& ec)
 
 bool smtp_connection::execute_command(string cmd, std::ostream &os)
 {
-//    log(MSG_DEBUG,
-//        str(boost::format("execute command: '%1%'")
-//            % util::str_cleanup_crlf(cmd)));
-
     // trim starting whitespace
     string::size_type pos = cmd.find_first_not_of( " \t" );
     if (pos != std::string::npos) {
@@ -1233,12 +1258,12 @@ bool smtp_connection::smtp_mail(const string &_cmd,
         log_spamhaus(m_connected_ip.to_v4().to_string(),
                      m_helo_host,
                      string());
-        log(r::log::notice,
-            str(boost::format("%1%[%2%] REJECT: blacklisted (%3%) from=<%4%>")
-                % (m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str())
-                % m_connected_ip.to_v4().to_string()
-                % bl_status_str
-                % addr));
+        log(r::Log::pstrf(r::log::notice,
+                          "%s[%s] REJECT: blacklisted (%s) from=<%s>",
+                          m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str(),
+                          m_connected_ip.to_v4().to_string().c_str(),
+                          bl_status_str.c_str(),
+                          addr.c_str()));
         _response << "554 5.7.1 Client host blocked\r\n";
         return false;
     }
@@ -1367,12 +1392,13 @@ void smtp_connection::handle_timer(const boost::system::error_code &ec)
                     << " Error: timeout exceeded\r\n";
 
     if (m_proto_state == STATE_BLAST_FILE) {
-        log(r::log::debug,
-            str(boost::format("timeout after DATA (%1% bytes) from %2%[%3%]")
-                % buffers.size()
-                % (m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str())
-                % m_connected_ip.to_string()));
-    } else {
+        log(r::Log::pstrf(r::log::debug,
+                          "timeout after DATA (%zu bytes) from %s[%s]",
+                          buffers.size(),
+                          m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str(),
+                          m_connected_ip.to_string().c_str()));
+    } 
+    else {
         const char *state_desc = "";
         switch (m_proto_state)
         {
@@ -1390,19 +1416,19 @@ void smtp_connection::handle_timer(const boost::system::error_code &ec)
             state_desc = "HELO";
             break;
         }
-        log(r::log::debug,
-            str(boost::format("timeout after %1% from %2%[%3%]")
-                % state_desc
-                % (m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str())
-                % m_connected_ip.to_string()));
+        log(r::Log::pstrf(r::log::debug,
+                          "timeout after %s from %s[%s]",
+                          state_desc,
+                          m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str(),
+                          m_connected_ip.to_string().c_str()));
     }
 
-    log(r::log::notice,
-        str(boost::format("%1%[%2%] REJECT: timeout; from=<%3%> tarpit=%4%")
-            % (m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str())
-            % m_connected_ip.to_v4().to_string()
-            % (m_envelope ? m_envelope->m_sender.c_str() : "")
-            % tarpit));
+    log(r::Log::pstrf(r::log::notice,
+                      "%s[%s] REJECT: timeout; from=<%s> tarpit=%d",
+                      m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str(),
+                      m_connected_ip.to_v4().to_string().c_str(),
+                      m_envelope ? m_envelope->m_sender.c_str() : "",
+                      tarpit));
 
     send_response(boost::bind(&smtp_connection::handle_last_write_request,
                               shared_from_this(),
@@ -1417,16 +1443,6 @@ void smtp_connection::restart_timeout()
     m_timer.async_wait(
         strand_.wrap(boost::bind(&smtp_connection::handle_timer,
                         shared_from_this(), boost::asio::placeholders::error)));
-}
-
-
-void smtp_connection::log(r::log prio, const string &msg) noexcept
-{
-    g::log().msg(prio,
-              str(boost::format("%1%-%2%-FRONT: %3%")
-                  % m_session_id
-                  % m_envelope->m_id
-                  % msg));
 }
 
 
