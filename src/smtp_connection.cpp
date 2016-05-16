@@ -401,6 +401,7 @@ void smtp_connection::start_read() {
 }
 
 // Parses text as part of the message data from [b, e) input range.
+
 /**
  * Returns:
  *   true, if futher input required and we have nothing to output
@@ -409,49 +410,58 @@ void smtp_connection::start_read() {
  * read: iterator pointing directly past the last read character of the input range (anything in between [parsed, read) is a prefix of a eom token);
  */
 bool smtp_connection::handle_read_data_helper(
-        const yconst_buffers_iterator& b,
-        const yconst_buffers_iterator& e,
-        yconst_buffers_iterator& parsed,
-        yconst_buffers_iterator& read)
+                                              const yconst_buffers_iterator& b,
+                                              const yconst_buffers_iterator& e,
+                                              yconst_buffers_iterator& parsed,
+                                              yconst_buffers_iterator& read)
 {
-    yconst_buffers_iterator eom;
-    bool eom_found = eom_parser_.parse(b, e, eom, read);
+  yconst_buffers_iterator eom;
+  bool eom_found = eom_parser_.parse(b, e, eom, read);
 
-    if (g::cfg().m_remove_extra_cr) {
-        yconst_buffers_iterator p = b;
-        yconst_buffers_iterator crlf_b, crlf_e;
-        bool crlf_found = false;
-        while (p != eom) {
-            crlf_found = crlf_parser_.parse(p, eom, crlf_b, crlf_e);
-            if (crlf_found) {
-                if (crlf_e - crlf_b > 2) { // \r{2+}\n
-                    m_envelope->orig_message_size_ += append(p, crlf_b, m_envelope->orig_message_);        // text preceeding \r+\n token
-                    m_envelope->orig_message_size_ += append(crlf_e-2, crlf_e, m_envelope->orig_message_); // \r\n
-                    parsed = crlf_e;
-                } else {
-                    m_envelope->orig_message_size_ += append(p, crlf_e, m_envelope->orig_message_);
-                    parsed = crlf_e;
-                }
-            } else {
-                m_envelope->orig_message_size_ += append(p, crlf_b, m_envelope->orig_message_);
-                parsed = crlf_b;
-            }
-            p = crlf_e;
+  if (g::cfg().m_remove_extra_cr) {
+    yconst_buffers_iterator p = b;
+    yconst_buffers_iterator crlf_b, crlf_e;
+    bool crlf_found = false;
+    while (p != eom) {
+      crlf_found = crlf_parser_.parse(p, eom, crlf_b, crlf_e);
+      if (crlf_found) {
+        if (crlf_e - crlf_b > 2) { // \r{2+}\n
+          m_envelope->orig_message_size_ += append(p, crlf_b, m_envelope->orig_message_); // text preceeding \r+\n token
+          m_envelope->orig_message_size_ += append(crlf_e - 2, crlf_e, m_envelope->orig_message_); // \r\n
+          parsed = crlf_e;
         }
-    } else {
-        m_envelope->orig_message_size_ += append(b, eom, m_envelope->orig_message_);
-        parsed = eom;
+        else {
+          m_envelope->orig_message_size_ += append(p, crlf_e, m_envelope->orig_message_);
+          parsed = crlf_e;
+        }
+      }
+      else {
+        m_envelope->orig_message_size_ += append(p, crlf_b, m_envelope->orig_message_);
+        parsed = crlf_b;
+      }
+      p = crlf_e;
     }
-
-    if (eom_found) {
-        m_proto_state = STATE_CHECK_DATA;
-        io_service_.post(strand_.wrap(bind(&smtp_connection::start_check_data,
-                                           shared_from_this())));
-        parsed = read;
-        return false;
+  }
+  else {
+    // if reached the maximum allowed message size (if specified),
+    // stop accumulating the message data, just consume the input data
+    if (g::cfg().m_message_size_limit == 0 ||
+        m_envelope->orig_message_size_ <= g::cfg().m_message_size_limit) {
+      m_envelope->orig_message_size_ += append(b, eom, m_envelope->orig_message_);
     }
+    
+    parsed = eom;
+  }
 
-    return true;
+  if (eom_found) {
+    m_proto_state = STATE_CHECK_DATA;
+    io_service_.post(strand_.wrap(bind(&smtp_connection::start_check_data,
+                                       shared_from_this())));
+    parsed = read;
+    return false;
+  }
+
+  return true;
 }
 
 // Parses and executes commands from [b, e) input range.
@@ -602,33 +612,32 @@ void smtp_connection::handle_read(const boost::system::error_code &ec,
     }
 }
 
-
 void smtp_connection::start_check_data()
 {
-    m_timer.cancel();
+  m_timer.cancel();
 
-    m_check_data.m_session_id = m_session_id;
-    m_check_data.m_result = check::CHK_ACCEPT;
-    m_check_data.m_answer.clear();
-    // we will need client IP in the SMTP client for XCLIENT command
-    m_check_data.m_remote_ip = m_connected_ip.to_string();
-    m_check_data.m_remote_host = m_remote_host_name;
-    m_check_data.m_helo_host = m_helo_host;
+  m_check_data.m_session_id = m_session_id;
+  m_check_data.m_result = check::CHK_ACCEPT;
+  m_check_data.m_answer.clear();
+  // we will need client IP in the SMTP client for XCLIENT command
+  m_check_data.m_remote_ip = m_connected_ip.to_string();
+  m_check_data.m_remote_host = m_remote_host_name;
+  m_check_data.m_helo_host = m_helo_host;
 
-    if (g::cfg().m_message_size_limit &&
-            m_envelope->orig_message_size_ > g::cfg().m_message_size_limit) {
-        ++m_error_count;
+  if (g::cfg().m_message_size_limit &&
+      m_envelope->orig_message_size_ > g::cfg().m_message_size_limit) {
+    ++m_error_count;
 
-        m_check_data.m_result = check::CHK_REJECT;
-        m_check_data.m_answer =  "552 5.3.4 Message is too big;";
+    m_check_data.m_result = check::CHK_REJECT;
+    m_check_data.m_answer = "552 5.3.4 Message is too big;";
 
-        log(r::log::warning, "message size limit exceeded");
+    log(r::log::warning, "message size limit exceeded");
 
-        end_check_data();
-    } else {
-//        PDBG("call smtp_delivery_start()");
-        smtp_delivery_start();
-    }
+    end_check_data();
+  }
+  else {
+    smtp_delivery_start();
+  }
 }
 
 

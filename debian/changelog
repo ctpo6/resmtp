@@ -1,3 +1,11 @@
+resmtp (0.9.2) unstable; urgency=low
+
+  * Implemented protection against size bomb: on receive, stop storing
+  * message data, but continue receive to return error code at the message
+  * data end
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Mon, 16 May 2016 17:43:00 +0300
+ 
 resmtp (0.9.1) unstable; urgency=low
 
   * Avoid useless log message strings construction
