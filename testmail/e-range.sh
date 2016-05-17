@@ -32,8 +32,9 @@ proc run_test {sz} {
 	send "To: <25volt@25volt.ru>\r"
 	send "Subject: $sz\r\r"
 	send "$fdata"
+	send "\n\n\r\n\\\\r\r\r\rr\r"
 	send "\r.\r"
-	expect "250 2.0.0 Ok"
+#	expect "250 2.0.0 Ok"
 	send "quit\r"
 	expect "221 2.0.0 Closing connection."
 	expect eof

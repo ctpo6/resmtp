@@ -5,7 +5,7 @@ proc run_test {sz} {
 	puts "* test: $sz"
 	puts "*********************************************************************"
 
-	set chunk_size 100000
+	set chunk_size 400000
 	set cur_size 0
 
 	spawn ./g 3 $chunk_size
@@ -50,7 +50,7 @@ proc run_test {sz} {
 	}
 	
 	send "\r.\r"
-	expect "250 2.0.0 Ok"
+	#expect "250 2.0.0 Ok"
 	send "quit\r"
 	expect "221 2.0.0 Closing connection."
 	expect eof
