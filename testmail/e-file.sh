@@ -1,22 +1,24 @@
 #!/usr/bin/expect -f
+################################################################################
+# e-file.sh
+# Test: send file contents
+################################################################################ 
 
 if {[llength $argv] != 1} {
 	puts "usage: e-file.sh <file>"
 	exit 1
 }
 
-
 set fname [lindex $argv 0]
-#puts "Send file: $fname"
 
 set f [open $fname]
 set fdata [read $f]
-#puts "$fdata"
+close $f
 
 set timeout 30
 
 spawn telnet resmtp.mail.rambler.ru 25
-sleep 2
+sleep 1
 
 expect "220 resmtp.mail.rambler.ru Ok"
 send "EHLO me\r"
@@ -34,6 +36,11 @@ send "To: <25volt@25volt.ru>\r"
 send "Subject: $fname\r\r"
 send "$fdata"
 send "\r.\r"
-expect "250 2.0.0 Ok"
+expect {
+	"250 2.0.0 Ok" {}
+	"*" {}
+}
 send "quit\r"
 expect "221 2.0.0 Closing connection."
+expect eof
+

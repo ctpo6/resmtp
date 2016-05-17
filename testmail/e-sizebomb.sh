@@ -1,4 +1,8 @@
 #!/usr/bin/expect -f
+################################################################################
+# e-sizebomb.sh
+# Test: send mail with specified data size
+################################################################################ 
 
 proc run_test {sz} {
 	puts "*********************************************************************"
@@ -50,7 +54,10 @@ proc run_test {sz} {
 	}
 	
 	send "\r.\r"
-	#expect "250 2.0.0 Ok"
+	expect {
+		"250 2.0.0 Ok" {}
+		"*" {}
+	}
 	send "quit\r"
 	expect "221 2.0.0 Closing connection."
 	expect eof

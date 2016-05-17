@@ -1,4 +1,8 @@
 #!/usr/bin/expect -f
+################################################################################
+# e-range.sh
+# Test: send a number of mails with increasing size
+################################################################################ 
 
 proc run_test {sz} {
 	puts "*********************************************************************"
@@ -34,7 +38,10 @@ proc run_test {sz} {
 	send "$fdata"
 	send "\n\n\r\n\\\\r\r\r\rr\r"
 	send "\r.\r"
-#	expect "250 2.0.0 Ok"
+	expect {
+		"250 2.0.0 Ok" {}
+		"*" {}	# anything
+	}
 	send "quit\r"
 	expect "221 2.0.0 Closing connection."
 	expect eof
@@ -42,7 +49,7 @@ proc run_test {sz} {
 
 
 if {[llength $argv] != 2} {
-	puts "Usage: e-size.sh <size1> <size2>"
+	puts "Usage: e-range.sh <size1> <size2>"
 	puts "    where size1 <= size2"
 	exit 1
 }
@@ -62,8 +69,6 @@ if {!($size1 <= $size2)} {
 	puts "The <size1> must be less then or equal to <size2>"
 	exit 1
 }
-
-#set sz $size1
 
 for {set sz $size1} {$sz <= $size2} {incr sz} {
 	run_test $sz
