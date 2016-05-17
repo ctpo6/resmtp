@@ -10,7 +10,7 @@ header_iterator_range_t::iterator parse_header(header_iterator_range_t header,
 
     while (pos != end)
     {
-        register char c = *pos;
+        char c = *pos;
 
         // Check for end of headers (empty line): although RFC-822 recommends
         // to use CRLF for header/body separator (see 4.1 SYNTAX), here, we

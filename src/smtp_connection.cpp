@@ -426,17 +426,26 @@ bool smtp_connection::handle_read_data_helper(
       crlf_found = crlf_parser_.parse(p, eom, crlf_b, crlf_e);
       if (crlf_found) {
         if (crlf_e - crlf_b > 2) { // \r{2+}\n
-          m_envelope->orig_message_size_ += append(p, crlf_b, m_envelope->orig_message_); // text preceeding \r+\n token
-          m_envelope->orig_message_size_ += append(crlf_e - 2, crlf_e, m_envelope->orig_message_); // \r\n
+          if (g::cfg().m_message_size_limit == 0 ||
+              m_envelope->orig_message_size_ <= g::cfg().m_message_size_limit) {
+            m_envelope->orig_message_size_ += append(p, crlf_b, m_envelope->orig_message_); // text preceeding \r+\n token
+            m_envelope->orig_message_size_ += append(crlf_e - 2, crlf_e, m_envelope->orig_message_); // \r\n
+          }
           parsed = crlf_e;
         }
         else {
-          m_envelope->orig_message_size_ += append(p, crlf_e, m_envelope->orig_message_);
+          if (g::cfg().m_message_size_limit == 0 ||
+              m_envelope->orig_message_size_ <= g::cfg().m_message_size_limit) {
+            m_envelope->orig_message_size_ += append(p, crlf_e, m_envelope->orig_message_);
+          }
           parsed = crlf_e;
         }
       }
       else {
-        m_envelope->orig_message_size_ += append(p, crlf_b, m_envelope->orig_message_);
+        if (g::cfg().m_message_size_limit == 0 ||
+            m_envelope->orig_message_size_ <= g::cfg().m_message_size_limit) {
+          m_envelope->orig_message_size_ += append(p, crlf_b, m_envelope->orig_message_);
+        }
         parsed = crlf_b;
       }
       p = crlf_e;
@@ -449,7 +458,6 @@ bool smtp_connection::handle_read_data_helper(
         m_envelope->orig_message_size_ <= g::cfg().m_message_size_limit) {
       m_envelope->orig_message_size_ += append(b, eom, m_envelope->orig_message_);
     }
-    
     parsed = eom;
   }
 
