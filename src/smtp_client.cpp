@@ -49,7 +49,7 @@ void smtp_client::log(const std::pair<resmtp::log, string> &msg) noexcept
   }
 }
 
-
+#if 0
 namespace {
 string log_request_helper(const ba::streambuf& buf) {
 	ba::const_buffers_1 b = static_cast<ba::const_buffers_1>(buf.data());
@@ -81,7 +81,7 @@ void log_request(const list< ba::const_buffer >& d, size_t sz,
     session_log.insert(session_log.end(), d.begin(), d.end());
 }
 }
-
+#endif
 
 smtp_client::smtp_client(ba::io_service &io_service,
                          smtp_backend_manager &bm)
@@ -354,28 +354,24 @@ void smtp_client::handle_write_data_request(const bs::error_code &ec,
                     strand_.wrap(boost::bind(&smtp_client::handle_write_request,
                                              shared_from_this(),
                                              _1,
-                                             _2,
-                                             log_request_helper(client_request))));
+                                             _2)));
 }
 
-
-void smtp_client::handle_write_request(const bs::error_code &ec,
-                                       size_t sz,
-                                       const string &s)
+void smtp_client::handle_write_request(const bs::error_code &ec, size_t sz)
 {
-    if (ec) {
-        if (ec != ba::error::operation_aborted) {
-            PDBG("call on_host_fail()");
-            backend_mgr.on_host_fail(backend_host,
-                                     smtp_backend_manager::host_status::fail_connect);
-            fault(util::strf("ERROR: write failed: %s", ec.message().c_str()),
-                  string());
-        }
-    } else {
-        start_read_line();
+  if (ec) {
+    if (ec != ba::error::operation_aborted) {
+      PDBG("call on_host_fail()");
+      backend_mgr.on_host_fail(backend_host,
+                               smtp_backend_manager::host_status::fail_connect);
+      fault(util::strf("ERROR: write failed: %s", ec.message().c_str()),
+            string());
     }
+  }
+  else {
+    start_read_line();
+  }
 }
-
 
 void smtp_client::start_read_line()
 {
@@ -412,14 +408,12 @@ void smtp_client::handle_read_smtp_line(const bs::error_code &ec)
             % util::str_cleanup_crlf(util::str_from_buf(client_request))));
   }
 
-  ba::async_write(
-                  m_socket,
+  ba::async_write(m_socket,
                   client_request,
                   strand_.wrap(boost::bind(&smtp_client::handle_write_request,
                                            shared_from_this(),
                                            _1,
-                                           _2,
-                                           log_request_helper(client_request))));
+                                           _2)));
 }
 
 

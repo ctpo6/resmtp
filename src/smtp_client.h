@@ -128,7 +128,7 @@ protected:
   void handle_resolve(const boost::system::error_code &ec,
                       y::net::dns::resolver::iterator);
 
-  void handle_write_request(const boost::system::error_code &ec, size_t sz, const std::string& s);
+  void handle_write_request(const boost::system::error_code &ec, size_t sz);
   void handle_write_data_request(const boost::system::error_code &ec, size_t sz);
 
   void handle_timer(const boost::system::error_code &ec);
