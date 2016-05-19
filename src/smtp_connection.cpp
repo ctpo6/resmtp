@@ -22,6 +22,9 @@
 #include "param_parser.h"
 #include "rfc_date.h"
 #include "rfc822date.h"
+#ifdef RESMTP_FTR_SSL_RENEGOTIATION
+#include "server.h"
+#endif
 #include "smtp_backend_manager.h"
 #include "smtp_connection_manager.h"
 #include "util.h"
@@ -75,32 +78,6 @@ const smtp_connection::proto_map_t smtp_connection::smtp_command_handlers {
     {"starttls", &smtp_connection::smtp_starttls}
 };
 
-
-smtp_connection::smtp_connection(boost::asio::io_service &_io_service,
-                                 smtp_connection_manager &_manager,
-                                 smtp_backend_manager &bmgr,
-                                 boost::asio::ssl::context& _context)
-    : io_service_(_io_service)
-    , m_manager(_manager)
-    , backend_mgr(bmgr)
-
-    , strand_(_io_service)
-    , m_ssl_socket(_io_service, _context)
-
-    , m_resolver(_io_service)
-
-    , m_timer(_io_service)
-    , m_tarpit_timer(_io_service)
-{
-    m_envelope.reset(new envelope(false));
-}
-
-
-boost::asio::ip::tcp::socket& smtp_connection::socket()
-{
-    return m_ssl_socket.next_layer();
-}
-
 namespace {
 bool is_address_white(const ba::ip::address &addr)
 {
@@ -110,6 +87,48 @@ bool is_address_white(const ba::ip::address &addr)
     return std::find(wl.begin(), wl.end(), addr.to_v4()) != wl.end();
 }
 }
+
+
+smtp_connection::~smtp_connection()
+{
+#ifdef RESMTP_FTR_SSL_RENEGOTIATION  
+  // need to do this, otherwise boost::asio ssl stream dtor coredumps
+  if (g::cfg().m_use_tls) {
+    SSL *ssl = m_ssl_socket.native_handle();
+    SSL_set_ex_data(ssl, r::server::get_ssl_connection_idx(), NULL);
+  }
+#endif  
+}
+
+
+smtp_connection::smtp_connection(boost::asio::io_service &_io_service,
+                                 smtp_connection_manager &_manager,
+                                 smtp_backend_manager &bmgr,
+                                 boost::asio::ssl::context& _context)
+  : io_service_(_io_service)
+  , m_manager(_manager)
+  , backend_mgr(bmgr)
+
+  , strand_(_io_service)
+  , m_ssl_socket(_io_service, _context)
+
+  , m_resolver(_io_service)
+
+  , m_timer(_io_service)
+  , m_tarpit_timer(_io_service)
+{
+#ifdef RESMTP_FTR_SSL_RENEGOTIATION  
+  if (g::cfg().m_use_tls) {
+    SSL *ssl = m_ssl_socket.native_handle();
+    if (SSL_set_ex_data(ssl, r::server::get_ssl_connection_idx(), this) == 0) {
+      throw runtime_error("failed SSL_set_ex_data");
+    }
+  }
+#endif  
+  
+  m_envelope.reset(new envelope(false));
+}
+
 
 void smtp_connection::start(bool force_ssl)
 {
@@ -272,9 +291,9 @@ void smtp_connection::start_proto()
       << (g::cfg().m_smtp_banner.empty() ? "Ok" : g::cfg().m_smtp_banner) << "\r\n";
 
     if (m_force_ssl) {
-      ssl_state_ = ssl_active;
+      ssl_state_ = ssl_hand_shake;
       m_ssl_socket.async_handshake(boost::asio::ssl::stream_base::server,
-                                   strand_.wrap(boost::bind(&smtp_connection::handle_start_hello_write,
+                                   strand_.wrap(boost::bind(&smtp_connection::handle_handshake_start_hello_write,
                                                             shared_from_this(),
                                                             boost::asio::placeholders::error,
                                                             false)));
@@ -299,9 +318,9 @@ void smtp_connection::start_proto()
     response_stream << error;
 
     if (m_force_ssl) {
-      ssl_state_ = ssl_active;
+      ssl_state_ = ssl_hand_shake;
       m_ssl_socket.async_handshake(boost::asio::ssl::stream_base::server,
-                                   strand_.wrap(boost::bind(&smtp_connection::handle_start_hello_write, shared_from_this(),
+                                   strand_.wrap(boost::bind(&smtp_connection::handle_handshake_start_hello_write, shared_from_this(),
                                                             boost::asio::placeholders::error, true)));
     }
     else {
@@ -337,26 +356,34 @@ bool smtp_connection::check_socket_read_buffer_is_empty()
     return command.get() == 0;
 }
 
-
-void smtp_connection::handle_start_hello_write(
-        const boost::system::error_code& _error,
-        bool _close)
+void smtp_connection::handle_handshake_start_hello_write(const bs::error_code &ec,
+                                                         bool f_close)
 {
-    if(_error) {
-        return;
+  if (!ec) {
+    if (ssl_state_ == ssl_hand_shake) {
+      ssl_state_ = ssl_active;
     }
 
-	if (_close) {
-        send_response(boost::bind(
-            &smtp_connection::handle_last_write_request,
-            shared_from_this(),
-            boost::asio::placeholders::error));
-    } else {
-        send_response(boost::bind(
-            &smtp_connection::handle_write_request,
-            shared_from_this(),
-            boost::asio::placeholders::error));
+    if (f_close) {
+      send_response(boost::bind(
+                                &smtp_connection::handle_last_write_request,
+                                shared_from_this(),
+                                ba::placeholders::error));
     }
+    else {
+      send_response(boost::bind(
+                                &smtp_connection::handle_write_request,
+                                shared_from_this(),
+                                ba::placeholders::error));
+    }
+  }
+  else {
+    if (ec != ba::error::operation_aborted) {
+      PDBG("close_status_t::fail");
+      close_status = close_status_t::fail;
+      m_manager.stop(shared_from_this());
+    }
+  }
 }
 
 
@@ -473,51 +500,62 @@ bool smtp_connection::handle_read_data_helper(
 }
 
 // Parses and executes commands from [b, e) input range.
+
 /**
  * Returns:
  *   true, if futher input required and we have nothing to output
  *   false, otherwise
  * parsed: iterator pointing directly past the parsed and processed part of the input range;
  * read: iterator pointing directly past the last read character of the input range (anything in between [parsed, read) is a prefix of a command);
-*/
+ */
 bool smtp_connection::handle_read_command_helper(
-        const yconst_buffers_iterator& b,
-        const yconst_buffers_iterator& e,
-        yconst_buffers_iterator& parsed,
-        yconst_buffers_iterator& read) {
-    if ((read = std::find(b, e, '\n')) == e) {
-        return true;
+                                                 const yconst_buffers_iterator& b,
+                                                 const yconst_buffers_iterator& e,
+                                                 yconst_buffers_iterator& parsed,
+                                                 yconst_buffers_iterator& read)
+{
+  if ((read = std::find(b, e, '\n')) == e) {
+    return true;
+  }
+
+  string command(parsed, read);
+  parsed = ++read;
+
+  std::ostream os(&m_response);
+  bool res = execute_command(std::move(command), os);
+
+  if (res) {
+    switch (ssl_state_) {
+    case ssl_none:
+    case ssl_active:
+      send_response(boost::bind(
+                                &smtp_connection::handle_write_request,
+                                shared_from_this(),
+                                boost::asio::placeholders::error));
+      break;
+
+    case ssl_start_hand_shake:
+      // write 220 response and start TLS handshake
+      boost::asio::async_write(socket(),
+                               m_response,
+                               strand_.wrap(boost::bind(&smtp_connection::handle_starttls_response_write_request,
+                                                        shared_from_this(),
+                                                        boost::asio::placeholders::error)));
+      break;
+      
+    case ssl_hand_shake:
+      // must not happen
+      log(r::log::alert, "error in logic: ssl_state_ == ssl_hand_shake");
+      break;
     }
-
-    string command(parsed, read);
-    parsed = ++read;
-
-    std::ostream os(&m_response);
-    bool res = execute_command(std::move(command), os);
-
-    if (res) {
-        switch (ssl_state_) {
-        case ssl_none:
-        case ssl_active:
-            send_response(boost::bind(
-                &smtp_connection::handle_write_request,
-                shared_from_this(),
-                boost::asio::placeholders::error));
-            break;
-
-        case ssl_hand_shake:
-            boost::asio::async_write(socket(), m_response,
-                    strand_.wrap(boost::bind(&smtp_connection::handle_ssl_handshake, shared_from_this(),
-                                    boost::asio::placeholders::error)));
-            break;
-        }
-    } else {
-        send_response(boost::bind(&smtp_connection::handle_last_write_request,
-                                  shared_from_this(),
-                                  boost::asio::placeholders::error),
-                      true);
-    }
-    return false;
+  }
+  else {
+    send_response(boost::bind(&smtp_connection::handle_last_write_request,
+                              shared_from_this(),
+                              boost::asio::placeholders::error),
+                  true);
+  }
+  return false;
 }
 
 // Parses the first size characters of buffers.data().
@@ -551,73 +589,95 @@ void smtp_connection::handle_read_helper(std::size_t size)
     }
 }
 
-
 void smtp_connection::handle_read(const boost::system::error_code &ec,
                                   size_t size)
 {
-    read_pending = false;
+  read_pending = false;
 
-    if (!ec) {
-        if (size == 0) {
-            // TODO investigate: is it really happens?
-            PDBG("size == 0");
-
-            PDBG("close_status_t::fail");
-            close_status = close_status_t::fail;
-            m_manager.stop(shared_from_this());
-            return;
-        }
-
-//        PDBG("size=%zu buffers.size()=%zu", size, buffers.size());
-        buffers.commit(size);
-//        PDBG("buffers.size()=%zu", buffers.size());
-        handle_read_helper(buffers.size());
-    } else {
-        if (ec != ba::error::operation_aborted) {
-
-            PDBG("read: ec.message()='%s' size=%zu", ec.message().c_str(), size);
-            PDBG("state=%s msg_count_mail_from=%u msg_count_sent=%u",
-                 get_proto_state_name(m_proto_state),
-                 msg_count_mail_from,
-                 msg_count_sent);
-
-            if (ec == ba::error::eof && !smtp_client_started) {
-                // log for spamhaus if we still hadn't do that
-                // clients closed tarpitted sessions are coming here,
-                // but they are logged as normal sessions for now
-                // TODO maybe log as a bad-behaving session (without client host name)?
-                log_spamhaus(m_connected_ip.to_v4().to_string(),
-                             m_helo_host,
-                             m_remote_host_name);
-
-                log(r::Log::pstrf(r::log::notice,
-                                  "%s[%s] REJECT: client closed connection; from=<%s> tarpit=%d",
-                                  m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str(),
-                                  m_connected_ip.to_v4().to_string().c_str(),
-                                  m_envelope ? m_envelope->m_sender.c_str() : "",
-                                  tarpit));
-
-                PDBG("close_status_t::fail_client_closed_connection");
-                close_status = close_status_t::fail_client_closed_connection;
-            } 
-            else {
-                // TODO investigate & rework???
-                // this is a workaround for the case when connection is closed before
-                // we receive the QUIT command
-                // seems that io scheme must be (heavily!!!) reworked
-                // use async_read_until() instead of async_read_some() for commands?
-                // now don't have a time for this
-                if (!(m_proto_state == STATE_HELLO
-                      && msg_count_mail_from
-                      && msg_count_mail_from == msg_count_sent)) {
-                    PDBG("close_status_t::fail");
-                    close_status = close_status_t::fail;
-                }
-            }
-
-            m_manager.stop(shared_from_this());
-        }
+  if (!ec) {
+#ifdef RESMTP_FTR_SSL_RENEGOTIATION    
+    /*
+     * Implement NGINX behaviour on client renegotiation (comment below citated):
+     * 
+     * disable renegotiation (CVE-2009-3555):
+     * OpenSSL (at least up to 0.9.8l) does not handle disabled
+     * renegotiation gracefully, so drop connection here
+     */
+    if (ssl_renegotiated_) {
+      log(r::Log::pstrf(r::log::notice,
+                        "%s[%s] REJECT: client renegotiated TLS connection; from=<%s>",
+                        m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str(),
+                        m_connected_ip.to_v4().to_string().c_str(),
+                        m_envelope ? m_envelope->m_sender.c_str() : ""));
+      
+      PDBG("close_status_t::fail");
+      close_status = close_status_t::fail;
+      m_manager.stop(shared_from_this());
+      return;
     }
+#endif    
+    
+    if (size == 0) {
+      // TODO investigate: is it really happens?
+      PDBG("TODO size == 0");
+
+      PDBG("close_status_t::fail");
+      close_status = close_status_t::fail;
+      m_manager.stop(shared_from_this());
+      return;
+    }
+
+    //        PDBG("size=%zu buffers.size()=%zu", size, buffers.size());
+    buffers.commit(size);
+    //        PDBG("buffers.size()=%zu", buffers.size());
+    handle_read_helper(buffers.size());
+  }
+  else {
+    if (ec != ba::error::operation_aborted) {
+
+      PDBG("read: ec.message()='%s' size=%zu", ec.message().c_str(), size);
+      PDBG("state=%s msg_count_mail_from=%u msg_count_sent=%u",
+           get_proto_state_name(m_proto_state),
+           msg_count_mail_from,
+           msg_count_sent);
+
+      if (ec == ba::error::eof && !smtp_client_started) {
+        // log for spamhaus if we still hadn't do that;
+        // clients closed tarpitted sessions are coming here,
+        // but they are logged as normal sessions for now
+        // TODO maybe log as a bad-behaving session (without client host name)?
+        log_spamhaus(m_connected_ip.to_v4().to_string(),
+                     m_helo_host,
+                     m_remote_host_name);
+
+        log(r::Log::pstrf(r::log::notice,
+                          "%s[%s] REJECT: client closed connection; from=<%s> tarpit=%d",
+                          m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str(),
+                          m_connected_ip.to_v4().to_string().c_str(),
+                          m_envelope ? m_envelope->m_sender.c_str() : "",
+                          tarpit));
+
+        PDBG("close_status_t::fail_client_closed_connection");
+        close_status = close_status_t::fail_client_closed_connection;
+      }
+      else {
+        // TODO investigate & rework???
+        // this is a workaround for the case when connection is closed before
+        // we receive the QUIT command
+        // seems that io scheme must be (heavily!!!) reworked
+        // use async_read_until() instead of async_read_some() for commands?
+        // now don't have a time for this
+        if (!(m_proto_state == STATE_HELLO
+              && msg_count_mail_from
+              && msg_count_mail_from == msg_count_sent)) {
+          PDBG("close_status_t::fail");
+          close_status = close_status_t::fail;
+        }
+      }
+
+      m_manager.stop(shared_from_this());
+    }
+  }
 }
 
 void smtp_connection::start_check_data()
@@ -966,33 +1026,36 @@ void smtp_connection::send_response2(
   }
 }
 
-
 void smtp_connection::handle_write_request(const bs::error_code &ec)
 {
-    if (!ec) {
-        if (m_error_count > g::cfg().m_hard_error_limit) {
-            log(r::log::crit, "too many errors");
-
-            std::ostream response_stream(&m_response);
-            response_stream << "421 4.7.0 " << boost::asio::ip::host_name() << " Error: too many errors\r\n";
-            boost::asio::async_write(socket(), m_response,
-                    strand_.wrap(boost::bind(&smtp_connection::handle_last_write_request, shared_from_this(),
-                                    boost::asio::placeholders::error)));
-            return;
-        }
-        start_read();
-    } else {
-        if (ec != ba::error::operation_aborted) {
-            PDBG("write: ec.message()='%s'", ec.message().c_str());
-            PDBG("close_status_t::fail");
-            close_status = close_status_t::fail;
-            m_manager.stop(shared_from_this());
-        }
+  if (!ec) {
+    if (ssl_state_ == ssl_hand_shake) {
+      ssl_state_ = ssl_active;
     }
+    
+    if (m_error_count > g::cfg().m_hard_error_limit) {
+      log(r::log::crit, "too many errors");
+
+      std::ostream response_stream(&m_response);
+      response_stream << "421 4.7.0 " << boost::asio::ip::host_name() << " Error: too many errors\r\n";
+      boost::asio::async_write(socket(), m_response,
+                               strand_.wrap(boost::bind(&smtp_connection::handle_last_write_request, shared_from_this(),
+                                                        boost::asio::placeholders::error)));
+      return;
+    }
+    start_read();
+  }
+  else {
+    if (ec != ba::error::operation_aborted) {
+      PDBG("write: ec.message()='%s'", ec.message().c_str());
+      PDBG("close_status_t::fail");
+      close_status = close_status_t::fail;
+      m_manager.stop(shared_from_this());
+    }
+  }
 }
 
-void smtp_connection::handle_last_write_request(
-        const boost::system::error_code &ec)
+void smtp_connection::handle_last_write_request(const boost::system::error_code &ec)
 {
     if (ec != boost::asio::error::operation_aborted) {
         if (ec) {
@@ -1003,21 +1066,21 @@ void smtp_connection::handle_last_write_request(
     }
 }
 
-
-void smtp_connection::handle_ssl_handshake(const boost::system::error_code& ec)
+void smtp_connection::handle_starttls_response_write_request(const boost::system::error_code& ec)
 {
-    if (!ec) {
-        ssl_state_ = ssl_active;
-        m_ssl_socket.async_handshake(boost::asio::ssl::stream_base::server,
-                strand_.wrap(boost::bind(&smtp_connection::handle_write_request, shared_from_this(),
-                                boost::asio::placeholders::error)));
-    } else {
-        if (ec != boost::asio::error::operation_aborted) {
-            PDBG("close_status_t::fail");
-            close_status = close_status_t::fail;
-            m_manager.stop(shared_from_this());
-        }
+  if (!ec) {
+    ssl_state_ = ssl_hand_shake;
+    m_ssl_socket.async_handshake(boost::asio::ssl::stream_base::server,
+                                 strand_.wrap(boost::bind(&smtp_connection::handle_write_request, shared_from_this(),
+                                                          boost::asio::placeholders::error)));
+  }
+  else {
+    if (ec != boost::asio::error::operation_aborted) {
+      PDBG("close_status_t::fail");
+      close_status = close_status_t::fail;
+      m_manager.stop(shared_from_this());
     }
+  }
 }
 
 
@@ -1073,7 +1136,7 @@ bool smtp_connection::smtp_starttls(const string &, std::ostream &response)
 {
     // "starttls" is available only for initially unencrypted connections if TLS support is enabled in config
     if (g::cfg().m_use_tls && !m_force_ssl) {
-        ssl_state_ = ssl_hand_shake;
+        ssl_state_ = ssl_start_hand_shake;
         response << "220 Go ahead\r\n";
     } else {
         response << "502 5.5.2 Syntax error, command unrecognized.\r\n";
@@ -1359,6 +1422,9 @@ void smtp_connection::stop()
   m_proto_state = STATE_START;
 
   bs::error_code ec;
+  if (ssl_state_ == ssl_active) {
+    m_ssl_socket.shutdown(ec);
+  }
   socket().shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
   socket().close(ec);
 
@@ -1447,6 +1513,15 @@ void smtp_connection::restart_timeout()
   m_timer.async_wait(strand_.wrap(boost::bind(&smtp_connection::handle_timer,
                                               shared_from_this(), boost::asio::placeholders::error)));
 }
+
+#ifdef RESMTP_FTR_SSL_RENEGOTIATION
+void smtp_connection::handle_ssl_handshake_start() noexcept
+{
+  if (ssl_state_ == ssl_active) {
+    ssl_renegotiated_ = true;
+  }
+}
+#endif
 
 const char * smtp_connection::get_proto_state_name(proto_state_t st)
 {

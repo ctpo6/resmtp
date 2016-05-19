@@ -12,11 +12,28 @@
 using namespace std;
 namespace ba = boost::asio;
 
-//static void ssl_info_cb(const SSL *ssl, int where, int ret)
-//{
-//}
+#ifdef RESMTP_FTR_SSL_RENEGOTIATION
+static void ssl_info_cb(const SSL *ssl, int where, int ret)
+{
+  if (where & SSL_CB_HANDSHAKE_START) {
+    smtp_connection *conn = reinterpret_cast<smtp_connection *>
+      (SSL_get_ex_data(const_cast<SSL *>(ssl), resmtp::server::get_ssl_connection_idx()));
+    if (conn) {
+      conn->handle_ssl_handshake_start();
+    }
+  }
+}
+#endif
 
 namespace resmtp {
+
+#ifdef RESMTP_FTR_SSL_RENEGOTIATION
+int server::ssl_connection_idx_ = -1;
+int server::get_ssl_connection_idx() noexcept
+{
+  return ssl_connection_idx_;
+}
+#endif
 
 server::server(const server_parameters &cfg)
   : m_io_service_pool_size(cfg.m_worker_count)
@@ -31,17 +48,23 @@ server::server(const server_parameters &cfg)
   , backend_mgr(cfg.backend_hosts, cfg.backend_port)
 {
   if (cfg.m_use_tls) {
+#ifdef RESMTP_FTR_SSL_RENEGOTIATION    
+    ssl_connection_idx_ = SSL_CTX_get_ex_new_index(0, NULL, NULL, NULL, NULL);
+    if (ssl_connection_idx_ == -1) {
+      throw runtime_error("failed SSL_CTX_get_ex_new_index");
+    }
+#endif    
+    
     //        m_ssl_context.set_verify_mode(ba::ssl::context::verify_peer | ba::ssl::context::verify_client_once);
     SSL_CTX *ssl_ctx = m_ssl_context.native_handle();
-//    SSL_CTX_set_info_callback(ssl_ctx, ssl_info_cb);
     
     m_ssl_context.set_verify_mode(ba::ssl::context::verify_none);
-    m_ssl_context.set_options(
-                              ba::ssl::context::default_workarounds |
+    m_ssl_context.set_options(ba::ssl::context::default_workarounds |
+                              ba::ssl::context::no_compression |
                               ba::ssl::context::no_sslv2 |
                               ba::ssl::context::no_sslv3);
     SSL_CTX_set_options(ssl_ctx, SSL_OP_CIPHER_SERVER_PREFERENCE);
-
+    
     const char * ciphers = "ALL:+HIGH:!LOW:!MEDIUM:!EXPORT:!aNULL:!3DES:!ADH:!RC4:@STRENGTH";
     if (SSL_CTX_set_cipher_list(m_ssl_context.native_handle(), ciphers) == 0) {
       throw std::runtime_error(util::strf("failed to set TLS ciphers: '%s'", ciphers));
@@ -62,6 +85,11 @@ server::server(const server_parameters &cfg)
                                           e.what()));
     }
 
+#ifdef RESMTP_FTR_SSL_RENEGOTIATION    
+    // needed to block client initiated renegotiations
+    SSL_CTX_set_info_callback(ssl_ctx, ssl_info_cb);
+#endif    
+    
     for (auto &s : cfg.m_ssl_listen_points) {
       setup_acceptor(s, true);
     }

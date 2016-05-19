@@ -1,3 +1,17 @@
+resmtp (0.9.4) unstable; urgency=low
+
+  * RESMTP_FTR_SSL_RENEGOTIATION: disable client abitlity to renegotiate TLS
+    session: feature implemented, but turned off; it can't be fully implemented
+    without modification boost::asio; current implementation doesn't completely
+    protect from DoS attack (it assumes that data exchange will occur between
+    negotiations)
+  * Fixed error handling in handle_handshake_start_hello_write
+  * Some functions renamed in smtp_connection class
+  * Added new state to smtp_connection::ssl_state_t for more correct state
+    representation (originally needed for RESMTP_FTR_SSL_RENEGOTIATION)
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Thu, 19 May 2016 14:35:00 +0300
+
 resmtp (0.9.3) unstable; urgency=low
 
   * Fix to protection against size bomb: not all cases were handled

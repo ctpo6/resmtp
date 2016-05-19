@@ -65,8 +65,8 @@ message(STATUS "")
 ################################################################################
 add_definitions(-DBOOST_THREAD_USE_LIB)
 
-set(MY_C_WARNING_FLAGS "-Werror -Wall -Wextra -Wredundant-decls -Wformat -Werror=format-security -Wno-parentheses -Wno-unused-parameter")
-set(MY_CXX_WARNING_FLAGS "-Werror -Wall -Wextra -Wredundant-decls -Woverloaded-virtual -Wnon-virtual-dtor -Wformat -Werror=format-security -Wno-parentheses -Wno-unused-parameter")
+set(MY_C_WARNING_FLAGS "-Werror -Wall -Wextra -Wredundant-decls -Wformat -Werror=format-security -Wno-parentheses -Wno-unused-parameter -Wno-unused-function -Wno-unused-variable")
+set(MY_CXX_WARNING_FLAGS "-Werror -Wall -Wextra -Wredundant-decls -Woverloaded-virtual -Wnon-virtual-dtor -Wformat -Werror=format-security -Wno-parentheses -Wno-unused-parameter -Wno-unused-function -Wno-unused-variable")
 
 set(CMAKE_C_FLAGS_DEBUG "-O0 -ggdb -D_DEBUG")
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -ggdb -D_DEBUG")

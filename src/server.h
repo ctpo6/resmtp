@@ -28,6 +28,10 @@ public:
     void stop();
     void gracefully_stop();
 
+#ifdef RESMTP_FTR_SSL_RENEGOTIATION    
+    static int get_ssl_connection_idx() noexcept;
+#endif    
+    
 private:
     using acceptor_t = boost::asio::ip::tcp::acceptor;
 
@@ -49,7 +53,7 @@ private:
 
     boost::asio::io_service m_io_service;
     boost::asio::ssl::context m_ssl_context;
-
+    
     boost::asio::io_service mon_io_service;
     std::unique_ptr<acceptor_t> mon_acceptor;
     boost::asio::ip::tcp::socket mon_socket;
@@ -62,6 +66,11 @@ private:
 
     boost::thread mon_thread;
     boost::thread_group m_threads_pool;
+    
+#ifdef RESMTP_FTR_SSL_RENEGOTIATION    
+    // stores the value obtained by SSL_get_ex_new_index()
+    static int ssl_connection_idx_;
+#endif    
 };
 }
 
