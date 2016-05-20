@@ -336,9 +336,12 @@ void smtp_client::handle_write_data_request(const bs::error_code &ec,
 {
     if (ec) {
         if (ec != ba::error::operation_aborted) {
+#if 0
+// code is disabled: backend status will be set to 'fail' only on resolve or connect error
             PDBG("call on_host_fail()");
             backend_mgr.on_host_fail(backend_host,
                                      smtp_backend_manager::host_status::fail_connect);
+#endif            
             fault(util::strf("ERROR: write failed: %s",
                              ec.message().c_str()),
                   string());
@@ -361,9 +364,12 @@ void smtp_client::handle_write_request(const bs::error_code &ec, size_t sz)
 {
   if (ec) {
     if (ec != ba::error::operation_aborted) {
+#if 0
+// code is disabled: backend status will be set to 'fail' only on host resolve or connect error
       PDBG("call on_host_fail()");
       backend_mgr.on_host_fail(backend_host,
                                smtp_backend_manager::host_status::fail_connect);
+#endif      
       fault(util::strf("ERROR: write failed: %s", ec.message().c_str()),
             string());
     }
@@ -388,9 +394,12 @@ void smtp_client::handle_read_smtp_line(const bs::error_code &ec)
 {
   if (ec) {
     if (ec != ba::error::operation_aborted) {
+#if 0      
+// code is disabled: backend status will be set to 'fail' only on host resolve or connect error
       PDBG("call on_host_fail()");
       backend_mgr.on_host_fail(backend_host,
                                smtp_backend_manager::host_status::fail_connect);
+#endif      
       fault(util::strf("ERROR: write failed: %s", ec.message().c_str()),
             string());
     }
@@ -448,9 +457,6 @@ bool smtp_client::process_answer(std::istream &_stream) {
             }
         } catch (const boost::bad_lexical_cast &) {}
         if (code == 0xffffffff) {
-//            backend_mgr.on_host_fail(backend_host,
-//                                     smtp_backend_manager::host_status::fail);
-//            start_with_next_backend();
             fault("ERROR: invalid SMTP state code", line_buffer);
             return false;
         }
@@ -491,9 +497,6 @@ bool smtp_client::process_answer(std::istream &_stream) {
             assert(false && "debug the code");
         }
         if (p_err_str) {
-//            backend_mgr.on_host_fail(backend_host,
-//                                     smtp_backend_manager::host_status::fail);
-//            start_with_next_backend();
             fault(string("ERROR: ") + p_err_str, line_buffer);
             return false;
         }
@@ -811,28 +814,40 @@ void smtp_client::stop()
 
 void smtp_client::handle_timer(const bs::error_code &ec)
 {
-  if (ec) {
-    return;
-  }
+  if (ec) return;
 
-  if (m_proto_state == proto_state_t::start) {
-    log(r::Log::pstrf(r::log::debug,
-                      "backend host resolve timeout %s",
-                      backend_host.host_name.c_str()));
-
+  switch (m_proto_state) {
+  case proto_state_t::error:
+    PDBG("m_proto_state == proto_state_t::error");
+    break;
+    
+  case proto_state_t::start:
+    PDBG("backend host resolve timeout: %s", backend_host.host_name.c_str());
     PDBG("call on_host_fail()");
     backend_mgr.on_host_fail(backend_host,
                              smtp_backend_manager::host_status::fail_resolve);
     fault_backend();
     start_with_next_backend();
-  }
-  else {
+    break;
+    
+  case proto_state_t::resolved:
+    PDBG("backend host connect timeout: %s", backend_host.host_name.c_str());
+#if 0 
+// code is disabled to allow handle_connect() handle the case
     PDBG("call on_host_fail()");
     backend_mgr.on_host_fail(backend_host,
                              smtp_backend_manager::host_status::fail_connect);
-    fault(util::strf("ERROR: backend host connection timeout (state=%s)",
+    fault_backend();
+    start_with_next_backend();
+#endif    
+    break;
+  
+  default:
+    PDBG("backend host I/O operation timeout: %s", backend_host.host_name.c_str());
+    fault(util::strf("ERROR: backend host I/O operation timeout (state=%s)",
                      get_proto_state_name(m_proto_state)),
           string());
+    break;
   }
 }
 
