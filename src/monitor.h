@@ -63,8 +63,6 @@ public:
     // report connection to backend closed
     void on_backend_conn_closed(uint32_t idx) noexcept;
 
-    void set_spamhaus_log_file_iostate(std::ios_base::iostate st) noexcept;
-
 private:
     struct impl_conn_t;
     std::unique_ptr<impl_conn_t> impl_conn;
@@ -74,9 +72,6 @@ private:
 
     struct impl_backend_t;
     std::unique_ptr<impl_backend_t> impl_backend;
-
-    struct impl_misc_t;
-    std::unique_ptr<impl_misc_t> impl_misc;
 
     std::time_t tp_start;
 };

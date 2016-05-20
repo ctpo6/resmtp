@@ -63,10 +63,8 @@ void LogSpamhaus::run()
             }
 
             ofs << buffer << endl;
-
-            // monitor ofs state: investigate what happens when fs is full
-            g::mon().set_spamhaus_log_file_iostate(ofs.rdstate());
-        } else if (f_exit) {
+        } 
+        else if (f_exit) {
             break;
         }
    }

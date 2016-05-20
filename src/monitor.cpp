@@ -381,31 +381,6 @@ struct monitor::impl_backend_t
 };
 
 
-struct monitor::impl_misc_t
-{
-    ios_base::iostate spamhaus_log_file_iostate = ios_base::goodbit;
-    mutable mutex mtx;
-
-    void set_spamhaus_log_file_iostate(std::ios_base::iostate st) noexcept
-    {
-        lock_guard<mutex> lock(mtx);
-        spamhaus_log_file_iostate = st;
-    }
-
-    void print(std::ostream &os) noexcept
-    {
-        // first get a local copy to release the mutex as fast as possible
-        ios_base::iostate st;
-        {
-            lock_guard<mutex> lock(mtx);
-            st = spamhaus_log_file_iostate;
-        }
-        // now can slowly print to the stream
-        os << "spamhaus_log_file_iostate " << st << '\n';
-    }
-};
-
-
 const char * monitor::get_conn_close_status_name(conn_close_status_t st)
 {
     switch (st) {
@@ -428,15 +403,12 @@ monitor::monitor()
     : impl_conn(new impl_conn_t)
     , impl_mail(new impl_mail_t)
     , impl_backend(new impl_backend_t)
-    , impl_misc(new impl_misc_t)
     , tp_start(time(nullptr))
 {
 }
 
 
-monitor::~monitor()
-{
-}
+monitor::~monitor() = default;
 
 
 void monitor::print(std::ostream &os) noexcept
@@ -444,7 +416,6 @@ void monitor::print(std::ostream &os) noexcept
     os << "version " << g::app_version() << '\n';
     os << "pid " << getpid() << '\n';
     os << "uptime " << time(nullptr) - tp_start << '\n';
-    impl_misc->print(os);
     impl_conn->print(os);
     impl_mail->print(os);
     impl_backend->print(os);
@@ -530,10 +501,5 @@ void monitor::on_backend_conn_closed(uint32_t idx) noexcept
     impl_backend->on_conn_closed(idx);
 }
 
-
-void monitor::set_spamhaus_log_file_iostate(std::ios_base::iostate st) noexcept
-{
-    impl_misc->set_spamhaus_log_file_iostate(st);
-}
 
 }
