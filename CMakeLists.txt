@@ -3,11 +3,18 @@
 # cmake -DCMAKE_BUILD_TYPE=Release ..
 # cmake -DCMAKE_BUILD_TYPE=Debug ..
 
+# to build with boost libraries compiled with _GLIBCXX_DEBUG
+# CMAKE_LIBRARY_PATH="../boost_1_54_0/stage/lib:$CMAKE_LIBRARY_PATH" cmake ..
+
 project(resmtp)
 
 cmake_minimum_required(VERSION 2.8 FATAL_ERROR)
 
-# if CMAKE_BUILD_TYPE wasn't specified, make it equal to "Release"
+################################################################################
+# Top level build settings
+################################################################################
+OPTION(GLIBCXX_DEBUG "Build with defined _GLIBCXX_DEBUG macro" ON)
+
 IF (NOT CMAKE_BUILD_TYPE)
 	SET(
 		CMAKE_BUILD_TYPE
@@ -17,6 +24,12 @@ IF (NOT CMAKE_BUILD_TYPE)
 		FORCE
 	)
 ENDIF()
+
+message(STATUS "")
+message(STATUS "Build type: '${CMAKE_BUILD_TYPE}'")
+message(STATUS "")
+message(STATUS "GLIBCXX_DEBUG: ${GLIBCXX_DEBUG}")
+message(STATUS "")
 
 ################################################################################
 # Macroses
@@ -52,7 +65,21 @@ find_package(Threads)
 set(Boost_USE_STATIC_LIBS ON)
 set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_RUNTIME OFF)
-find_package(Boost REQUIRED COMPONENTS program_options regex system timer thread)
+if(GLIBCXX_DEBUG MATCHES "ON")
+  set(BOOST_LIB_PATH ${CMAKE_CURRENT_SOURCE_DIR}/boost_1_54_0_glibcxx_debug)
+  set(Boost_LIBRARIES
+    ${BOOST_LIB_PATH}/libboost_program_options.a;
+    ${BOOST_LIB_PATH}/libboost_system.a;
+    ${BOOST_LIB_PATH}/libboost_thread.a;
+    ${BOOST_LIB_PATH}/libboost_timer.a
+  )
+else()
+  find_package(Boost REQUIRED COMPONENTS program_options system thread timer)
+endif()
+
+message(STATUS "")
+message(STATUS "Boost libraries:")
+message(STATUS "${Boost_LIBRARIES}")
 
 ################################################################################
 # Other libraries
@@ -64,6 +91,10 @@ message(STATUS "")
 # Compiler flags
 ################################################################################
 add_definitions(-DBOOST_THREAD_USE_LIB)
+if(GLIBCXX_DEBUG MATCHES "ON")
+  add_definitions(-D_GLIBCXX_DEBUG)
+  #add_definitions(-D_GLIBCXX_DEBUG_PEDANTIC)
+endif()
 
 set(MY_C_WARNING_FLAGS "-Werror -Wall -Wextra -Wredundant-decls -Wformat -Werror=format-security -Wno-parentheses -Wno-unused-parameter -Wno-unused-function -Wno-unused-variable")
 set(MY_CXX_WARNING_FLAGS "-Werror -Wall -Wextra -Wredundant-decls -Woverloaded-virtual -Wnon-virtual-dtor -Wformat -Werror=format-security -Wno-parentheses -Wno-unused-parameter -Wno-unused-function -Wno-unused-variable")
@@ -80,12 +111,6 @@ set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O2 -ggdb -DNDEBUG")
 set(CMAKE_C_FLAGS "${MY_C_WARNING_FLAGS} ${CMAKE_C_FLAGS}")
 set(CMAKE_CXX_FLAGS "-std=c++11 ${MY_CXX_WARNING_FLAGS} ${CMAKE_CXX_FLAGS}")
 
-# for static linking
-#set(CMAKE_EXE_LINKER_FLAGS "-static -static-libstdc++ -static-libgcc")
-
-message(STATUS "Build type: '${CMAKE_BUILD_TYPE}'")
-message(STATUS "")
-
 ################################################################################
 # Version
 ################################################################################
@@ -94,7 +119,6 @@ SET(RESMTP_VERSION "${DEB_VERSION_MAJOR}.${DEB_VERSION_MINOR}.${DEB_VERSION_PATC
 add_definitions(-DRESMTP_VERSION="${RESMTP_VERSION}")
 message(STATUS "resmtp version: ${RESMTP_VERSION}")
 message(STATUS "")
-
 
 ################################################################################
 # Build

@@ -1,3 +1,13 @@
+resmtp (0.9.5) unstable; urgency=low
+
+  * Build with _GLIBCXX_DEBUG 
+  * Fix for hang: remove boost ssl stream shutdown() call
+  * For for hang: more precisely set ssl connection state
+  * Removed no more needed 'spamhaus_log_file_status' monitoring param
+  * Set backend host status to 'fail' only on resolve or connect error
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Thu, 20 May 2016 17:49:00 +0300
+
 resmtp (0.9.4) unstable; urgency=low
 
   * RESMTP_FTR_SSL_RENEGOTIATION: disable client abitlity to renegotiate TLS
