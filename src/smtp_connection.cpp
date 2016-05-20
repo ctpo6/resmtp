@@ -378,6 +378,9 @@ void smtp_connection::handle_handshake_start_hello_write(const bs::error_code &e
     }
   }
   else {
+    if (ssl_state_ == ssl_hand_shake) {
+      ssl_state_ = ssl_none;
+    }
     if (ec != ba::error::operation_aborted) {
       PDBG("close_status_t::fail");
       close_status = close_status_t::fail;
@@ -1043,11 +1046,14 @@ void smtp_connection::handle_write_request(const bs::error_code &ec)
                                                         boost::asio::placeholders::error)));
       return;
     }
+    
     start_read();
   }
   else {
+    if (ssl_state_ == ssl_hand_shake) {
+      ssl_state_ = ssl_none;
+    }
     if (ec != ba::error::operation_aborted) {
-      PDBG("write: ec.message()='%s'", ec.message().c_str());
       PDBG("close_status_t::fail");
       close_status = close_status_t::fail;
       m_manager.stop(shared_from_this());
@@ -1422,9 +1428,12 @@ void smtp_connection::stop()
   m_proto_state = STATE_START;
 
   bs::error_code ec;
+#if 0
+  // seems this code leads to errors
   if (ssl_state_ == ssl_active) {
     m_ssl_socket.shutdown(ec);
   }
+#endif  
   socket().shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
   socket().close(ec);
 
