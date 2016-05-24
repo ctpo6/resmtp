@@ -20,7 +20,9 @@ using std::string;
 using std::vector;
 
 namespace resmtp {
-class server : private boost::noncopyable {
+
+class server : private boost::noncopyable
+{
 public:
     server(const server_parameters &cfg);
 
@@ -47,8 +49,6 @@ private:
                        bool force_ssl,
                        const boost::system::error_code &ec);
 
-    void on_connection();
-
     const uint32_t m_io_service_pool_size;
 
     boost::asio::io_service m_io_service;
@@ -66,6 +66,8 @@ private:
 
     boost::thread mon_thread;
     boost::thread_group m_threads_pool;
+    
+    mutable boost::mutex mutex_;
     
 #ifdef RESMTP_FTR_SSL_RENEGOTIATION    
     // stores the value obtained by SSL_get_ex_new_index()

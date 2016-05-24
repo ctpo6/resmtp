@@ -47,6 +47,8 @@ server::server(const server_parameters &cfg)
                          cfg.m_client_connection_count_limit)
   , backend_mgr(cfg.backend_hosts, cfg.backend_port)
 {
+  m_acceptors.reserve(cfg.m_ssl_listen_points.size() + cfg.m_listen_points.size());
+  
   if (cfg.m_use_tls) {
 #ifdef RESMTP_FTR_SSL_RENEGOTIATION    
     ssl_connection_idx_ = SSL_CTX_get_ex_new_index(0, NULL, NULL, NULL, NULL);
@@ -55,9 +57,9 @@ server::server(const server_parameters &cfg)
     }
 #endif    
     
-    //        m_ssl_context.set_verify_mode(ba::ssl::context::verify_peer | ba::ssl::context::verify_client_once);
     SSL_CTX *ssl_ctx = m_ssl_context.native_handle();
     
+    //        m_ssl_context.set_verify_mode(ba::ssl::context::verify_peer | ba::ssl::context::verify_client_once);
     m_ssl_context.set_verify_mode(ba::ssl::context::verify_none);
     m_ssl_context.set_options(ba::ssl::context::default_workarounds |
                               ba::ssl::context::no_compression |
@@ -95,16 +97,16 @@ server::server(const server_parameters &cfg)
     }
   }
 
-  if (!setup_mon_acceptor(cfg.mon_listen_point)) {
-    throw std::runtime_error("failed to setup monitoring connection acceptor");
-  }
-
-  m_acceptors.reserve(cfg.m_listen_points.size());
   for (auto &s : cfg.m_listen_points) {
     setup_acceptor(s, false);
   }
+
   if (m_acceptors.empty()) {
-    throw std::runtime_error("failed to setup any SMTP connection acceptor");
+    throw std::runtime_error("failed to setup SMTP connection acceptors");
+  }
+
+  if (!setup_mon_acceptor(cfg.mon_listen_point)) {
+    throw std::runtime_error("failed to setup monitoring connection acceptor");
   }
 
   if (cfg.m_gid && setgid(cfg.m_gid) == -1) {
@@ -127,38 +129,41 @@ void server::run()
     }
 }
 
-
 void server::stop()
 {
+  {
+    boost::mutex::scoped_lock lock(mutex_);
+    
     // stop monitor
     mon_acceptor->close();
 
     // stop SMTP acceptors
-    for (auto &a: m_acceptors) {
-        a.close();
+    for (auto &a : m_acceptors) {
+      a.close();
     }
+  }
 
-    // abort all sessions
-    m_connection_manager.stop_all();
+  // abort all sessions
+  m_connection_manager.stop_all();
 
-    m_threads_pool.join_all();
-    mon_thread.join();
+  m_threads_pool.join_all();
+  mon_thread.join();
 }
-
 
 void server::gracefully_stop()
 {
-    g::set_stop_flag();
+  g::set_stop_flag();
 
-    // stop SMTP acceptors and wait all sessions finished
-    for (auto &a: m_acceptors) {
-        a.close();
-    }
-    m_threads_pool.join_all();
+  // stop SMTP acceptors and wait all sessions finished
+  for (auto &a : m_acceptors) {
+    a.close();
+  }
+  
+  m_threads_pool.join_all();
 
-    // stop monitor
-    mon_acceptor->close();
-    mon_thread.join();
+  // stop monitor
+  mon_acceptor->close();
+  mon_thread.join();
 }
 
 
@@ -169,7 +174,7 @@ bool server::setup_mon_acceptor(const string &addr)
         return false;
     }
 
-    ba::ip::tcp::resolver resolver(m_io_service);
+    ba::ip::tcp::resolver resolver(mon_io_service);
     ba::ip::tcp::resolver::query query(addr.substr(0, pos), addr.substr(pos+1));
     ba::ip::tcp::endpoint ep = *resolver.resolve(query);
 
@@ -196,8 +201,10 @@ bool server::setup_acceptor(const std::string& address, bool ssl)
     ba::ip::tcp::resolver::query query(address.substr(0, pos), address.substr(pos+1));
     ba::ip::tcp::endpoint endpoint = *resolver.resolve(query);
 
-    smtp_connection_ptr connection = std::make_shared<smtp_connection>(
-                m_io_service, m_connection_manager, backend_mgr, m_ssl_context);
+    smtp_connection_ptr connection(new smtp_connection(m_io_service,
+                                                       m_connection_manager,
+                                                       backend_mgr,
+                                                       m_ssl_context));
 
     m_acceptors.emplace_back(m_io_service);
     acceptor_t *acceptor = &m_acceptors[m_acceptors.size() - 1];
@@ -220,25 +227,26 @@ bool server::setup_acceptor(const std::string& address, bool ssl)
 
 void server::handle_mon_accept(const boost::system::error_code &ec)
 {
-    if (ec == ba::error::operation_aborted) {
-        return;
-    }
+  if (ec == ba::error::operation_aborted) {
+    return;
+  }
 
-    if (!ec) {
-        ostream os(&mon_response);
-        get_mon_response(os);
-        ba::async_write(mon_socket,
-                        mon_response,
-                        boost::bind(&server::handle_mon_write_request,
-                                    this,
-                                    ba::placeholders::error,
-                                    ba::placeholders::bytes_transferred));
-    } else {
-        mon_acceptor->async_accept(mon_socket,
-                                   boost::bind(&server::handle_mon_accept,
-                                               this,
-                                               ba::placeholders::error));
-    }
+  if (!ec) {
+    ostream os(&mon_response);
+    get_mon_response(os);
+    ba::async_write(mon_socket,
+                    mon_response,
+                    boost::bind(&server::handle_mon_write_request,
+                                this,
+                                ba::placeholders::error,
+                                ba::placeholders::bytes_transferred));
+  }
+  else {
+    mon_acceptor->async_accept(mon_socket,
+                               boost::bind(&server::handle_mon_accept,
+                                           this,
+                                           ba::placeholders::error));
+  }
 }
 
 
@@ -249,10 +257,9 @@ void server::handle_mon_write_request(const boost::system::error_code &ec,
         return;
     }
 
-    try {
-        mon_socket.shutdown(ba::ip::tcp::socket::shutdown_both);
-        mon_socket.close();
-    } catch (...) {}
+    boost::system::error_code unused_ec;
+    mon_socket.shutdown(ba::ip::tcp::socket::shutdown_both, unused_ec);
+    mon_socket.close(unused_ec);
 
     mon_acceptor->async_accept(mon_socket,
                                boost::bind(&server::handle_mon_accept,
@@ -276,19 +283,25 @@ void server::handle_accept(acceptor_t *acceptor,
         return;
     }
 
+    boost::mutex::scoped_lock lock(mutex_);
+    
     if (!ec) {
-        on_connection();
         try {
-            conn->start(force_ssl);
-            // TODO what really can be thrown here???
+            m_connection_manager.start(conn, force_ssl);
         }
         catch (const boost::system::system_error &e) {
             if (e.code() != ba::error::not_connected) {
-                g::log().msg(Log::pstrf(log::crit,
-                                        "connection start exception: %s",
+                g::log().msg(Log::pstrf(log::alert,
+                                        "ERROR: conn->start() boost::system::system_error: %s",
                                         e.what()));
             }
         }
+        catch (const std::exception &e) {
+          g::log().msg(Log::pstrf(log::alert,
+                                  "ERROR: conn->start() std::exception: %s",
+                                  e.what()));
+        }
+        
         conn.reset(new smtp_connection(m_io_service,
                                        m_connection_manager,
                                        backend_mgr,
@@ -297,7 +310,7 @@ void server::handle_accept(acceptor_t *acceptor,
     else {
         if (ec != ba::error::not_connected) {
             g::log().msg(Log::pstrf(log::crit,
-                                    "accept failed: %s",
+                                    "ERROR: accept failed: %s",
                                     ec.message().c_str()));
         }
     }
@@ -309,13 +322,6 @@ void server::handle_accept(acceptor_t *acceptor,
                                        conn,
                                        force_ssl,
                                        ba::placeholders::error));
-}
-
-
-void server::on_connection()
-{
-    // signal about inbound connection
-    g::mon().on_conn();
 }
 
 }

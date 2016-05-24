@@ -16,8 +16,8 @@ class smtp_connection_manager : private boost::noncopyable
 public:
     smtp_connection_manager(uint32_t max_sess, uint32_t max_sess_per_ip);
 
-    // error_msg - returned on fail
-    bool start(smtp_connection_ptr session, std::string &error_msg);
+    // called by server on connection accept
+    void start(smtp_connection_ptr conn, bool force_ssl);
 
     // called by conn itself
     void stop(smtp_connection_ptr conn);

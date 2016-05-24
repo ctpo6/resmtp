@@ -45,12 +45,31 @@ public:
 
   ~smtp_connection();
 
-  ba::ip::tcp::socket& socket() noexcept { return m_ssl_socket.next_layer(); }
-
-  void start(bool force_ssl);
+  
+  // called by connection manager
+  // start_error_msg - if not empty, this string must be sent after connection was established
+  void start(bool force_ssl, string start_error_msg);
+  
+  // called by connection manager
   void stop();
 
-  const ba::ip::address & remote_address() const noexcept { return m_connected_ip; }
+  ba::ip::tcp::socket & socket()
+  {
+    return m_ssl_socket.next_layer();
+  }
+  
+  const ba::ip::tcp::socket & socket() const
+  {
+    return m_ssl_socket.next_layer();
+  }
+  
+  const ba::ip::address & remote_address() const
+  {
+    if (remote_address_.is_unspecified()) {
+      remote_address_ = socket().remote_endpoint().address();
+    }
+    return remote_address_;
+  }
 
 #ifdef RESMTP_FTR_SSL_RENEGOTIATION    
   // must be called by SSL info callback in SSL_CB_HANDSHAKE_START state
@@ -101,6 +120,8 @@ private:
 
   // should connection be opened via SSL/TLS
   bool m_force_ssl;
+  // if not empty, session must be stopped right after connection established
+  string start_error_msg_;
 
   ba::io_service::strand strand_;
   ssl_socket_t m_ssl_socket;
@@ -132,7 +153,8 @@ private:
   ba::streambuf m_response;
 
   bool m_ehlo;
-  ba::ip::address m_connected_ip;
+  
+  mutable ba::ip::address remote_address_;
   string m_remote_host_name;
   string m_helo_host;
 

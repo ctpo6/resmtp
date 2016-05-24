@@ -81,9 +81,23 @@ struct monitor::impl_conn_t
     void conn_tarpitted() noexcept
     {
         lock_guard<mutex> lock(mtx);
-        --c.n_conn_fast;
+        
+        if (!c.n_conn_fast) {
+          PLOG(log::crit, "ERROR: !c.n_conn_fast");
+        }
+        else {
+          --c.n_conn_fast;
+        }
+        
+        if (!c.n_active_conn_fast) {
+          PLOG(log::crit, "ERROR: !c.n_active_conn_fast");
+        }
+        else {
+          --c.n_active_conn_fast;
+        }
+        
         ++c.n_conn_tarpit;
-        --c.n_active_conn_fast;
+
         ++c.n_active_conn_tarpit;
     }
 
@@ -92,25 +106,18 @@ struct monitor::impl_conn_t
         lock_guard<mutex> lock(mtx);
 
         if (tarpit) {
-#if 1
             if (!c.n_active_conn_tarpit) {
-                PLOG(log::crit, "!c.n_active_conn_tarpit");
+                PLOG(log::crit, "ERROR: !c.n_active_conn_tarpit");
             } else {
                 --c.n_active_conn_tarpit;
             }
-#else
-            --c.n_active_conn_tarpit;
-#endif
-        } else {
-#if 1
+        } 
+        else {
             if (!c.n_active_conn_fast) {
-                PLOG(log::crit, "!c.n_active_conn_fast");
+                PLOG(log::crit, "ERROR: !c.n_active_conn_fast");
             } else {
                 --c.n_active_conn_fast;
             }
-#else
-            --c.n_active_conn_fast;
-#endif
         }
 
         if (st == status_t::ok) {
@@ -346,15 +353,11 @@ struct monitor::impl_backend_t
     {
         lock_guard<mutex> lock(mtx.at(idx));
         auto &b = backend.at(idx);
-#if 1
         if (!b.n_active_conn) {
-            PLOG(log::crit, "!b.n_active_conn idx=%u", idx);
+            PLOG(log::crit, "ERROR: !b.n_active_conn idx=%u", idx);
         } else {
             --b.n_active_conn;
         }
-#else
-        --b.n_active_conn;
-#endif
     }
 
     void print(std::ostream &os) const noexcept

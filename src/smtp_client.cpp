@@ -249,7 +249,7 @@ void smtp_client::handle_resolve(const bs::error_code &ec,
     } else {
         if (ec != ba::error::operation_aborted) {
             log(r::Log::pstrf(r::log::crit,
-                              "failed to resolve backend host %s",
+                              "ERROR: failed to resolve backend host %s",
                               backend_host.host_name.c_str()));
 
             PDBG("call on_host_fail()");
@@ -269,7 +269,7 @@ void smtp_client::handle_simple_connect(const bs::error_code &ec)
   else {
     if (ec != ba::error::operation_aborted) {
       log(r::Log::pstrf(r::log::crit,
-                        "failed to connect to %s[%s]:%u",
+                        "ERROR: failed to connect to %s[%s]:%u",
                         backend_host.host_name.c_str(),
                         backend_host_ip.c_str(),
                         (unsigned)backend_host.port));
@@ -295,7 +295,7 @@ void smtp_client::handle_connect(const bs::error_code &ec,
   }
   else if (it != dns::resolver::iterator()) { // if not last address
     log(r::Log::pstrf(r::log::crit,
-                      "failed to connect to %s[%s]:%u",
+                      "ERROR: failed to connect to %s[%s]:%u",
                       backend_host.host_name.c_str(),
                       backend_host_ip.c_str(),
                       (unsigned)backend_host.port));
@@ -756,7 +756,7 @@ void smtp_client::fault_all_backends()
 
     m_proto_state = proto_state_t::error;
 
-    log(r::log::alert, "all backend hosts are unavailble");
+    log(r::log::alert, "ERROR: all backend hosts are unavailble");
 
     m_data.m_result = check::CHK_TEMPFAIL;
 

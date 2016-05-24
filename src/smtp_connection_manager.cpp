@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <utility>
 
 #include <boost/bind.hpp>
 #include <boost/format.hpp>
@@ -27,28 +28,33 @@ smtp_connection_manager::smtp_connection_manager(
 }
 
 
-bool smtp_connection_manager::start(smtp_connection_ptr session,
-                                    string &msg)
+void smtp_connection_manager::start(smtp_connection_ptr conn, bool force_ssl)
 {
+  string msg;
+  
+  {
     boost::mutex::scoped_lock lock(m_mutex);
 
     if (max_sessions &&
-            connections.size() >= max_sessions) {
-        msg.assign("421 4.7.0 Too many connections\r\n");
-        return false;
+        connections.size() >= max_sessions) {
+      msg = "421 4.7.0 Too many connections\r\n";
+    }
+    else if(max_sessions_per_ip &&
+            get_ip_count(conn->remote_address()) >= max_sessions_per_ip) {
+      msg = str(boost::format("421 4.7.0 Too many connections from %1%\r\n")
+                % conn->remote_address().to_string());
     }
 
-    if (max_sessions_per_ip &&
-            get_ip_count(session->remote_address()) >= max_sessions_per_ip) {
-        msg = str(boost::format("421 4.7.0 Too many connections from %1%\r\n")
-                  % session->remote_address().to_string());
-        return false;
+    if (connections.find(conn) != connections.end()) {
+      g::log().msg(r::log::alert, "ERROR: session already started");
+      return;
     }
-
-    connections.insert(session);
-    ip_count_inc(session->remote_address());
-
-    return true;
+    
+    connections.insert(conn);
+    ip_count_inc(conn->remote_address());
+  }
+  
+  conn->start(force_ssl, std::move(msg));
 }
 
 
