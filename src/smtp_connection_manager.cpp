@@ -21,7 +21,6 @@ smtp_connection_manager::smtp_connection_manager(
     : max_sessions(max_sess)
     , max_sessions_per_ip(max_sess_per_ip)
 {
-    connections.reserve(max(max_sessions, RESERVE_SIZE));
     if (max_sessions_per_ip) {
       m_ip_count.reserve(max(max_sessions, RESERVE_SIZE));
     }
@@ -70,21 +69,11 @@ void smtp_connection_manager::stop(smtp_connection_ptr conn)
 
 void smtp_connection_manager::stop_all()
 {
-    boost::mutex::scoped_lock lock(m_mutex);
-
-    // clear sessions and IP counters
-    decltype(connections) tmp;
-    tmp.swap(connections);
-    connections.reserve(max(max_sessions, RESERVE_SIZE));   // for possible further usage
-    
-    m_ip_count.clear();
-
-    lock.unlock();
-
-    // now we can slowly stop sessions
-    for(auto &s: tmp) {
-        s->stop();
+    for(auto &conn: connections) {
+        conn->stop();
     }
+  
+    m_ip_count.clear();
 }
 
 
