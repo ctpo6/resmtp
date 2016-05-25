@@ -1,3 +1,9 @@
+resmtp (0.9.7) unstable; urgency=low
+
+  * Set socket listen backlog to 2047
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Wed, 25 May 2016 15:25:00 +0300
+
 resmtp (0.9.6) unstable; urgency=low
 
   * Added global mutex to server::handle_accept()

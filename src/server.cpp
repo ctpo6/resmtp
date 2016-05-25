@@ -212,7 +212,7 @@ bool server::setup_acceptor(const std::string& address, bool ssl)
     acceptor->open(endpoint.protocol());
     acceptor->set_option(ba::ip::tcp::acceptor::reuse_address(true));
     acceptor->bind(endpoint);
-    acceptor->listen();
+    acceptor->listen(2047);
 
     acceptor->async_accept(connection->socket(),
                            boost::bind(&server::handle_accept,
