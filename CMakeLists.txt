@@ -13,7 +13,7 @@ cmake_minimum_required(VERSION 2.8 FATAL_ERROR)
 ################################################################################
 # Top level build settings
 ################################################################################
-OPTION(GLIBCXX_DEBUG "Build with defined _GLIBCXX_DEBUG macro" ON)
+OPTION(GLIBCXX_DEBUG "Build with defined _GLIBCXX_DEBUG macro" OFF)
 
 IF (NOT CMAKE_BUILD_TYPE)
 	SET(

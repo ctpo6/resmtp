@@ -1,3 +1,9 @@
+resmtp (0.9.8) unstable; urgency=low
+
+  * Build without _GLIBCXX_DEBUG
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Wed, 25 May 2016 15:34:00 +0300
+
 resmtp (0.9.7) unstable; urgency=low
 
   * Set socket listen backlog to 2047
