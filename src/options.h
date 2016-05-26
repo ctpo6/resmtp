@@ -63,7 +63,9 @@ struct server_parameters {
         uint32_t weight;            // 0..100; 0 - off, 100 - max
     };
 
-
+    // for debug: quit after specified number of sessions
+    unsigned n_quit_after_;
+    
     string config_file_ = def_config_file;
 
       // don't daemonize

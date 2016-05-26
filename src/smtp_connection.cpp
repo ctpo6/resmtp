@@ -7,8 +7,8 @@
 #include <iostream>
 #include <iterator>
 #include <memory>
+#include <set>
 #include <sstream>
-#include <unordered_set>
 #include <vector>
 
 #include <boost/bind.hpp>
@@ -725,7 +725,8 @@ void handle_parse_header(const header_iterator_range_t &name,
                          const header_iterator_range_t &value,
                          list<header_iterator_range_t> &h,
                          header_iterator_range_t &message_id,
-                         unordered_set<string> &unique_h) {
+                         set<string> &unique_h)
+{
     string lname;   // lower-cased header name
     lname.reserve(name.size());
     std::transform(name.begin(), name.end(), back_inserter(lname), ::tolower);
@@ -756,7 +757,7 @@ void smtp_connection::smtp_delivery_start()
 	typedef list<header_iterator_range_t> hl_t; // header fields subset from the original message for the composed message
 	hl_t h;
 	header_iterator_range_t message_id;
-	unordered_set<string> unique_h;
+	set<string> unique_h;
 	header_iterator_range_t::iterator b = ybuffers_begin(orig_m);
 	header_iterator_range_t::iterator e = ybuffers_end(orig_m);
 	header_iterator_range_t r(b, e);

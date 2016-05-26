@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstdlib>
 #include <utility>
 
 #include <boost/bind.hpp>
@@ -16,11 +17,13 @@ using namespace std;
 const uint32_t smtp_connection_manager::RESERVE_SIZE = 200000;
 
 
-smtp_connection_manager::smtp_connection_manager(
-        uint32_t max_sess,
-        uint32_t max_sess_per_ip)
+smtp_connection_manager::smtp_connection_manager(uint32_t max_sess,
+                                                 uint32_t max_sess_per_ip,
+                                                 uint32_t n_sessions_quit_after)
     : max_sessions(max_sess)
     , max_sessions_per_ip(max_sess_per_ip)
+    , n_sessions_quit_after_(n_sessions_quit_after)
+    , session_count_(0)
 {
     if (max_sessions_per_ip) {
       m_ip_count.reserve(max(max_sessions, RESERVE_SIZE));
@@ -68,8 +71,17 @@ void smtp_connection_manager::stop(smtp_connection_ptr conn)
             ip_count_dec(conn->remote_address());
         }
     }
+    
     // now we can slowly stop the session
     conn->stop();
+    
+    // for debug with valgrind(callgrind) - stop after specified number of processed sessions
+    if (n_sessions_quit_after_) {
+      ++session_count_;
+      if (session_count_ >= n_sessions_quit_after_) {
+        std::exit(0);
+      }
+    }
 }
 
 

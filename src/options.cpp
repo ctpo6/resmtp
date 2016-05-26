@@ -367,6 +367,7 @@ bool server_parameters::parse_config(int argc, char * argv[])
             ("check,C", "check config only (not thoroughly indeed)")
             ("foreground,f", "run at foreground (don't daemonize)")
             ("config,c", bpo::value<std::string>(&config_file_)->default_value(def_config_file), "path to configuration file")
+            ("quit_after", bpo::value<unsigned>(&n_quit_after_)->default_value(0), "quit after Nth SMTP session")
             ;
     command_line_opt.add(common_opt);
 
@@ -419,7 +420,7 @@ bool server_parameters::parse_config(int argc, char * argv[])
 
             ("message_size_limit", bpo::value<uint32_t>(&m_message_size_limit)->default_value(10240000), "Message size limit")
 
-            ("remove_extra_cr", bpo::value<bool>(&m_remove_extra_cr)->default_value(true), "Remove extra carriage returns on/off")
+            ("remove_extra_cr", bpo::value<bool>(&m_remove_extra_cr)->default_value(false), "Remove extra carriage returns on/off")
 
             ("ip_config_file", bpo::value<string>(&m_ip_config_file), "IP address depended config params")
 

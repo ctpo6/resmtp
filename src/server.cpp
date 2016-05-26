@@ -44,7 +44,8 @@ server::server(const server_parameters &cfg)
   , mon_acceptor(new acceptor_t(mon_io_service))
   , mon_socket(mon_io_service)
   , m_connection_manager(cfg.m_connection_count_limit,
-                         cfg.m_client_connection_count_limit)
+                         cfg.m_client_connection_count_limit,
+                         cfg.n_quit_after_)
   , backend_mgr(cfg.backend_hosts, cfg.backend_port)
 {
   m_acceptors.reserve(cfg.m_ssl_listen_points.size() + cfg.m_listen_points.size());

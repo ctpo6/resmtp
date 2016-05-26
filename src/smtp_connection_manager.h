@@ -1,6 +1,7 @@
 #ifndef _SMTP_CONNECTION_MANAGER_H_
 #define _SMTP_CONNECTION_MANAGER_H_
 
+#include <atomic>
 #include <set>
 #include <string>
 #include <unordered_map>
@@ -14,7 +15,9 @@
 class smtp_connection_manager : private boost::noncopyable
 {
 public:
-    smtp_connection_manager(uint32_t max_sess, uint32_t max_sess_per_ip);
+    smtp_connection_manager(uint32_t max_sess,
+                            uint32_t max_sess_per_ip,
+                            uint32_t n_sessions_quit_after);
 
     // called by server on connection accept
     void start(smtp_connection_ptr conn, bool force_ssl);
@@ -32,7 +35,10 @@ protected:
 
     const uint32_t max_sessions;
     const uint32_t max_sessions_per_ip;
+    const uint32_t n_sessions_quit_after_;
 
+    std::atomic<uint32_t> session_count_;
+    
     std::set<smtp_connection_ptr> connections;
 
     // pairs: IPv4 (as uint32_t) -> count of sessions
