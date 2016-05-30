@@ -14,9 +14,7 @@ debian/resmtp-dbg/
 debian/tmp/
 debian/files
 debian/resmtp*.debhelper.log
-debian/resmtp.postinst.debhelper
-debian/resmtp.postrm.debhelper
-debian/resmtp.prerm.debhelper
+debian/resmtp.*.debhelper
 debian/resmtp*.substvars
 debian/stamp-makefile-*
 
