@@ -4,7 +4,7 @@
 # Send mails in bursts with a timeout between them
 #
 
-MAIL_FILE="./mail1.txt"
+MAIL_FILE="./m16384.txt"
 
 print_usage()
 {
