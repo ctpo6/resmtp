@@ -1,0 +1,33 @@
+# resmtp - SMTP frontend proxy 
+
+env USER=postfix
+env GROUP=postfix
+
+env RUNDIR=/var/run/resmtp
+# upstart doesn't allow to expand vars in vars definitions
+env PIDFILE=/var/run/resmtp/resmtp.pid
+
+description "resmtp - SMTP frontend proxy"
+author "Yuri Epstein <yuri.epstein@gmail.com>"
+
+start on runlevel [2345]
+stop on runlevel [016]
+
+# resmtp uses the daemon() glibc function, which, in Linux, doesn't fork() twice
+expect fork
+
+respawn
+# give up if restarting 5 times in 300 seconds
+respawn limit 5 300
+oom score -999
+
+limit nofile 500000 500000
+limit core unlimited unlimited
+
+pre-start script
+	mkdir -m755 -p $RUNDIR
+	chown $USER:$GROUP $RUNDIR
+end script
+
+exec /usr/sbin/resmtp -c /etc/resmtp/resmtp.conf -p $PIDFILE
+

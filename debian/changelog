@@ -1,3 +1,10 @@
+resmtp (0.9.11) unstable; urgency=low
+
+  * Added upstart script
+  * In init script, set files limit to 500000
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Mon, 30 May 2016 18:14:00 +0300
+
 resmtp (0.9.10) unstable; urgency=low
 
   * Handle exceptions from relover objects constructors
