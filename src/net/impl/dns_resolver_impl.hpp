@@ -304,12 +304,11 @@ class dns_resolver_impl : public boost::enable_shared_from_this<dns_resolver_imp
   private:
     void do_cancel()
     {
-        try {
-            _timer.cancel();
-            //    _socket.shutdown(boost::asio::ip::tcp::socket::shutdown_both);
-            _socket.close();    
-        } catch (...) {}
- 
+      boost::system::error_code ec;
+      _timer.cancel(ec);
+      //    _socket.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
+      _socket.close(ec);    
+      
         for (time_iterator_t it = _query_list.get<by_time>().begin(); 
              it != _query_list.get<by_time>().end(); )
         {

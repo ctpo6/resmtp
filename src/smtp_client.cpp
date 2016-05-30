@@ -724,10 +724,14 @@ void smtp_client::fault(string log_msg, string remote_answer)
 
     m_data.m_result = report_rcpt(false, log_msg, remote_answer);
 
-    m_timer.cancel();
-    m_resolver.cancel();
+    try {
+      m_resolver.cancel();
+    }
+    catch (...) {
+    }
 
     bs::error_code ec;
+    m_timer.cancel(ec);
     m_socket.close(ec);
 
     PLOG(r::log::debug, "call on_backend_conn_closed()");
@@ -742,8 +746,14 @@ void smtp_client::fault_backend()
 {
     m_proto_state = proto_state_t::error;
 
-    m_timer.cancel();
-    m_resolver.cancel();
+    try {
+      m_resolver.cancel();
+    }
+    catch (...) {
+    }
+    
+    bs::error_code ec;
+    m_timer.cancel(ec);
 
     assert(!m_socket.is_open()
            && "socket must not be open here - debug the code!!!");
@@ -760,8 +770,14 @@ void smtp_client::fault_all_backends()
 
     m_data.m_result = check::CHK_TEMPFAIL;
 
-    m_timer.cancel();
-    m_resolver.cancel();
+    try {
+      m_resolver.cancel();
+    }
+    catch (...) {
+    }
+
+    bs::error_code ec;
+    m_timer.cancel(ec);
 
     m_socket.get_io_service().post(cb_complete);
     cb_complete = nullptr;
@@ -774,10 +790,14 @@ void smtp_client::success()
 
     m_data.m_result = report_rcpt(true, "success delivery", string());
 
-    m_timer.cancel();
-    m_resolver.cancel();
+    try {
+      m_resolver.cancel();
+    }
+    catch (...) {
+    }
     
     bs::error_code ec;
+    m_timer.cancel(ec);
     m_socket.close(ec);
 
     PLOG(r::log::debug, "call on_backend_conn_closed()");
@@ -790,26 +810,22 @@ void smtp_client::success()
 
 void smtp_client::do_stop()
 {
-    m_timer.cancel();
+  try {
     m_resolver.cancel();
+  }
+  catch (...) {
+  }
 
-    // TODO is it really needed here???
-    bs::error_code ec;
-    m_socket.close(ec);
+  bs::error_code ec;
+  m_timer.cancel(ec);
+  m_socket.close(ec);
 }
-
 
 void smtp_client::stop()
 {
-    // changed to stop synchronously to make working with current implementation
-    // of the server shutdown
-#if 0
-    m_socket.get_io_service().post(
-        strand_.wrap(boost::bind(&smtp_client::do_stop,
-                                 shared_from_this())));
-#else
-    do_stop();
-#endif
+  m_socket.get_io_service().post(
+                                 strand_.wrap(boost::bind(&smtp_client::do_stop,
+                                                          shared_from_this())));
 }
 
 void smtp_client::handle_timer(const bs::error_code &ec)

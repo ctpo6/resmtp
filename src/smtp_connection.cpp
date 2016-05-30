@@ -207,7 +207,14 @@ void smtp_connection::handle_back_resolve(
     }
 
     // start DNSBL check
-    m_dnsbl_check.reset(new rbl_check(io_service_));
+    try {
+      m_dnsbl_check.reset(new rbl_check(io_service_));
+    }
+    catch (const std::exception &) {
+      handle_dnsbl_check();
+      return;
+    }
+    
     for (const auto &addr: g::cfg().dns_ip) {
         m_dnsbl_check->add_nameserver(addr);
     }
@@ -243,9 +250,16 @@ void smtp_connection::handle_dnsbl_check()
     }
 
     // start DNSWL check
-    m_dnswl_check.reset(new rbl_check(io_service_));
+    try {
+      m_dnswl_check.reset(new rbl_check(io_service_));
+    }
+    catch (const std::exception &) {
+      handle_dnswl_check();
+      return;
+    }
+    
     for (const auto &addr: g::cfg().dns_ip) {
-        m_dnswl_check->add_nameserver(addr);
+      m_dnswl_check->add_nameserver(addr);
     }
     m_dnswl_check->add_rbl_source(g::cfg().dnswl_host);
     m_dnswl_check->start(remote_address().to_v4(),
@@ -863,21 +877,32 @@ void smtp_connection::end_lmtp_proto()
     }
 }
 
-
 void smtp_connection::smtp_delivery()
 {
-    if (m_smtp_client) {
-        m_smtp_client->stop();
-    }
-    m_smtp_client.reset(new smtp_client(io_service_, backend_mgr));
+  if (m_smtp_client) {
+    m_smtp_client->stop();
+    m_smtp_client.reset();
+  }
 
-    m_check_data.tarpit = tarpit;
-    m_smtp_client->start(
-        m_check_data,
-        strand_.wrap(bind(&smtp_connection::end_check_data, shared_from_this())),
-        *m_envelope,
-        g::cfg().dns_ip);
-    smtp_client_started = true;
+  try {
+    m_smtp_client.reset(new smtp_client(io_service_, backend_mgr));
+  }
+  catch (const std::exception &) {
+    m_check_data.m_result = check::CHK_TEMPFAIL;
+    m_check_data.m_answer.clear();
+    io_service_.post(strand_.wrap(bind(&smtp_connection::end_check_data,
+                                       shared_from_this())));
+    return;
+  }
+
+  m_check_data.tarpit = tarpit;
+  m_smtp_client->start(
+                       m_check_data,
+                       strand_.wrap(bind(&smtp_connection::end_check_data,
+                                         shared_from_this())),
+                       *m_envelope,
+                       g::cfg().dns_ip);
+  smtp_client_started = true;
 }
 
 void smtp_connection::end_check_data()
@@ -1433,14 +1458,18 @@ bool smtp_connection::smtp_data(const string &_cmd, std::ostream &_response)
 
 void smtp_connection::stop()
 {
-  m_timer.cancel();
-  m_tarpit_timer.cancel();
+  bs::error_code ec;
+  m_timer.cancel(ec);
+  m_tarpit_timer.cancel(ec);
 
-  m_resolver.cancel();
+  try {
+    m_resolver.cancel();
+  }
+  catch (...) {
+  }
 
   m_proto_state = STATE_START;
 
-  bs::error_code ec;
   socket().shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
   socket().close(ec);
 
@@ -1456,10 +1485,7 @@ void smtp_connection::stop()
 
   if (m_smtp_client) {
     m_smtp_client->stop();
-    // timer handlers in smtp_client are called after returning from stop()
-#if 0
     m_smtp_client.reset();
-#endif
   }
 
   on_connection_close();

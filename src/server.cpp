@@ -1,5 +1,7 @@
 #include "server.h"
 
+#include <signal.h>
+
 #include <iostream>
 
 #include <boost/algorithm/string/compare.hpp>
@@ -303,10 +305,20 @@ void server::handle_accept(acceptor_t *acceptor,
                                   e.what()));
         }
         
-        conn.reset(new smtp_connection(m_io_service,
-                                       m_connection_manager,
-                                       backend_mgr,
-                                       m_ssl_context));
+        try {
+          conn.reset(new smtp_connection(m_io_service,
+                                         m_connection_manager,
+                                         backend_mgr,
+                                         m_ssl_context));
+        }
+        catch (const std::exception &e) {
+          // most likely resolver object failed
+          g::log().msg(Log::pstrf(log::alert,
+                                  "ERROR: smtp_connection() std::exception: %s",
+                                  e.what()));
+          raise(SIGTERM);   // stop the program
+          return;
+        }
     }
     else {
         if (ec != ba::error::not_connected) {

@@ -1,3 +1,11 @@
+resmtp (0.9.10) unstable; urgency=low
+
+  * Handle exceptions from relover objects constructors
+  * Stop program (raise SIGTERM) if connection object can't be constructed due
+    an exception
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Mon, 30 May 2016 13:39:00 +0300
+
 resmtp (0.9.9) unstable; urgency=low
 
   * Turn off 'remove_extra_cr' config param by default to do less data 
