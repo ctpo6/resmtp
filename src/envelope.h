@@ -3,6 +3,7 @@
 
 #include <list>
 #include <string>
+#include <utility>
 
 #include <boost/noncopyable.hpp>
 
@@ -28,7 +29,7 @@ struct envelope : private boost::noncopyable
         check::chk_status m_delivery_status = check::CHK_TEMPFAIL;
 
         rcpt(string name, uint64_t suid, string uid) :
-            m_name(name), m_suid(suid), m_uid(uid)
+            m_name(std::move(name)), m_suid(suid), m_uid(std::move(uid))
         {
         }
 
