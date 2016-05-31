@@ -1,42 +1,35 @@
-#pragma once
+#ifndef _SMTP_BACKEND_MANAGER_H_
+#define _SMTP_BACKEND_MANAGER_H_
 
-#include <chrono>
 #include <ctime>
 #include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
+#include <utility>
 
-#include <boost/asio.hpp>
-#include <boost/enable_shared_from_this.hpp>
 #include <boost/noncopyable.hpp>
-#include <boost/thread.hpp>
 
-#include "net/dns_resolver.hpp"
-
-#include <options.h>
-
-namespace ba = boost::asio;
-namespace bs = boost::system;
+#include "options.h"
 
 using std::string;
 using std::vector;
 
-class smtp_backend_manager :
-        public boost::enable_shared_from_this<smtp_backend_manager>,
-        private boost::noncopyable
+class smtp_backend_manager : private boost::noncopyable
 {
 public:
-    struct backend_host {
+    struct backend_host
+    {
         backend_host() = default;
         backend_host(uint32_t i, string h, uint16_t p) :
-            index(i), host_name(h), port(p) {}
+            index(i), host_name(std::move(h)), port(p) {}
         uint32_t index;     // internal index
         string host_name;   // IP or symbolic
         uint16_t port;      // TCP port
     };
 
-    enum class host_status {
+    enum class host_status
+    {
         unknown = 0,
         ok,
 //        fail,
@@ -76,3 +69,5 @@ private:
 
     std::mutex mtx;
 };
+
+#endif
