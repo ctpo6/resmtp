@@ -2,12 +2,9 @@
 #define _ENVELOPE_H_
 
 #include <list>
-#include <memory>
 #include <string>
 
 #include <boost/noncopyable.hpp>
-
-//#include "coroutine/coroutine.hpp"
 
 #include "buffers.h"
 #include "check.h"
@@ -16,9 +13,7 @@
 using std::list;
 using std::string;
 
-struct envelope :
-        public std::enable_shared_from_this<envelope>,
-        private boost::noncopyable
+struct envelope : private boost::noncopyable
 {
     typedef ystreambuf::mutable_buffers_type ymutable_buffers;
     typedef ystreambuf::const_buffers_type yconst_buffers;

@@ -1,3 +1,9 @@
+resmtp (0.9.13) unstable; urgency=low
+
+  * The 'envelope' struct is no more inherited from std::enable_shared_from_this
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Tue, 31 May 2016 10:34:00 +0300
+
 resmtp (0.9.12) unstable; urgency=low
 
   * Catch exception in rbl_check::cancel()
