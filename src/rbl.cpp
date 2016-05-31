@@ -86,5 +86,8 @@ void rbl_check::handle_resolve(const boost::system::error_code &ec,
 
 void rbl_check::stop()
 {
+  try {
     m_resolver.cancel();
+  }
+  catch(...) {}
 }
