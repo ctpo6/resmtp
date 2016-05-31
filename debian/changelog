@@ -1,3 +1,9 @@
+resmtp (0.9.12) unstable; urgency=low
+
+  * Catch exception in rbl_check::cancel()
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Tue, 31 May 2016 10:22:00 +0300
+
 resmtp (0.9.11) unstable; urgency=low
 
   * Added upstart script
