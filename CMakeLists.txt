@@ -124,24 +124,29 @@ message(STATUS "")
 # Build
 ################################################################################
 include_directories(
-    src
-    src/asio
-    ${Boost_INCLUDE_DIRS}
+  src
+  src/asio
+  ${Boost_INCLUDE_DIRS}
 )
 
-file(GLOB HEADERS
-    src/*.h
-    src/coroutine/*.hpp
-    src/net/*.hpp
-    src/net/impl/*.hpp
+file(
+  GLOB_RECURSE
+  HEADERS
+  src/*.h
+  src/*.hpp
+  src/*.ipp
 )
-file(GLOB SOURCES
-    src/*.c
-    src/*.cpp
+
+file(
+  GLOB
+  SOURCES
+  src/*.c
+  src/*.cpp
 )
+
 file(GLOB CONFIGS
-    etc/resmtp/resmtp.conf
-    etc/logrotate.d/resmtp
+  etc/resmtp/resmtp.conf
+  etc/logrotate.d/resmtp
 )
 
 # include ${HEADERS} ${CONFIGS} to make them visible in the QtCreator project tree
