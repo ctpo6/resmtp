@@ -11,7 +11,11 @@
 #pragma once
 
 // Our primary dependency is boost::asio. We can't live without it!
+#if 0
 #include <boost/asio/detail/push_options.hpp>
+#else
+#include "asio/asio/detail/push_options.hpp"
+#endif
 
 #include <cstdint>
 #include <cstring>
@@ -21,7 +25,11 @@
 #include <boost/iterator.hpp>
 #include <boost/cstdint.hpp>
 #include <boost/scoped_array.hpp>
+#if 0
 #include <boost/asio.hpp>
+#else
+#include "asio/asio.hpp"
+#endif
 #include <boost/array.hpp>
 
 //using namespace boost;
@@ -293,7 +301,7 @@ class network_array : public boost::array<uint8_t, N>
        @param incpos Increments the caret position in the array. If set to false the function acts like a peek
        @return The amount of bytes retrieved from the array
     */
-    size_t get(boost::asio::ip::address_v4 & d,
+    size_t get(asio::ip::address_v4 & d,
 		           const size_t p=N+1,
 		           const bool incpos=true)
     {
@@ -305,7 +313,7 @@ class network_array : public boost::array<uint8_t, N>
 
         uint32_t v = 0;
         memcpy(&v, &base::elems[nap], sizeof(uint32_t));
-        d = boost::asio::ip::address_v4( ntohl(v) );
+        d = asio::ip::address_v4( ntohl(v) );
 
         if( incpos ) nap += sizeof(uint32_t);
         return sizeof(d);
@@ -319,7 +327,7 @@ class network_array : public boost::array<uint8_t, N>
        @param incpos Increments the caret position in the array. If set to false the function acts like a poke
        @return The amount of bytes writen from the array
     */
-    size_t put(const boost::asio::ip::address_v4 & d,
+    size_t put(const asio::ip::address_v4 & d,
 		           const size_t p=N+1,
 		           const bool incpos=true)
     {
@@ -350,7 +358,7 @@ class network_array : public boost::array<uint8_t, N>
        @param incpos Increments the caret position in the array. If set to false the function acts like a peek
        @return The amount of bytes retrieved from the array
     */
-    size_t get(boost::asio::ip::address_v6 & d,
+    size_t get(asio::ip::address_v6 & d,
 		           const size_t p=N+1,
 		           const bool incpos=true)
     {
@@ -360,9 +368,9 @@ class network_array : public boost::array<uint8_t, N>
             position(p);
         }
 
-        boost::asio::ip::address_v6::bytes_type  bytes;
+        asio::ip::address_v6::bytes_type  bytes;
         memcpy( bytes.data(), &base::elems[nap], 16);
-        d = boost::asio::ip::address_v6(bytes);
+        d = asio::ip::address_v6(bytes);
         if( incpos )
         {
             nap += 16;
@@ -379,7 +387,7 @@ class network_array : public boost::array<uint8_t, N>
        @param incpos Increments the caret position in the array. If set to false the function acts like a poke
        @return The amount of bytes writen from the array
     */
-    size_t put(const boost::asio::ip::address_v6 & d,
+    size_t put(const asio::ip::address_v6 & d,
 		           const size_t p=N+1,
 		           const bool incpos=true)
     {
@@ -472,4 +480,8 @@ typedef boost::shared_ptr<dns_buffer_t>  shared_dns_buffer_t;
 } // namespace net
 } // namespace y
 
+#if 0
 #include <boost/asio/detail/pop_options.hpp>
+#else
+#include "asio/asio/detail/pop_options.hpp"
+#endif

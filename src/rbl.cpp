@@ -13,11 +13,10 @@
 using namespace std;
 using namespace y::net;
 
-namespace ba = boost::asio;
 namespace bs = boost::system;
 
 
-rbl_check::rbl_check(ba::io_service& _io_service)
+rbl_check::rbl_check(asio::io_service& _io_service)
     : m_resolver(_io_service)
 {
 }
@@ -29,7 +28,7 @@ void rbl_check::add_rbl_source(string host_name)
 }
 
 
-void rbl_check::start(const ba::ip::address_v4 &address, complete_cb cb)
+void rbl_check::start(const asio::ip::address_v4 &address, complete_cb cb)
 {
     m_message.clear();
 
@@ -45,7 +44,7 @@ void rbl_check::start(const ba::ip::address_v4 &address, complete_cb cb)
 }
 
 
-void rbl_check::start_resolve(const ba::ip::address_v4 &address,
+void rbl_check::start_resolve(const asio::ip::address_v4 &address,
                               const string &rbl_host)
 {
 //    PDBG("ENTER %s %s", av4.to_string().c_str(), d.c_str());
@@ -54,12 +53,12 @@ void rbl_check::start_resolve(const ba::ip::address_v4 &address,
         dns::type_a,
         boost::bind(&rbl_check::handle_resolve,
                     shared_from_this(),
-                    ba::placeholders::error,
-                    ba::placeholders::iterator));
+                    asio::placeholders::error,
+                    asio::placeholders::iterator));
 }
 
 
-void rbl_check::handle_resolve(const boost::system::error_code &ec,
+void rbl_check::handle_resolve(const asio::error_code &ec,
                                dns::resolver::iterator it)
 {
     if (!ec) {

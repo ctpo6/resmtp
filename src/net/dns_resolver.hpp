@@ -10,7 +10,11 @@
 #ifndef BOOST_NET_DNS_RESOLVER_HPP
 #define BOOST_NET_DNS_RESOLVER_HPP
 
+#if 0
 #include <boost/asio.hpp>
+#else
+#include "asio/asio.hpp"
+#endif
 
 #include <net/dns.hpp>
 #include <net/network_array.hpp>

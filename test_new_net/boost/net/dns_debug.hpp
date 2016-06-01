@@ -136,7 +136,7 @@ namespace boost
                 ( (dns::a6_resource*) Ptr )->rtype()) << "\t" << ( (dns::a6_resource*) Ptr )->address().to_string()
                 << std::endl;
           }
-          catch( boost::system::error_code& ec )
+          catch( asio::error_code& ec )
           {
             strm << ec.message() << std::endl;
           }

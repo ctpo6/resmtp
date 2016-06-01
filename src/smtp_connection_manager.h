@@ -6,7 +6,11 @@
 #include <string>
 #include <unordered_map>
 
+#if 0
 #include <boost/asio.hpp>
+#else
+#include "asio/asio.hpp"
+#endif
 #include <boost/noncopyable.hpp>
 
 #include "smtp_connection.h"
@@ -45,9 +49,9 @@ protected:
     typedef std::unordered_map<uint32_t, uint32_t> ip_connection_map_t;
     ip_connection_map_t m_ip_count;
 
-    uint32_t ip_count_inc(const boost::asio::ip::address &addr);
-    uint32_t ip_count_dec(const boost::asio::ip::address &addr);
-    uint32_t get_ip_count(const boost::asio::ip::address &addr) const;
+    uint32_t ip_count_inc(const asio::ip::address &addr);
+    uint32_t ip_count_dec(const asio::ip::address &addr);
+    uint32_t get_ip_count(const asio::ip::address &addr) const;
 
     boost::mutex m_mutex;
 };

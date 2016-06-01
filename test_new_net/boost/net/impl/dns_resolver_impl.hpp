@@ -52,7 +52,7 @@ namespace boost
           }
 
           virtual void
-          invoke ( io_service& ios, const shared_resource_base_t& record, const boost::system::error_code& ec )
+          invoke ( io_service& ios, const shared_resource_base_t& record, const asio::error_code& ec )
           {
           }
         };
@@ -75,9 +75,9 @@ namespace boost
             }
 
             virtual void
-            invoke ( io_service& ios, const shared_resource_base_t& record, const boost::system::error_code& ec )
+            invoke ( io_service& ios, const shared_resource_base_t& record, const asio::error_code& ec )
             {
-              ios.post(boost::asio::detail::bind_handler(handler_, record, ec));
+              ios.post(asio::detail::bind_handler(handler_, record, ec));
             }
 
           private:
@@ -227,7 +227,7 @@ namespace boost
           {
             if( dns_cache_object::instance().exists(question) )
             {
-              boost::system::error_code callbackError;
+              asio::error_code callbackError;
               dns_handler< CallbackHandler > caller(handler);
 
               rr_list_t record_list = dns_cache_object::instance().get(question);
@@ -246,7 +246,7 @@ namespace boost
               }
 
               _timer.expires_from_now(posix_time::seconds(2));
-              _timer.async_wait(boost::bind(&dns_resolver_impl::handle_timeout, this, boost::asio::placeholders::error));
+              _timer.async_wait(boost::bind(&dns_resolver_impl::handle_timeout, this, asio::placeholders::error));
 
               net::dns::message qmessage(question);
 
@@ -284,14 +284,14 @@ namespace boost
             async_resolve(question, handler);
           }
 
-        boost::asio::io_service &
+        asio::io_service &
         get_io_service ()
         {
           return _ios;
         }
 
         rr_list_t
-        resolve ( const net::dns::question & question, boost::system::error_code & ec )
+        resolve ( const net::dns::question & question, asio::error_code & ec )
         {
           rr_list_t _list;
           return _list;
@@ -321,7 +321,7 @@ namespace boost
         }
 
         rr_list_t
-        resolve ( const string & domain, const net::dns::type_t rrtype, boost::system::error_code & ec )
+        resolve ( const string & domain, const net::dns::type_t rrtype, asio::error_code & ec )
         {
           rr_list_t _list;
           return _list;
@@ -345,39 +345,39 @@ namespace boost
         {
           //    std::cout << "send_request: " << dq->_dns.address().to_string() << std::endl;
           _socket.async_send_to(
-              boost::asio::buffer(dq->_mbuffer.get_array().data(), dq->_mbuffer.length()),
+              asio::buffer(dq->_mbuffer.get_array().data(), dq->_mbuffer.length()),
               dq->_dns,
               boost::bind(
                   &dns_resolver_impl::handle_send,
                   this,
                   dq,
-                  boost::asio::placeholders::error,
-                  boost::asio::placeholders::bytes_transferred));
+                  asio::placeholders::error,
+                  asio::placeholders::bytes_transferred));
         }
 
         void
-        handle_send ( shared_dq_t& dq, const boost::system::error_code& ec, size_t bytes_sent )
+        handle_send ( shared_dq_t& dq, const asio::error_code& ec, size_t bytes_sent )
         {
-          if( !ec || ec == boost::asio::error::message_size )
+          if( !ec || ec == asio::error::message_size )
           {
             shared_dns_buffer_t rbuffer(new dns_buffer_t);
 
-            _socket.async_receive(boost::asio::buffer(rbuffer->get_array().data(), rbuffer->get_array().size()), boost::bind(
+            _socket.async_receive(asio::buffer(rbuffer->get_array().data(), rbuffer->get_array().size()), boost::bind(
                 &dns_resolver_impl::handle_recv,
                 this,
                 rbuffer,
-                boost::asio::placeholders::error,
-                boost::asio::placeholders::bytes_transferred));
+                asio::placeholders::error,
+                asio::placeholders::bytes_transferred));
           }
         }
 
         void
-        handle_recv ( shared_dns_buffer_t inBuffer, const boost::system::error_code& ec, std::size_t bytes_transferred )
+        handle_recv ( shared_dns_buffer_t inBuffer, const asio::error_code& ec, std::size_t bytes_transferred )
         {
           boost::mutex::scoped_lock scopeLock(_resolver_mutex);
           _outstanding_read = false;
 
-          if( !ec && bytes_transferred ) // || ec == boost::asio::error::message_size)
+          if( !ec && bytes_transferred ) // || ec == asio::error::message_size)
           {
             inBuffer.get()->length(bytes_transferred);
 
@@ -394,7 +394,7 @@ namespace boost
             question_id_iterator_t qiter = range_iter.first;
 
             tmpMessage.decode(*inBuffer.get());
-            boost::system::error_code callbackError;
+            asio::error_code callbackError;
             if( tmpMessage.result() != net::dns::message::noerror )
             {
               callbackError = error::not_found;
@@ -471,7 +471,7 @@ namespace boost
         }
 
         void
-        handle_timeout ( const boost::system::error_code& ec )
+        handle_timeout ( const asio::error_code& ec )
         {
           if( !ec && ec != error::operation_aborted )
           {
@@ -496,7 +496,7 @@ namespace boost
             if( _query_list.size() )
             {
               _timer.expires_from_now(posix_time::seconds(2));
-              _timer.async_wait(boost::bind(&dns_resolver_impl::handle_timeout, this, boost::asio::placeholders::error));
+              _timer.async_wait(boost::bind(&dns_resolver_impl::handle_timeout, this, asio::placeholders::error));
 
               _ios.post(bind(&dns_resolver_impl::send, this));
             }
@@ -511,7 +511,7 @@ namespace boost
         blocking_callback (
             shared_rr_list_t& list,
             const shared_resource_base_t& record,
-            const boost::system::error_code& ec )
+            const asio::error_code& ec )
         {
           // we're doing a asynch operation for a sync request
           if( record )

@@ -35,10 +35,10 @@ string strf(const char* format, ...)
 }
 
 
-string str_from_buf(boost::asio::streambuf const &buf) {
-    boost::asio::streambuf::const_buffers_type bufs = buf.data();
-    string s(boost::asio::buffers_begin(bufs),
-             boost::asio::buffers_begin(bufs) + buf.size());
+string str_from_buf(asio::streambuf const &buf) {
+    asio::streambuf::const_buffers_type bufs = buf.data();
+    string s(asio::buffers_begin(bufs),
+             asio::buffers_begin(bufs) + buf.size());
     return s;
 }
 
@@ -75,7 +75,7 @@ std::string str_cleanup_crlf(std::string s) {
     return s;
 }
 
-std::string rev_order_av4_str(const boost::asio::ip::address_v4& a,
+std::string rev_order_av4_str(const asio::ip::address_v4& a,
                               const std::string& d)
 {
   return str(boost::format("%1%.%2%.%3%.%4%.%5%")

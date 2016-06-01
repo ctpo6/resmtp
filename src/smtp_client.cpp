@@ -13,8 +13,6 @@
 
 using namespace std;
 using namespace y::net;
-namespace ba = boost::asio;
-namespace bs = boost::system;
 namespace r = resmtp;
 
 
@@ -51,39 +49,39 @@ void smtp_client::log(const std::pair<resmtp::log, string> &msg) noexcept
 
 #if 0
 namespace {
-string log_request_helper(const ba::streambuf& buf) {
-	ba::const_buffers_1 b = static_cast<ba::const_buffers_1>(buf.data());
+string log_request_helper(const asio::streambuf& buf) {
+	asio::const_buffers_1 b = static_cast<asio::const_buffers_1>(buf.data());
 	boost::iterator_range<const char*> ib(
-		ba::buffer_cast<const char*>(b),
-		ba::buffer_cast<const char*>(b) + ba::buffer_size(b));
+		asio::buffer_cast<const char*>(b),
+		asio::buffer_cast<const char*>(b) + asio::buffer_size(b));
 	return string(ib.begin(), ib.end());
 }
 
 
 void log_request(const char* d, size_t sz,
         list<string>& session_extracts,
-        list<ba::const_buffer>& session_log,
+        list<asio::const_buffer>& session_log,
         time_t session_time) {
     boost::iterator_range<const char*> ib(d, d+sz);
     session_extracts.push_back(str(boost::format(">> %3% [%1%]:%2%") % sz % ib % (time(0) - session_time)));
     const string& s = session_extracts.back();
-    session_log.push_back(ba::const_buffer(s.c_str(), s.size()));
+    session_log.push_back(asio::const_buffer(s.c_str(), s.size()));
 }
 
 
-void log_request(const list< ba::const_buffer >& d, size_t sz,
+void log_request(const list< asio::const_buffer >& d, size_t sz,
         list< string >& session_extracts,
-        list< ba::const_buffer >& session_log,
+        list< asio::const_buffer >& session_log,
         time_t session_time) {
     session_extracts.push_back(str( boost::format(">> %2% [%1%]:") % sz % (time(0) - session_time)));
     const string& s = session_extracts.back();
-    session_log.push_back( ba::const_buffer(s.c_str(), s.size()) );
+    session_log.push_back( asio::const_buffer(s.c_str(), s.size()) );
     session_log.insert(session_log.end(), d.begin(), d.end());
 }
 }
 #endif
 
-smtp_client::smtp_client(ba::io_service &io_service,
+smtp_client::smtp_client(asio::io_service &io_service,
                          smtp_backend_manager &bm)
     : backend_mgr(bm)
     , m_socket(io_service)
@@ -122,20 +120,20 @@ void smtp_client::start(const check_data_t& _data,
     m_use_pipelining = false;
 
     for (auto &s: dns_servers) {
-        m_resolver.add_nameserver(ba::ip::address::from_string(s));
+        m_resolver.add_nameserver(asio::ip::address::from_string(s));
     }
 
     restart_timeout();
 
     try {
-        m_endpoint.address(ba::ip::address::from_string(m_relay_name));
+        m_endpoint.address(asio::ip::address::from_string(m_relay_name));
         m_endpoint.port(m_relay_port);
         backend_host_ip = m_relay_name;
 
         m_socket.async_connect(m_endpoint,
                 strand_.wrap(boost::bind(&smtp_client::handle_simple_connect,
                                          shared_from_this(),
-                                         ba::placeholders::error)));
+                                         asio::placeholders::error)));
     } catch(...) {
         g::log().msg(MSG_DEBUG,
                   str(boost::format("%1%-%2%-SEND-%3%S trying to resolve: %4%:%5%")
@@ -149,8 +147,8 @@ void smtp_client::start(const check_data_t& _data,
             dns::type_a,
             strand_.wrap(boost::bind(&smtp_client::handle_resolve,
                             shared_from_this(),
-                            ba::placeholders::error,
-                            ba::placeholders::iterator)));
+                            asio::placeholders::error,
+                            asio::placeholders::iterator)));
     }
 }
 #endif
@@ -159,7 +157,7 @@ void smtp_client::start(const check_data_t& _data,
 void smtp_client::start(const check_data_t &_data,
                         complete_cb_t complete,
                         envelope &envelope,
-                        const vector<boost::asio::ip::address_v4> &dns_servers)
+                        const vector<asio::ip::address_v4> &dns_servers)
 {
     m_data = _data;
     cb_complete = complete;
@@ -196,9 +194,9 @@ void smtp_client::start_with_next_backend()
     m_timer_value = g::cfg().backend_connect_timeout;
     restart_timeout();
 
-    bs::error_code ec;
-    ba::ip::tcp::endpoint ep;
-    ep.address(ba::ip::address::from_string(backend_host.host_name, ec));
+    asio::error_code ec;
+    asio::ip::tcp::endpoint ep;
+    ep.address(asio::ip::address::from_string(backend_host.host_name, ec));
     if (!ec) {
         // backend_host.host_name is an IP address, proceed to connect
         m_proto_state = proto_state_t::resolved;
@@ -208,7 +206,7 @@ void smtp_client::start_with_next_backend()
         m_socket.async_connect(ep,
             strand_.wrap(boost::bind(&smtp_client::handle_simple_connect,
                                      shared_from_this(),
-                                     ba::placeholders::error)));
+                                     asio::placeholders::error)));
     } else {
         // backend_host.host_name is a symbolic name, need to resolve
         log(r::Log::pstrf(r::log::debug,
@@ -219,19 +217,19 @@ void smtp_client::start_with_next_backend()
             dns::type_a,
             strand_.wrap(boost::bind(&smtp_client::handle_resolve,
                             shared_from_this(),
-                            ba::placeholders::error,
-                            ba::placeholders::iterator)));
+                            asio::placeholders::error,
+                            asio::placeholders::iterator)));
     }
 }
 
 
-void smtp_client::handle_resolve(const bs::error_code &ec,
+void smtp_client::handle_resolve(const asio::error_code &ec,
                                  dns::resolver::iterator it)
 {
     if (!ec) {
         m_proto_state = proto_state_t::resolved;
         restart_timeout();
-        ba::ip::tcp::endpoint ep(
+        asio::ip::tcp::endpoint ep(
                     boost::dynamic_pointer_cast<dns::a_resource>(*it)->address(),
                     backend_host.port);
         backend_host_ip = ep.address().to_string();
@@ -244,10 +242,10 @@ void smtp_client::handle_resolve(const bs::error_code &ec,
         m_socket.async_connect(ep,
             strand_.wrap(boost::bind(&smtp_client::handle_connect,
                                      shared_from_this(),
-                                     ba::placeholders::error,
+                                     asio::placeholders::error,
                                      ++it)));
     } else {
-        if (ec != ba::error::operation_aborted) {
+        if (ec != asio::error::operation_aborted) {
             log(r::Log::pstrf(r::log::crit,
                               "ERROR: failed to resolve backend host %s",
                               backend_host.host_name.c_str()));
@@ -261,13 +259,13 @@ void smtp_client::handle_resolve(const bs::error_code &ec,
     }
 }
 
-void smtp_client::handle_simple_connect(const bs::error_code &ec)
+void smtp_client::handle_simple_connect(const asio::error_code &ec)
 {
   if (!ec) {
     on_backend_conn();
   }
   else {
-    if (ec != ba::error::operation_aborted) {
+    if (ec != asio::error::operation_aborted) {
       log(r::Log::pstrf(r::log::crit,
                         "ERROR: failed to connect to %s[%s]:%u",
                         backend_host.host_name.c_str(),
@@ -283,14 +281,14 @@ void smtp_client::handle_simple_connect(const bs::error_code &ec)
   }
 }
 
-void smtp_client::handle_connect(const bs::error_code &ec,
+void smtp_client::handle_connect(const asio::error_code &ec,
                                  dns::resolver::iterator it)
 {
   if (!ec) {
     on_backend_conn();
     return;
   }
-  else if (ec == ba::error::operation_aborted) {
+  else if (ec == asio::error::operation_aborted) {
     return;
   }
   else if (it != dns::resolver::iterator()) { // if not last address
@@ -300,7 +298,7 @@ void smtp_client::handle_connect(const bs::error_code &ec,
                       backend_host_ip.c_str(),
                       (unsigned)backend_host.port));
 
-    ba::ip::tcp::endpoint point(boost::dynamic_pointer_cast<dns::a_resource>(*it)->address(),
+    asio::ip::tcp::endpoint point(boost::dynamic_pointer_cast<dns::a_resource>(*it)->address(),
                                 backend_host.port);
     backend_host_ip = point.address().to_string();
 
@@ -313,7 +311,7 @@ void smtp_client::handle_connect(const bs::error_code &ec,
     m_socket.async_connect(point,
                            strand_.wrap(boost::bind(&smtp_client::handle_connect,
                                                     shared_from_this(),
-                                                    ba::placeholders::error,
+                                                    asio::placeholders::error,
                                                     ++it)));
     return;
   }
@@ -331,11 +329,11 @@ void smtp_client::handle_connect(const bs::error_code &ec,
 }
 
 
-void smtp_client::handle_write_data_request(const bs::error_code &ec,
+void smtp_client::handle_write_data_request(const asio::error_code &ec,
                                             size_t sz)
 {
     if (ec) {
-        if (ec != ba::error::operation_aborted) {
+        if (ec != asio::error::operation_aborted) {
 #if 0
 // code is disabled: backend status will be set to 'fail' only on resolve or connect error
             PDBG("call on_host_fail()");
@@ -352,7 +350,7 @@ void smtp_client::handle_write_data_request(const bs::error_code &ec,
     std::ostream answer_stream(&client_request);
     answer_stream << ".\r\n";
 
-    ba::async_write(m_socket,
+    asio::async_write(m_socket,
                     client_request,
                     strand_.wrap(boost::bind(&smtp_client::handle_write_request,
                                              shared_from_this(),
@@ -360,10 +358,10 @@ void smtp_client::handle_write_data_request(const bs::error_code &ec,
                                              _2)));
 }
 
-void smtp_client::handle_write_request(const bs::error_code &ec, size_t sz)
+void smtp_client::handle_write_request(const asio::error_code &ec, size_t sz)
 {
   if (ec) {
-    if (ec != ba::error::operation_aborted) {
+    if (ec != asio::error::operation_aborted) {
 #if 0
 // code is disabled: backend status will be set to 'fail' only on host resolve or connect error
       PDBG("call on_host_fail()");
@@ -382,18 +380,18 @@ void smtp_client::handle_write_request(const bs::error_code &ec, size_t sz)
 void smtp_client::start_read_line()
 {
     restart_timeout();
-    ba::async_read_until(m_socket,
+    asio::async_read_until(m_socket,
             backend_response,
             "\n",
             strand_.wrap(boost::bind(&smtp_client::handle_read_smtp_line,
                                      shared_from_this(),
-                                     ba::placeholders::error)));
+                                     asio::placeholders::error)));
 }
 
-void smtp_client::handle_read_smtp_line(const bs::error_code &ec)
+void smtp_client::handle_read_smtp_line(const asio::error_code &ec)
 {
   if (ec) {
-    if (ec != ba::error::operation_aborted) {
+    if (ec != asio::error::operation_aborted) {
 #if 0      
 // code is disabled: backend status will be set to 'fail' only on host resolve or connect error
       PDBG("call on_host_fail()");
@@ -417,7 +415,7 @@ void smtp_client::handle_read_smtp_line(const bs::error_code &ec)
             % util::str_cleanup_crlf(util::str_from_buf(client_request))));
   }
 
-  ba::async_write(m_socket,
+  asio::async_write(m_socket,
                   client_request,
                   strand_.wrap(boost::bind(&smtp_client::handle_write_request,
                                            shared_from_this(),
@@ -526,10 +524,10 @@ bool smtp_client::process_answer(std::istream &_stream) {
 
 #ifdef RESMTP_LMTP_SUPPORT
             answer_stream << (m_lmtp ? "LHLO " : "EHLO ")
-                          << ba::ip::host_name()
+                          << asio::ip::host_name()
                           << "\r\n";
 #else
-            answer_stream << "EHLO " << ba::ip::host_name() << "\r\n";
+            answer_stream << "EHLO " << asio::ip::host_name() << "\r\n";
 #endif            
             m_proto_state = proto_state_t::after_hello;
             break;
@@ -614,7 +612,7 @@ bool smtp_client::process_answer(std::istream &_stream) {
             restart_timeout();
 
             m_proto_state = proto_state_t::after_dot;
-            ba::async_write(m_socket,
+            asio::async_write(m_socket,
                             m_envelope->altered_message_,
                             strand_.wrap(boost::bind(
                                              &smtp_client::handle_write_data_request,
@@ -730,7 +728,7 @@ void smtp_client::fault(string log_msg, string remote_answer)
     catch (...) {
     }
 
-    bs::error_code ec;
+    asio::error_code ec;
     m_timer.cancel(ec);
     m_socket.close(ec);
 
@@ -752,7 +750,7 @@ void smtp_client::fault_backend()
     catch (...) {
     }
     
-    bs::error_code ec;
+    asio::error_code ec;
     m_timer.cancel(ec);
 
     assert(!m_socket.is_open()
@@ -776,7 +774,7 @@ void smtp_client::fault_all_backends()
     catch (...) {
     }
 
-    bs::error_code ec;
+    asio::error_code ec;
     m_timer.cancel(ec);
 
     m_socket.get_io_service().post(cb_complete);
@@ -796,7 +794,7 @@ void smtp_client::success()
     catch (...) {
     }
     
-    bs::error_code ec;
+    asio::error_code ec;
     m_timer.cancel(ec);
     m_socket.close(ec);
 
@@ -816,7 +814,7 @@ void smtp_client::do_stop()
   catch (...) {
   }
 
-  bs::error_code ec;
+  asio::error_code ec;
   m_timer.cancel(ec);
   m_socket.close(ec);
 }
@@ -828,7 +826,7 @@ void smtp_client::stop()
                                                           shared_from_this())));
 }
 
-void smtp_client::handle_timer(const bs::error_code &ec)
+void smtp_client::handle_timer(const asio::error_code &ec)
 {
   if (ec) return;
 
@@ -907,7 +905,7 @@ void smtp_client::restart_timeout()
     m_timer.expires_from_now(boost::posix_time::seconds(m_timer_value));
     m_timer.async_wait(strand_.wrap(boost::bind(&smtp_client::handle_timer,
                                                 shared_from_this(),
-                                                ba::placeholders::error)));
+                                                asio::placeholders::error)));
 }
 
 

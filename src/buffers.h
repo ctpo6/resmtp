@@ -6,7 +6,11 @@
 #include <limits>
 
 #include <boost/array.hpp>
+#if 0
 #include <boost/asio.hpp>
+#else
+#include "asio/asio.hpp"
+#endif
 #include <boost/range.hpp>
 
 #include "buffer_iterator.h"
@@ -28,10 +32,10 @@ class const_chunk
     virtual ~const_chunk() {}
     virtual const_iterator_range const_range() const = 0;
 
-    operator boost::asio::const_buffer() const
+    operator asio::const_buffer() const
     {
         const_iterator_range r = const_range();
-        return boost::asio::const_buffer(&*r.begin(), r.size());
+        return asio::const_buffer(&*r.begin(), r.size());
     }
 };
 
@@ -50,10 +54,10 @@ class mutable_chunk : public const_chunk
     virtual ~mutable_chunk() {}
     virtual iterator_range range() const = 0;
 
-    operator boost::asio::mutable_buffer() const
+    operator asio::mutable_buffer() const
     {
         iterator_range r = range();
-        return boost::asio::mutable_buffer(&*r.begin(), r.size());
+        return asio::mutable_buffer(&*r.begin(), r.size());
     }
 };
 
@@ -118,7 +122,7 @@ class shared_mutable_chunk
     shared_mutable_chunk(const shared_mutable_chunk& rh) : ptr_(rh.ptr_), b_(rh.b_), e_(rh.e_) {}
     shared_mutable_chunk(const shared_mutable_chunk& rh, iterator b, iterator e) : ptr_(rh.ptr_), b_(b), e_(e) { validate_range(); }
 
-    operator boost::asio::mutable_buffer() const { return boost::asio::mutable_buffer(b_, e_ - b_); }
+    operator asio::mutable_buffer() const { return asio::mutable_buffer(b_, e_ - b_); }
 
     iterator begin() const { return b_; }
     iterator end() const { return e_; }
@@ -167,7 +171,7 @@ class shared_const_chunk
 
     shared_const_chunk(const shared_mutable_chunk& rh) : ptr_(rh.ptr_), b_(rh.b_), e_(rh.e_) {}
 
-    operator boost::asio::const_buffer() const { return boost::asio::const_buffer(b_, e_ - b_); }
+    operator asio::const_buffer() const { return asio::const_buffer(b_, e_ - b_); }
 
     const_iterator begin() const { return b_; }
     const_iterator end() const { return e_; }
@@ -401,8 +405,8 @@ inline std::ptrdiff_t append(typename BufferSequence::const_iterator b,
     std::ptrdiff_t n = 0;
     while (b != e)
     {
-        n += boost::asio::buffer_size(
-              static_cast<boost::asio::const_buffer>(*b));
+        n += asio::buffer_size(
+              static_cast<asio::const_buffer>(*b));
         seq.push_back(*b++);
     }
     return n;
@@ -464,15 +468,15 @@ inline const char* ptr_end(const ybuffers_iterator<BufferSequence>& b, const ybu
     assert(b < e);
     typename BufferSequence::value_type v = *b.position().first;
 //    auto v = *b.position().first;
-    const char* be = boost::asio::buffer_cast<const char*>(v)
-            + boost::asio::buffer_size(
-                static_cast<boost::asio::const_buffer>(v));
-//    const char* be = boost::asio::buffer_cast<const char*>(*b.position().first)
-//            + boost::asio::buffer_size(*b.position().first);
+    const char* be = asio::buffer_cast<const char*>(v)
+            + asio::buffer_size(
+                static_cast<asio::const_buffer>(v));
+//    const char* be = asio::buffer_cast<const char*>(*b.position().first)
+//            + asio::buffer_size(*b.position().first);
     if (b.position().first == e.position().first)
     {
         typename BufferSequence::value_type vv = *e.position().first;
-        const char* eb = boost::asio::buffer_cast<const char*>(vv)
+        const char* eb = asio::buffer_cast<const char*>(vv)
                 + e.position().second;
         return std::min(be, eb);
     }

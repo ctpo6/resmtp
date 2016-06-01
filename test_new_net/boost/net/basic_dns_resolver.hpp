@@ -22,12 +22,12 @@ namespace boost
     {
 
       template<typename Service>
-        class basic_dns_resolver : public boost::asio::basic_io_object< Service >
+        class basic_dns_resolver : public asio::basic_io_object< Service >
         {
         public:
           explicit
-          basic_dns_resolver ( boost::asio::io_service &io_service ) :
-            boost::asio::basic_io_object< Service >(io_service)
+          basic_dns_resolver ( asio::io_service &io_service ) :
+            asio::basic_io_object< Service >(io_service)
           {
           }
 

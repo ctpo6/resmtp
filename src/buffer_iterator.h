@@ -6,7 +6,12 @@
 #include <boost/iterator.hpp>
 #include <boost/type_traits/is_convertible.hpp>
 #include <boost/type_traits/add_const.hpp>
+#if 0
 #include <boost/asio/buffer.hpp>
+#else
+#include "asio/asio/buffer.hpp"
+#endif
+
 
 namespace detail
 {
@@ -16,7 +21,7 @@ struct ybuffers_iterator_types_helper;
 template <>
 struct ybuffers_iterator_types_helper<false>
 {
-    typedef boost::asio::const_buffer buffer_type;
+    typedef asio::const_buffer buffer_type;
     template <typename ByteType>
     struct byte_type
     {
@@ -27,7 +32,7 @@ struct ybuffers_iterator_types_helper<false>
 template <>
 struct ybuffers_iterator_types_helper<true>
 {
-    typedef boost::asio::mutable_buffer buffer_type;
+    typedef asio::mutable_buffer buffer_type;
     template <typename ByteType>
     struct byte_type
     {
@@ -41,7 +46,7 @@ struct ybuffers_iterator_types
     enum
     {
         is_mutable = boost::is_convertible<
-        typename BufferSequence::value_type, boost::asio::mutable_buffer>::value
+        typename BufferSequence::value_type, asio::mutable_buffer>::value
     };
     typedef ybuffers_iterator_types_helper<is_mutable> helper;
     typedef typename helper::buffer_type buffer_type;
@@ -49,8 +54,8 @@ struct ybuffers_iterator_types
 };
 }
 
-// Modified version of boost::asio::buffers_iterator that imposes an exta requirement on BufferSequence that its const_iterator be random access iterator.
-// Luckily, both boost::asio::streambuf::*_sequence_type::const_iterator and ystreambuf::*_sequence_type::const_iterator types meet this requirement.
+// Modified version of asio::buffers_iterator that imposes an exta requirement on BufferSequence that its const_iterator be random access iterator.
+// Luckily, both asio::streambuf::*_sequence_type::const_iterator and ystreambuf::*_sequence_type::const_iterator types meet this requirement.
 template <typename BufferSequence>
 class ybuffers_iterator : public boost::iterator<
     std::random_access_iterator_tag,
@@ -84,7 +89,7 @@ class ybuffers_iterator : public boost::iterator<
         while (new_iter.current_ != new_iter.end_)
         {
             new_iter.current_buffer_ = *new_iter.current_;
-            if (boost::asio::buffer_size(new_iter.current_buffer_) > 0)
+            if (asio::buffer_size(new_iter.current_buffer_) > 0)
                 break;
             ++new_iter.current_;
         }
@@ -103,7 +108,7 @@ class ybuffers_iterator : public boost::iterator<
 //         {
 //             new_iter.current_ = new_iter.end_ - 1;
 //             new_iter.current_buffer_ = *new_iter.current_;
-//             new_iter.current_buffer_position_ = boost::asio::buffer_size(new_iter.current_buffer_);
+//             new_iter.current_buffer_position_ = asio::buffer_size(new_iter.current_buffer_);
 //         }
 //         else
 //         {
@@ -250,7 +255,7 @@ class ybuffers_iterator : public boost::iterator<
     // Dereference the iterator.
     byte_type& dereference() const
     {
-        return boost::asio::buffer_cast<byte_type*>(current_buffer_)[current_buffer_position_];
+        return asio::buffer_cast<byte_type*>(current_buffer_)[current_buffer_position_];
     }
 
     // Compare two iterators for equality.
@@ -267,7 +272,7 @@ class ybuffers_iterator : public boost::iterator<
 
         // Check if the increment can be satisfied by the current buffer.
         ++current_buffer_position_;
-        if (current_buffer_position_ != boost::asio::buffer_size(current_buffer_))
+        if (current_buffer_position_ != asio::buffer_size(current_buffer_))
             return;
 
         // Find the next non-empty buffer.
@@ -276,7 +281,7 @@ class ybuffers_iterator : public boost::iterator<
         while (current_ != end_)
         {
             current_buffer_ = *current_;
-            if (boost::asio::buffer_size(current_buffer_) > 0)
+            if (asio::buffer_size(current_buffer_) > 0)
                 return;
             ++current_;
         }
@@ -300,7 +305,7 @@ class ybuffers_iterator : public boost::iterator<
         {
             --iter;
             buffer_type buffer = *iter;
-            std::size_t buffer_size = boost::asio::buffer_size(buffer);
+            std::size_t buffer_size = asio::buffer_size(buffer);
             if (buffer_size > 0)
             {
                 current_ = iter;
@@ -320,7 +325,7 @@ class ybuffers_iterator : public boost::iterator<
             for (;;)
             {
                 std::ptrdiff_t current_buffer_balance
-                        = boost::asio::buffer_size(current_buffer_)
+                        = asio::buffer_size(current_buffer_)
                         - current_buffer_position_;
 
                 // Check if the advance can be satisfied by the current buffer.
@@ -375,7 +380,7 @@ class ybuffers_iterator : public boost::iterator<
                 {
                     --iter;
                     buffer_type buffer = *iter;
-                    std::size_t buffer_size = boost::asio::buffer_size(buffer);
+                    std::size_t buffer_size = asio::buffer_size(buffer);
                     if (buffer_size > 0)
                     {
                         current_ = iter;
@@ -401,8 +406,8 @@ class ybuffers_iterator : public boost::iterator<
 
         std::ptrdiff_t abs_d = 0;
         while (a != b)
-            abs_d += boost::asio::buffer_size(
-                  static_cast<boost::asio::const_buffer>(*a++));
+            abs_d += asio::buffer_size(
+                  static_cast<asio::const_buffer>(*a++));
 
         std::ptrdiff_t d = (other_less ? -abs_d : +abs_d);
         d += pos_d;

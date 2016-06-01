@@ -63,7 +63,7 @@ bool ip_options_config::load(const std::string _file)
 
         try
         {
-            opt.m_network = boost::asio::ip::address_v4::from_string(ip).to_ulong();
+            opt.m_network = asio::ip::address_v4::from_string(ip).to_ulong();
 
             int cnt = atoi(mask.c_str());
 
@@ -108,7 +108,7 @@ bool ip_options_config::load(const std::string _file)
 
 struct pred
 {
-    pred(const boost::asio::ip::address_v4 &_address)
+    pred(const asio::ip::address_v4 &_address)
     {
         m_address = _address;
     }
@@ -126,10 +126,10 @@ struct pred
         return ((m_address.to_ulong() & _opt.m_mask) == (_opt.m_network & _opt.m_mask));
     }
 
-    boost::asio::ip::address_v4 m_address;
+    asio::ip::address_v4 m_address;
 };
 
-bool ip_options_config::check(const boost::asio::ip::address_v4 _address, ip_options_t &_options)
+bool ip_options_config::check(const asio::ip::address_v4 _address, ip_options_t &_options)
 {
     opt_store_list::iterator it = std::find_if(m_opt_list.begin(), m_opt_list.end(), pred(_address));
 

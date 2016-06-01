@@ -5,8 +5,13 @@
 #include <memory>
 #include <utility>
 
+#if 0
 #include <boost/asio.hpp>
 #include <boost/asio/ssl.hpp>
+#else
+#include "asio/asio.hpp"
+#include "asio/asio/ssl.hpp"
+#endif
 #include <boost/noncopyable.hpp>
 
 #include "net/dns_resolver.hpp"
@@ -28,7 +33,7 @@ class smtp_client :
 {
 public:
 
-  smtp_client(boost::asio::io_service &io_service,
+  smtp_client(asio::io_service &io_service,
               smtp_backend_manager &bm);
 
   typedef std::function<void () > complete_cb_t;
@@ -45,7 +50,7 @@ public:
   void start(const check_data_t &_data,
              complete_cb_t complete,
              envelope &envelope,
-             const vector<boost::asio::ip::address_v4> &dns_servers);
+             const vector<asio::ip::address_v4> &dns_servers);
 
   void stop();
 
@@ -57,8 +62,8 @@ protected:
 
   smtp_backend_manager &backend_mgr;
 
-  boost::asio::ip::tcp::socket m_socket;
-  boost::asio::io_service::strand strand_;
+  asio::ip::tcp::socket m_socket;
+  asio::io_service::strand strand_;
 
   // used to resolve backend server
   y::net::dns::resolver m_resolver;
@@ -104,34 +109,34 @@ protected:
   string m_line_buffer;
 
   // our request to backend
-  boost::asio::streambuf client_request;
+  asio::streambuf client_request;
 
-  boost::asio::streambuf backend_response;
+  asio::streambuf backend_response;
 
   envelope::rcpt_list_t::iterator m_current_rcpt;
 
   uint32_t m_timer_value;
-  boost::asio::deadline_timer m_timer;
+  asio::deadline_timer m_timer;
 
 
   void do_stop();
 
   void start_read_line();
 
-  void handle_read_smtp_line(const boost::system::error_code &ec);
+  void handle_read_smtp_line(const asio::error_code &ec);
 
   bool process_answer(std::istream &_stream);
 
-  void handle_simple_connect(const boost::system::error_code &ec);
-  void handle_connect(const boost::system::error_code &ec,
+  void handle_simple_connect(const asio::error_code &ec);
+  void handle_connect(const asio::error_code &ec,
                       y::net::dns::resolver::iterator);
-  void handle_resolve(const boost::system::error_code &ec,
+  void handle_resolve(const asio::error_code &ec,
                       y::net::dns::resolver::iterator);
 
-  void handle_write_request(const boost::system::error_code &ec, size_t sz);
-  void handle_write_data_request(const boost::system::error_code &ec, size_t sz);
+  void handle_write_request(const asio::error_code &ec, size_t sz);
+  void handle_write_data_request(const asio::error_code &ec, size_t sz);
 
-  void handle_timer(const boost::system::error_code &ec);
+  void handle_timer(const asio::error_code &ec);
   void restart_timeout();
 
   // log delivery status for each recipient

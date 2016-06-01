@@ -12,7 +12,6 @@
 #include "util.h"
 
 using namespace std;
-namespace ba = boost::asio;
 
 #ifdef RESMTP_FTR_SSL_RENEGOTIATION
 static void ssl_info_cb(const SSL *ssl, int where, int ret)
@@ -40,8 +39,8 @@ int server::get_ssl_connection_idx() noexcept
 server::server(const server_parameters &cfg)
   : m_io_service_pool_size(cfg.m_worker_count)
   , m_io_service()
-  , m_ssl_context(m_io_service, ba::ssl::context::sslv23)
-  //    , m_ssl_context(m_io_service, ba::ssl::context::tlsv12_server)
+  , m_ssl_context(asio::ssl::context::sslv23)
+  //    , m_ssl_context(m_io_service, asio::ssl::context::tlsv12_server)
   , mon_io_service()
   , mon_acceptor(new acceptor_t(mon_io_service))
   , mon_socket(mon_io_service)
@@ -62,12 +61,12 @@ server::server(const server_parameters &cfg)
     
     SSL_CTX *ssl_ctx = m_ssl_context.native_handle();
     
-    //        m_ssl_context.set_verify_mode(ba::ssl::context::verify_peer | ba::ssl::context::verify_client_once);
-    m_ssl_context.set_verify_mode(ba::ssl::context::verify_none);
-    m_ssl_context.set_options(ba::ssl::context::default_workarounds |
-                              ba::ssl::context::no_compression |
-                              ba::ssl::context::no_sslv2 |
-                              ba::ssl::context::no_sslv3);
+    //        m_ssl_context.set_verify_mode(asio::ssl::context::verify_peer | asio::ssl::context::verify_client_once);
+    m_ssl_context.set_verify_mode(asio::ssl::context::verify_none);
+    m_ssl_context.set_options(asio::ssl::context::default_workarounds |
+                              asio::ssl::context::no_compression |
+                              asio::ssl::context::no_sslv2 |
+                              asio::ssl::context::no_sslv3);
     SSL_CTX_set_options(ssl_ctx, SSL_OP_CIPHER_SERVER_PREFERENCE);
     
     const char * ciphers = "ALL:+HIGH:!LOW:!MEDIUM:!EXPORT:!aNULL:!3DES:!ADH:!RC4:@STRENGTH";
@@ -80,10 +79,10 @@ server::server(const server_parameters &cfg)
         m_ssl_context.use_certificate_chain_file(cfg.m_tls_cert_file);
       }
       if (!cfg.m_tls_key_file.empty()) {
-        m_ssl_context.use_private_key_file(cfg.m_tls_key_file, ba::ssl::context::pem);
+        m_ssl_context.use_private_key_file(cfg.m_tls_key_file, asio::ssl::context::pem);
       }
     }
-    catch (const boost::system::system_error &e) {
+    catch (const asio::system_error &e) {
       throw std::runtime_error(util::strf("failed to load TLS key / certificate file: key='%s' cert='%s', error='%s'",
                                           cfg.m_tls_key_file.c_str(),
                                           cfg.m_tls_cert_file.c_str(),
@@ -177,18 +176,18 @@ bool server::setup_mon_acceptor(const string &addr)
         return false;
     }
 
-    ba::ip::tcp::resolver resolver(mon_io_service);
-    ba::ip::tcp::resolver::query query(addr.substr(0, pos), addr.substr(pos+1));
-    ba::ip::tcp::endpoint ep = *resolver.resolve(query);
+    asio::ip::tcp::resolver resolver(mon_io_service);
+    asio::ip::tcp::resolver::query query(addr.substr(0, pos), addr.substr(pos+1));
+    asio::ip::tcp::endpoint ep = *resolver.resolve(query);
 
     mon_acceptor->open(ep.protocol());
-    mon_acceptor->set_option(ba::ip::tcp::acceptor::reuse_address(true));
+    mon_acceptor->set_option(asio::ip::tcp::acceptor::reuse_address(true));
     mon_acceptor->bind(ep);
     mon_acceptor->listen();
     mon_acceptor->async_accept(mon_socket,
                                boost::bind(&server::handle_mon_accept,
                                            this,
-                                           ba::placeholders::error));
+                                           asio::placeholders::error));
     return true;
 }
 
@@ -200,9 +199,9 @@ bool server::setup_acceptor(const std::string& address, bool ssl)
         return false;
     }
 
-    ba::ip::tcp::resolver resolver(m_io_service);
-    ba::ip::tcp::resolver::query query(address.substr(0, pos), address.substr(pos+1));
-    ba::ip::tcp::endpoint endpoint = *resolver.resolve(query);
+    asio::ip::tcp::resolver resolver(m_io_service);
+    asio::ip::tcp::resolver::query query(address.substr(0, pos), address.substr(pos+1));
+    asio::ip::tcp::endpoint endpoint = *resolver.resolve(query);
 
     smtp_connection_ptr connection(new smtp_connection(m_io_service,
                                                        m_connection_manager,
@@ -213,7 +212,7 @@ bool server::setup_acceptor(const std::string& address, bool ssl)
     acceptor_t *acceptor = &m_acceptors[m_acceptors.size() - 1];
 
     acceptor->open(endpoint.protocol());
-    acceptor->set_option(ba::ip::tcp::acceptor::reuse_address(true));
+    acceptor->set_option(asio::ip::tcp::acceptor::reuse_address(true));
     acceptor->bind(endpoint);
     acceptor->listen(2047);
 
@@ -223,51 +222,51 @@ bool server::setup_acceptor(const std::string& address, bool ssl)
                                        acceptor,
                                        connection,
                                        ssl,
-                                       ba::placeholders::error));
+                                       asio::placeholders::error));
     return true;
 }
 
 
-void server::handle_mon_accept(const boost::system::error_code &ec)
+void server::handle_mon_accept(const asio::error_code &ec)
 {
-  if (ec == ba::error::operation_aborted) {
+  if (ec == asio::error::operation_aborted) {
     return;
   }
 
   if (!ec) {
     ostream os(&mon_response);
     get_mon_response(os);
-    ba::async_write(mon_socket,
+    asio::async_write(mon_socket,
                     mon_response,
                     boost::bind(&server::handle_mon_write_request,
                                 this,
-                                ba::placeholders::error,
-                                ba::placeholders::bytes_transferred));
+                                asio::placeholders::error,
+                                asio::placeholders::bytes_transferred));
   }
   else {
     mon_acceptor->async_accept(mon_socket,
                                boost::bind(&server::handle_mon_accept,
                                            this,
-                                           ba::placeholders::error));
+                                           asio::placeholders::error));
   }
 }
 
 
-void server::handle_mon_write_request(const boost::system::error_code &ec,
+void server::handle_mon_write_request(const asio::error_code &ec,
 																			size_t)
 {
-    if (ec == ba::error::operation_aborted) {
+    if (ec == asio::error::operation_aborted) {
         return;
     }
 
-    boost::system::error_code unused_ec;
-    mon_socket.shutdown(ba::ip::tcp::socket::shutdown_both, unused_ec);
+    asio::error_code unused_ec;
+    mon_socket.shutdown(asio::ip::tcp::socket::shutdown_both, unused_ec);
     mon_socket.close(unused_ec);
 
     mon_acceptor->async_accept(mon_socket,
                                boost::bind(&server::handle_mon_accept,
                                            this,
-                                           ba::placeholders::error));
+                                           asio::placeholders::error));
 }
 
 
@@ -280,9 +279,9 @@ void server::get_mon_response(std::ostream &os)
 void server::handle_accept(acceptor_t *acceptor,
                            smtp_connection_ptr conn,
                            bool force_ssl,
-                           const boost::system::error_code &ec)
+                           const asio::error_code &ec)
 {
-    if (ec == ba::error::operation_aborted) {
+    if (ec == asio::error::operation_aborted) {
         return;
     }
 
@@ -292,10 +291,10 @@ void server::handle_accept(acceptor_t *acceptor,
         try {
             m_connection_manager.start(conn, force_ssl);
         }
-        catch (const boost::system::system_error &e) {
-            if (e.code() != ba::error::not_connected) {
+        catch (const asio::system_error &e) {
+            if (e.code() != asio::error::not_connected) {
                 g::log().msg(Log::pstrf(log::alert,
-                                        "ERROR: conn->start() boost::system::system_error: %s",
+                                        "ERROR: conn->start() asio::system_error: %s",
                                         e.what()));
             }
         }
@@ -321,7 +320,7 @@ void server::handle_accept(acceptor_t *acceptor,
         }
     }
     else {
-        if (ec != ba::error::not_connected) {
+        if (ec != asio::error::not_connected) {
             g::log().msg(Log::pstrf(log::crit,
                                     "ERROR: accept failed: %s",
                                     ec.message().c_str()));
@@ -334,7 +333,7 @@ void server::handle_accept(acceptor_t *acceptor,
                                        acceptor,
                                        conn,
                                        force_ssl,
-                                       ba::placeholders::error));
+                                       asio::placeholders::error));
 }
 
 }

@@ -152,12 +152,12 @@ namespace boost
 
             // setup the receive buffer
             shared_dns_buffer_t recvBuffer(new dns_buffer_t);
-            socket.async_receive_from(boost::asio::buffer(recvBuffer.get()->get_array()), *iter, boost::bind(
+            socket.async_receive_from(asio::buffer(recvBuffer.get()->get_array()), *iter, boost::bind(
                 &resolve::handle_recv,
                 this,
                 recvBuffer,
-                boost::asio::placeholders::error,
-                boost::asio::placeholders::bytes_transferred));
+                asio::placeholders::error,
+                asio::placeholders::bytes_transferred));
           }
 
           // kick off the request
@@ -206,13 +206,13 @@ namespace boost
 
           // send out the packets for request
           for( auto iter = endpointList.begin(); iter != endpointList.end(); ++iter )
-            socket.send_to(boost::asio::buffer(reqBuffer.get_array()), *iter);
+            socket.send_to(asio::buffer(reqBuffer.get_array()), *iter);
         }
 
         void
-        handle_recv ( shared_dns_buffer_t inBuffer, const boost::system::error_code& ec, std::size_t bytes_transferred )
+        handle_recv ( shared_dns_buffer_t inBuffer, const asio::error_code& ec, std::size_t bytes_transferred )
         {
-          if( !ec || ec == boost::asio::error::message_size )
+          if( !ec || ec == asio::error::message_size )
           {
             // only decode if we haven't decoded already!
             if( responseMessage.result() != dns::message::no_result )

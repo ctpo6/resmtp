@@ -10,7 +10,11 @@
 #include <string>
 #include <vector>
 
+#if 0
 #include <boost/asio.hpp>
+#else
+#include "asio/asio.hpp"
+#endif
 
 #include "log.h"
 
@@ -120,7 +124,7 @@ struct server_parameters {
     // input from cfg
     vector<string> dns_ip_str;
     // actually used by the program
-    vector<boost::asio::ip::address_v4> dns_ip;
+    vector<asio::ip::address_v4> dns_ip;
 
     // check if client doesn't send anything before greeting
     bool m_socket_check;
@@ -130,7 +134,7 @@ struct server_parameters {
 
     // 'White' IP addresses
     vector<string> white_ip_str;
-    vector<boost::asio::ip::address_v4> white_ip;
+    vector<asio::ip::address_v4> white_ip;
 
     // DNSBL hosts
     vector<string> dnsbl_hosts;

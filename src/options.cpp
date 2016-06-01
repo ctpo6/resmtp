@@ -16,7 +16,11 @@
 
 #include <boost/algorithm/string/trim.hpp>
 #include <boost/algorithm/string/case_conv.hpp>
+#if 0
 #include <boost/asio.hpp>
+#else
+#include "asio/asio.hpp"
+#endif
 #include <boost/format.hpp>
 #include <boost/function_output_iterator.hpp>
 #include <boost/iterator/transform_iterator.hpp>
@@ -29,7 +33,6 @@
 
 using namespace std;
 
-namespace ba = boost::asio;
 namespace bpo = boost::program_options;
 
 template <typename T>
@@ -282,8 +285,8 @@ void server_parameters::init_dns_settings()
     // get DNS servers addresses from cfg
     dns_ip.reserve(dns_ip_str.size());
     for (const auto &s : dns_ip_str) {
-      boost::system::error_code ec;
-      auto addr(ba::ip::address_v4::from_string(s, ec));
+      asio::error_code ec;
+      auto addr(asio::ip::address_v4::from_string(s, ec));
       if (ec) {
         throw std::runtime_error(util::strf("the argument for option 'dns_ip' is invalid: %s", s.c_str()));
       }
@@ -300,8 +303,8 @@ void server_parameters::init_white_ip_settings()
 
   white_ip.reserve(white_ip_str.size());
   for (const auto &s : white_ip_str) {
-    boost::system::error_code ec;
-    auto addr(ba::ip::address_v4::from_string(s, ec));
+    asio::error_code ec;
+    auto addr(asio::ip::address_v4::from_string(s, ec));
     if (ec) {
       throw std::runtime_error(util::strf("the argument for option 'white_ip' is invalid: %s", s.c_str()));
     }

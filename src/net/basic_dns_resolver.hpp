@@ -17,47 +17,47 @@ namespace net {
 namespace dns {
 
 template <typename Service> 
-class basic_dns_resolver : public boost::asio::basic_io_object<Service> 
+class basic_dns_resolver : public asio::basic_io_object<Service> 
 { 
   public: 
 
     typedef resolver_iterator iterator;
 
-    explicit basic_dns_resolver(boost::asio::io_service &io_service) 
-    : boost::asio::basic_io_object<Service>(io_service) 
+    explicit basic_dns_resolver(asio::io_service &io_service) 
+    : asio::basic_io_object<Service>(io_service) 
     { 
     } 
 
-    void add_nameserver(boost::asio::ip::address addr)
+    void add_nameserver(asio::ip::address addr)
     {
-        this->service.add_nameserver(this->implementation, addr);
+        this->get_service().add_nameserver(this->get_implementation(), addr);
     }
  
     void set_timeout(int seconds)
     {
-        this->service.set_timeout(seconds);
+        this->get_service().set_timeout(seconds);
     }
 
     void set_retries(int count)
     {
-        this->service.set_retries(count);
+        this->get_service().set_retries(count);
     }
 
     template<typename Handler>
     void async_resolve(const net::dns::question & question, Handler handler)
     {
-        this->service.async_resolve(this->implementation, question, handler);
+        this->get_service().async_resolve(this->get_implementation(), question, handler);
     }
           
     template<typename Handler>
     void async_resolve(const std::string & domain, const net::dns::type_t rrtype, Handler handler)
     {
-        this->service.async_resolve(this->implementation, domain, rrtype, handler);
+        this->get_service().async_resolve(this->get_implementation(), domain, rrtype, handler);
     }
           
     void cancel()
     {
-        this->service.cancel(this->implementation);
+        this->get_service().cancel(this->get_implementation());
     }
 }; 
 

@@ -2,7 +2,11 @@
 #include <string>
 #include <iostream>
 
+#if 0
 #include <boost/asio.hpp>
+#else
+#include "asio/asio.hpp"
+#endif
 
 using namespace std;
 using namespace boost;

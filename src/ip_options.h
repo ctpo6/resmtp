@@ -1,8 +1,14 @@
 #if !defined(_IP_OPTIONS_H_)
 #define _IP_OPTIONS_H_
 
-#include <boost/asio.hpp>
 #include <list>
+
+#if 0
+#include <boost/asio.hpp>
+#else
+#include "asio/asio.hpp"
+#endif
+
 
 class ip_options_config
 {
@@ -20,7 +26,7 @@ class ip_options_config
 
     bool load(const std::string _file);
 
-    bool check(const boost::asio::ip::address_v4 _address, ip_options_t &_options);
+    bool check(const asio::ip::address_v4 _address, ip_options_t &_options);
 
     typedef struct
     {

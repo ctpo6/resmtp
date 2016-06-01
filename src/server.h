@@ -6,8 +6,13 @@
 #include <string>
 #include <vector>
 
+#if 0
 #include <boost/asio.hpp>
 #include <boost/asio/ssl.hpp>
+#else
+#include "asio/asio.hpp"
+#include "asio/asio/ssl.hpp"
+#endif
 #include <boost/noncopyable.hpp>
 #include <boost/thread.hpp>
 
@@ -35,11 +40,11 @@ public:
 #endif    
     
 private:
-    using acceptor_t = boost::asio::ip::tcp::acceptor;
+    using acceptor_t = asio::ip::tcp::acceptor;
 
     bool setup_mon_acceptor(const string &addr);
-    void handle_mon_accept(const boost::system::error_code &ec);
-    void handle_mon_write_request(const boost::system::error_code &ec,
+    void handle_mon_accept(const asio::error_code &ec);
+    void handle_mon_write_request(const asio::error_code &ec,
                                   size_t sz);
     void get_mon_response(std::ostream &os);
 
@@ -47,17 +52,17 @@ private:
     void handle_accept(acceptor_t *acceptor,
                        smtp_connection_ptr conn,
                        bool force_ssl,
-                       const boost::system::error_code &ec);
+                       const asio::error_code &ec);
 
     const uint32_t m_io_service_pool_size;
 
-    boost::asio::io_service m_io_service;
-    boost::asio::ssl::context m_ssl_context;
+    asio::io_service m_io_service;
+    asio::ssl::context m_ssl_context;
     
-    boost::asio::io_service mon_io_service;
+    asio::io_service mon_io_service;
     std::unique_ptr<acceptor_t> mon_acceptor;
-    boost::asio::ip::tcp::socket mon_socket;
-    boost::asio::streambuf mon_response;
+    asio::ip::tcp::socket mon_socket;
+    asio::streambuf mon_response;
 
     smtp_connection_manager m_connection_manager;
     smtp_backend_manager backend_mgr;

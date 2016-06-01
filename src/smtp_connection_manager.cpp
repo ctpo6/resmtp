@@ -95,7 +95,7 @@ void smtp_connection_manager::stop_all()
 }
 
 
-uint32_t smtp_connection_manager::ip_count_inc(const boost::asio::ip::address &addr)
+uint32_t smtp_connection_manager::ip_count_inc(const asio::ip::address &addr)
 {
   if (!max_sessions_per_ip) return 0;
   
@@ -108,7 +108,7 @@ uint32_t smtp_connection_manager::ip_count_inc(const boost::asio::ip::address &a
 }
 
 
-uint32_t smtp_connection_manager::ip_count_dec(const boost::asio::ip::address &addr)
+uint32_t smtp_connection_manager::ip_count_dec(const asio::ip::address &addr)
 {
   if (!max_sessions_per_ip) return 0;
   
@@ -124,7 +124,7 @@ uint32_t smtp_connection_manager::ip_count_dec(const boost::asio::ip::address &a
 }
 
 
-uint32_t smtp_connection_manager::get_ip_count(const boost::asio::ip::address &addr) const
+uint32_t smtp_connection_manager::get_ip_count(const asio::ip::address &addr) const
 {
   if (!max_sessions_per_ip) return 0;
   

@@ -11,7 +11,11 @@
 #ifndef BOOST_NET_RFC1035_414_HPP
 #define BOOST_NET_RFC1035_414_HPP
 
+#if 0
 #include <boost/asio/detail/push_options.hpp>
+#else
+#include "asio/asio/detail/push_options.hpp"
+#endif
 
 #include <vector>
 #include <string>
@@ -216,6 +220,10 @@ class rfc1035_414_t
 } // namespace net
 } // namespace y
 
+#if 0
 #include <boost/asio/detail/pop_options.hpp>
+#else
+#include "asio/asio/detail/pop_options.hpp"
+#endif
 
 #endif  // BOOST_NET_RFC1035_414_HPP

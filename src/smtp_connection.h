@@ -6,7 +6,11 @@
 #include <memory>
 #include <unordered_map>
 
+#if 0
 #include <boost/asio.hpp>
+#else
+#include "asio/asio.hpp"
+#endif
 #include <boost/noncopyable.hpp>
 #include <boost/optional.hpp>
 #include <boost/range/iterator_range.hpp>
@@ -21,12 +25,7 @@
 #include "rbl.h"
 #include "smtp_client.h"
 
-
-namespace ba = boost::asio;
-namespace bs = boost::system;
-
 using std::string;
-
 
 class smtp_connection_manager;
 class smtp_backend_manager;
@@ -38,10 +37,10 @@ class smtp_connection :
 public:
 
   smtp_connection(
-                  ba::io_service &_io_service,
+                  asio::io_service &_io_service,
                   smtp_connection_manager &_manager,
                   smtp_backend_manager &bmgr,
-                  ba::ssl::context &_context);
+                  asio::ssl::context &_context);
 
   ~smtp_connection();
 
@@ -53,17 +52,17 @@ public:
   // called by connection manager
   void stop();
 
-  ba::ip::tcp::socket & socket()
+  asio::ip::tcp::socket & socket()
   {
     return m_ssl_socket.next_layer();
   }
   
-  const ba::ip::tcp::socket & socket() const
+  const asio::ip::tcp::socket & socket() const
   {
     return m_ssl_socket.next_layer();
   }
   
-  const ba::ip::address & remote_address() const
+  const asio::ip::address & remote_address() const
   {
     if (remote_address_.is_unspecified()) {
       remote_address_ = socket().remote_endpoint().address();
@@ -78,7 +77,7 @@ public:
 
 private:
 
-  typedef ba::ssl::stream<ba::ip::tcp::socket> ssl_socket_t;
+  typedef asio::ssl::stream<asio::ip::tcp::socket> ssl_socket_t;
 
   typedef ystreambuf::mutable_buffers_type ymutable_buffers;
   typedef ystreambuf::const_buffers_type yconst_buffers;
@@ -114,7 +113,7 @@ private:
   // map: smtp command name -> command handler ptr
   static const proto_map_t smtp_command_handlers;
 
-  ba::io_service &io_service_;
+  asio::io_service &io_service_;
   smtp_connection_manager &m_manager;
   smtp_backend_manager &backend_mgr;
 
@@ -123,7 +122,7 @@ private:
   // if not empty, session must be stopped right after connection established
   string start_error_msg_;
 
-  ba::io_service::strand strand_;
+  asio::io_service::strand strand_;
   ssl_socket_t m_ssl_socket;
 
   y::net::dns::resolver m_resolver;
@@ -150,11 +149,11 @@ private:
   std::unique_ptr<envelope> m_envelope;
 
   ystreambuf buffers;
-  ba::streambuf m_response;
+  asio::streambuf m_response;
 
   bool m_ehlo;
   
-  mutable ba::ip::address remote_address_;
+  mutable asio::ip::address remote_address_;
   string m_remote_host_name;
   string m_helo_host;
 
@@ -178,27 +177,27 @@ private:
 
   // timers
   uint32_t m_timer_value = 0;
-  ba::deadline_timer m_timer;
-  ba::deadline_timer m_tarpit_timer;
+  asio::deadline_timer m_timer;
+  asio::deadline_timer m_tarpit_timer;
 
 #ifdef RESMTP_FTR_SSL_RENEGOTIATION    
   bool ssl_renegotiated_ = false;
 #endif    
 
-  void handle_back_resolve(const bs::error_code &ec,
+  void handle_back_resolve(const asio::error_code &ec,
                            y::net::dns::resolver::iterator it);
   void handle_dnsbl_check();
   void handle_dnswl_check();
   void start_proto();
 
-  void handle_handshake_start_hello_write(const bs::error_code& ec, bool f_close);
+  void handle_handshake_start_hello_write(const asio::error_code& ec, bool f_close);
 
-  void handle_write_request(const bs::error_code& ec);
-  void handle_starttls_response_write_request(const bs::error_code& ec);
-  void handle_last_write_request(const bs::error_code& ec);
+  void handle_write_request(const asio::error_code& ec);
+  void handle_starttls_response_write_request(const asio::error_code& ec);
+  void handle_last_write_request(const asio::error_code& ec);
 
   void start_read();
-  void handle_read(const bs::error_code &ec, size_t size);
+  void handle_read(const asio::error_code &ec, size_t size);
   void handle_read_helper(size_t size);
   bool handle_read_command_helper(const yconst_buffers_iterator& b, const yconst_buffers_iterator& e, yconst_buffers_iterator& parsed, yconst_buffers_iterator& read);
   bool handle_read_data_helper(const yconst_buffers_iterator& b, const yconst_buffers_iterator& e, yconst_buffers_iterator& parsed, yconst_buffers_iterator& read);
@@ -221,13 +220,13 @@ private:
   void end_lmtp_proto();
   void smtp_delivery();
 
-  void handle_timer(const bs::error_code &ec);
+  void handle_timer(const asio::error_code &ec);
   void restart_timeout();
 
-  void send_response(boost::function<void(const bs::error_code &) > handler,
+  void send_response(boost::function<void(const asio::error_code &) > handler,
                      bool force_do_not_tarpit = false);
-  void send_response2(const boost::system::error_code &ec,
-                      boost::function<void(const bs::error_code &) > handler);
+  void send_response2(const asio::error_code &ec,
+                      boost::function<void(const asio::error_code &) > handler);
 
   // check is performed in the STATE_START before sending the greeting msg:
   // if there is something in the read buffer, it indicates that the client

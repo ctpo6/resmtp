@@ -6,7 +6,11 @@
 #include <memory>
 #include <string>
 
+#if 0
 #include <boost/asio.hpp>
+#else
+#include "asio/asio.hpp"
+#endif
 #include <boost/noncopyable.hpp>
 
 #include <net/dns_resolver.hpp>
@@ -22,16 +26,16 @@ class rbl_check:
 public:
     typedef std::function<void ()> complete_cb;
 
-    rbl_check(boost::asio::io_service &io_service);
+    rbl_check(asio::io_service &io_service);
 
-    void add_nameserver(const boost::asio::ip::address &addr)
+    void add_nameserver(const asio::ip::address &addr)
     {
         m_resolver.add_nameserver(addr);
     }
 
     void add_rbl_source(string host_name); // Add rbl source host
 
-    void start(const boost::asio::ip::address_v4 &address,
+    void start(const asio::ip::address_v4 &address,
                complete_cb cb);
     void stop();
 
@@ -57,10 +61,10 @@ public:
 
 private:
 
-    void handle_resolve(const boost::system::error_code &ec,
+    void handle_resolve(const asio::error_code &ec,
                         y::net::dns::resolver::iterator it);
 
-    void start_resolve(const boost::asio::ip::address_v4 &address,
+    void start_resolve(const asio::ip::address_v4 &address,
                        const std::string &rbl_host);
 
     list<string> m_source_list;
@@ -68,7 +72,7 @@ private:
 
     y::net::dns::resolver m_resolver;
 
-    boost::asio::ip::address_v4 m_address;
+    asio::ip::address_v4 m_address;
 
     complete_cb m_complete;
 

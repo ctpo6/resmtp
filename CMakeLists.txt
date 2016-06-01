@@ -125,6 +125,7 @@ message(STATUS "")
 ################################################################################
 include_directories(
     src
+    src/asio
     ${Boost_INCLUDE_DIRS}
 )
 

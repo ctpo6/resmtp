@@ -19,17 +19,17 @@ namespace net {
 namespace dns {
   
 template <typename DnsResolverImplementation = dns_resolver_impl> 
-class basic_dns_resolver_service : public boost::asio::io_service::service 
+class basic_dns_resolver_service : public asio::io_service::service 
 { 
   public: 
-    static boost::asio::io_service::id id; 
+    static asio::io_service::id id; 
 
     typedef resolver_iterator iterator;
     
-    explicit basic_dns_resolver_service(boost::asio::io_service &io_service) 
-    : boost::asio::io_service::service(io_service)
-            //          work_(new boost::asio::io_service::work(work_io_service_)), 
-            //          work_thread_(boost::bind(&boost::asio::io_service::run, &work_io_service_)) 
+    explicit basic_dns_resolver_service(asio::io_service &io_service) 
+    : asio::io_service::service(io_service)
+            //          work_(new asio::io_service::work(work_io_service_)), 
+            //          work_thread_(boost::bind(&asio::io_service::run, &work_io_service_)) 
     { 
     } 
     
@@ -83,7 +83,7 @@ class basic_dns_resolver_service : public boost::asio::io_service::service
         impl->async_resolve(question, handler);
     }
 
-    void add_nameserver(implementation_type &impl, boost::asio::ip::address addr)
+    void add_nameserver(implementation_type &impl, asio::ip::address addr)
     {
         impl->add_nameserver(addr);
     }
@@ -104,13 +104,13 @@ class basic_dns_resolver_service : public boost::asio::io_service::service
     { 
     } 
     
-    //        boost::asio::io_service work_io_service_; 
-    //        boost::scoped_ptr<boost::asio::io_service::work> work_; 
+    //        asio::io_service work_io_service_; 
+    //        boost::scoped_ptr<asio::io_service::work> work_; 
     //        boost::thread work_thread_; 
 }; 
 #if !defined(GENERATING_DOCUMENTATION)
 template <typename DnsResolverImplementation> 
-boost::asio::io_service::id basic_dns_resolver_service<DnsResolverImplementation>::id; 
+asio::io_service::id basic_dns_resolver_service<DnsResolverImplementation>::id; 
 #endif
 } // namespace dns
 } // namespace net

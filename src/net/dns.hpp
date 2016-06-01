@@ -9,13 +9,22 @@
 //
 #pragma once
 
+#if 0
 #include <boost/asio/detail/push_options.hpp>
+#else
+#include "asio/asio/detail/push_options.hpp"
+#endif
 
 #include <cstdint>
 #include <string>
 #include <vector>
 
+#if 0
 #include <boost/asio.hpp>
+#else
+#include "asio/asio.hpp"
+#endif
+
 #include <net/network_array.hpp>
 #include <net/rfc1035_414.hpp>
 
@@ -535,7 +544,7 @@ class a_resource : public resource_base_t
 {
   protected:
     /// IP 4 address
-    boost::asio::ip::address_v4 rr_address;
+    asio::ip::address_v4 rr_address;
 
   public:
     /// Default contructor
@@ -556,8 +565,8 @@ class a_resource : public resource_base_t
       \param addr Address to assign to the a_resource.
       \return Address
     */
-    const boost::asio::ip::address_v4& address(
-		    const boost::asio::ip::address_v4& addr)
+    const asio::ip::address_v4& address(
+		    const asio::ip::address_v4& addr)
     {
         rr_address = addr;
         return rr_address;
@@ -569,9 +578,9 @@ class a_resource : public resource_base_t
       \param s Address to assign to the a_resource.
       \return Address
     */
-    const boost::asio::ip::address_v4& address(const char* s)
+    const asio::ip::address_v4& address(const char* s)
     {
-        return address(boost::asio::ip::address_v4::from_string(s));
+        return address(asio::ip::address_v4::from_string(s));
     }
 
     /*!
@@ -579,7 +588,7 @@ class a_resource : public resource_base_t
 
       \return Address
     */
-    const boost::asio::ip::address_v4& address() const
+    const asio::ip::address_v4& address() const
     {
         return rr_address;
     }
@@ -1591,7 +1600,7 @@ class a6_resource : public resource_base_t
 {
   protected:
     /// IP 6 address
-    boost::asio::ip::address_v6 rr_address;
+    asio::ip::address_v6 rr_address;
 
   public:
     /// Default contructor
@@ -1608,7 +1617,7 @@ class a6_resource : public resource_base_t
       \param t Address to assign to the a6_resource.
       \return Address
     */
-    const boost::asio::ip::address_v6& address(const boost::asio::ip::address_v6& addr)
+    const asio::ip::address_v6& address(const asio::ip::address_v6& addr)
     {
         rr_address = addr;
         return rr_address;
@@ -1620,9 +1629,9 @@ class a6_resource : public resource_base_t
       current address only.
       \return Address
     */
-    const boost::asio::ip::address_v6& address(const char* s=0)
+    const asio::ip::address_v6& address(const char* s=0)
     {
-        if( s != 0 )  return address(boost::asio::ip::address_v6::from_string(s));
+        if( s != 0 )  return address(asio::ip::address_v6::from_string(s));
         return rr_address;
     }
 
@@ -2438,5 +2447,10 @@ class message
 } // namespace dns
 } // namespace net
 } // namespace y
+
+#if 0
 #include <boost/asio/detail/pop_options.hpp>
+#else
+#include "asio/asio/detail/pop_options.hpp"
+#endif
 
