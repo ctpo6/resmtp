@@ -1,3 +1,10 @@
+resmtp (0.9.17) unstable; urgency=low
+
+  * Protect against very long SSL handshake on connection establishment and
+    STARTTLS
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Thu, 2 Jun 2016 10:45:00 +0300
+
 resmtp (0.9.16) unstable; urgency=low
 
   * asio: turn off global mutex on SSL_accept() call

@@ -296,6 +296,10 @@ void smtp_connection::handle_dnswl_check()
 
 void smtp_connection::start_proto()
 {
+  // defend against very long SSL handshake
+  if (m_force_ssl) {
+    m_timer_value = 1;
+  }
   restart_timeout();
 
   std::ostream response_stream(&m_response);
@@ -376,9 +380,19 @@ bool smtp_connection::check_socket_read_buffer_is_empty()
 void smtp_connection::handle_handshake_start_hello_write(const asio::error_code &ec,
                                                          bool f_close)
 {
+  // stop timer with a short timeout for SSL handshake
+  if (ssl_state_ == ssl_hand_shake) {
+    asio::error_code unused_ec;
+    m_timer.cancel(unused_ec);
+  }
+  
   if (!ec) {
     if (ssl_state_ == ssl_hand_shake) {
       ssl_state_ = ssl_active;
+
+      // restore long timeout after SSL handshake
+      m_timer_value = g::cfg().frontend_cmd_timeout;
+      restart_timeout();
     }
 
     if (f_close) {
@@ -410,10 +424,14 @@ void smtp_connection::handle_handshake_start_hello_write(const asio::error_code 
 void smtp_connection::start_read()
 {
     if (m_proto_state == STATE_CHECK_DATA) {
+      // wait for check to complete
+      
       // it's not clear if it really happens
       log(r::log::crit, "ERROR: m_proto_state == STATE_CHECK_DATA");
       
-      m_timer.cancel();               // wait for check to complete
+      asio::error_code ec;
+      m_timer.cancel(ec);               
+      
       return;
     }
 
@@ -1064,9 +1082,19 @@ void smtp_connection::send_response2(
 
 void smtp_connection::handle_write_request(const asio::error_code &ec)
 {
+  // stop timer with a short timeout for SSL handshake
+  if (ssl_state_ == ssl_hand_shake) {
+      asio::error_code unused_ec;
+      m_timer.cancel(unused_ec);
+  }
+  
   if (!ec) {
     if (ssl_state_ == ssl_hand_shake) {
       ssl_state_ = ssl_active;
+
+      // restore long timeout after SSL handshake
+      m_timer_value = g::cfg().frontend_cmd_timeout;
+      restart_timeout();
     }
     
     if (m_error_count > g::cfg().m_hard_error_limit) {
@@ -1074,20 +1102,20 @@ void smtp_connection::handle_write_request(const asio::error_code &ec)
 
       std::ostream response_stream(&m_response);
       response_stream << "421 4.7.0 " << asio::ip::host_name() << " Error: too many errors\r\n";
-      
+
       if (ssl_state_ == ssl_active) {
         asio::async_write(m_ssl_socket,
-                                 m_response,
-                                 strand_.wrap(boost::bind(&smtp_connection::handle_last_write_request,
-                                                          shared_from_this(),
-                                                          asio::placeholders::error)));
+                          m_response,
+                          strand_.wrap(boost::bind(&smtp_connection::handle_last_write_request,
+                                                   shared_from_this(),
+                                                   asio::placeholders::error)));
       }
       else {
         asio::async_write(socket(),
-                                 m_response,
-                                 strand_.wrap(boost::bind(&smtp_connection::handle_last_write_request,
-                                                          shared_from_this(),
-                                                          asio::placeholders::error)));
+                          m_response,
+                          strand_.wrap(boost::bind(&smtp_connection::handle_last_write_request,
+                                                   shared_from_this(),
+                                                   asio::placeholders::error)));
       }
       return;
     }
@@ -1123,6 +1151,12 @@ void smtp_connection::handle_last_write_request(const asio::error_code &ec)
 void smtp_connection::handle_starttls_response_write_request(const asio::error_code& ec)
 {
   if (!ec) {
+    // protect against very long SSL handshake
+    asio::error_code unused_ec;
+    m_timer.cancel(unused_ec);
+    m_timer_value = 1;
+    restart_timeout();
+    
     ssl_state_ = ssl_hand_shake;
     m_ssl_socket.async_handshake(asio::ssl::stream_base::server,
                                  strand_.wrap(boost::bind(&smtp_connection::handle_write_request, shared_from_this(),
@@ -1503,17 +1537,23 @@ void smtp_connection::stop()
 
 void smtp_connection::handle_timer(const asio::error_code &ec)
 {
-  if (ec) { // timer was canceled in stop()
+  if (ec) { // timer was canceled
     return;
   }
 
   PDBG("close_status_t::fail");
   close_status = close_status_t::fail;
 
+  // SSL handshake was too long
+  if (ssl_state_ == ssl_hand_shake) {
+    log(r::log::notice, "ERROR: SSL handshake timeout expired");
+    ssl_state_ = ssl_none;
+    m_manager.stop(shared_from_this());
+    return;
+  }
+
   std::ostream response_stream(&m_response);
-  response_stream << "421 4.4.2 "
-    << asio::ip::host_name()
-    << " Error: timeout exceeded\r\n";
+  response_stream << "421 4.4.2 " << asio::ip::host_name() << " Error: timeout exceeded\r\n";
 
   if (m_proto_state == STATE_BLAST_FILE) {
     log(r::Log::pstrf(r::log::debug,
