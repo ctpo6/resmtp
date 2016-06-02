@@ -273,6 +273,7 @@ void server::handle_mon_write_request(const asio::error_code &ec,
 void server::get_mon_response(std::ostream &os)
 {
     g::mon().print(os);
+    m_connection_manager.print_status_info(os);
 }
 
 

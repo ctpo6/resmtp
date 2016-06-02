@@ -112,10 +112,10 @@ smtp_connection::smtp_connection(asio::io_service &_io_service,
   , strand_(_io_service)
   , m_ssl_socket(_io_service, _context)
 
-  , m_resolver(_io_service)
-
   , m_timer(_io_service)
   , m_tarpit_timer(_io_service)
+
+  , m_resolver(_io_service)
 {
 #ifdef RESMTP_FTR_SSL_RENEGOTIATION  
   if (g::cfg().m_use_tls) {
@@ -129,57 +129,56 @@ smtp_connection::smtp_connection(asio::io_service &_io_service,
   m_envelope.reset(new envelope(false));
 }
 
-
 void smtp_connection::start(bool force_ssl, string start_error_msg)
 {
   // increment active connections count
   g::mon().on_conn();
-  
-    m_force_ssl = force_ssl;
-    start_error_msg_ = std::move(start_error_msg);
-    
-    m_proto_state = STATE_START;
-    ssl_state_ = ssl_none;
 
-    m_session_id = envelope::generate_new_id();
+  m_force_ssl = force_ssl;
+  start_error_msg_ = std::move(start_error_msg);
 
+  init_proto_state(STATE_START);
+  set_ssl_state(ssl_none);
+
+  m_session_id = envelope::generate_new_id();
+
+  log(r::Log::pstrf(r::log::info,
+                    "**** CONNECT %s",
+                    remote_address().to_string().c_str()));
+
+  m_max_rcpt_count = g::cfg().m_max_rcpt_count;
+  // if specified, get the number of recipients for specific IP
+  ip_options_config::ip_options_t opt;
+  if (g_ip_config.check(remote_address().to_v4(), opt)) {
+    m_max_rcpt_count = opt.m_rcpt_count;
+  }
+
+  m_timer_value = g::cfg().frontend_cmd_timeout;
+
+  m_remote_host_name.clear();
+
+  // skip IP resolve for pre-configured white IPs as they must be from
+  // the internal network
+  if (is_address_white(remote_address())) {
     log(r::Log::pstrf(r::log::info,
-                      "**** CONNECT %s",
+                      "whitelisted: %s",
                       remote_address().to_string().c_str()));
+    is_blacklisted = false;
+    is_whitelisted = true;
+    start_proto();
+    return;
+  }
 
-    m_max_rcpt_count = g::cfg().m_max_rcpt_count;
-    // if specified, get the number of recipients for specific IP
-    ip_options_config::ip_options_t opt;
-    if (g_ip_config.check(remote_address().to_v4(), opt)) {
-        m_max_rcpt_count = opt.m_rcpt_count;
-    }
-
-    m_timer_value = g::cfg().frontend_cmd_timeout;
-
-    m_remote_host_name.clear();
-
-    // skip IP resolve for pre-configured white IPs as they must be from
-    // the internal network
-    if (is_address_white(remote_address())) {
-        log(r::Log::pstrf(r::log::info,
-                          "whitelisted: %s",
-                          remote_address().to_string().c_str()));
-        is_blacklisted = false;
-        is_whitelisted = true;
-        start_proto();
-        return;
-    }
-
-    // resolve client IP to host name
-    for (const auto &addr: g::cfg().dns_ip) {
-        m_resolver.add_nameserver(addr);
-    }
-    m_resolver.async_resolve(
-                util::rev_order_av4_str(remote_address().to_v4(), "in-addr.arpa"),
-                dns::type_ptr,
-                strand_.wrap(boost::bind(
-                                 &smtp_connection::handle_back_resolve,
-                                 shared_from_this(), _1, _2)));
+  // resolve client IP to host name
+  for (const auto &addr : g::cfg().dns_ip) {
+    m_resolver.add_nameserver(addr);
+  }
+  m_resolver.async_resolve(
+                           util::rev_order_av4_str(remote_address().to_v4(), "in-addr.arpa"),
+                           dns::type_ptr,
+                           strand_.wrap(boost::bind(
+                                                    &smtp_connection::handle_back_resolve,
+                                                    shared_from_this(), _1, _2)));
 }
 
 
@@ -423,11 +422,11 @@ void smtp_connection::handle_handshake_start_hello_write(const asio::error_code 
 
 void smtp_connection::start_read()
 {
-    if (m_proto_state == STATE_CHECK_DATA) {
+    if (proto_state_ == STATE_CHECK_DATA) {
       // wait for check to complete
       
       // it's not clear if it really happens
-      log(r::log::crit, "ERROR: m_proto_state == STATE_CHECK_DATA");
+      log(r::log::crit, "ERROR: proto_state_ == STATE_CHECK_DATA");
       
       asio::error_code ec;
       m_timer.cancel(ec);               
@@ -531,7 +530,7 @@ bool smtp_connection::handle_read_data_helper(
   }
 
   if (eom_found) {
-    m_proto_state = STATE_CHECK_DATA;
+    set_proto_state(STATE_CHECK_DATA);
     io_service_.post(strand_.wrap(bind(&smtp_connection::start_check_data,
                                        shared_from_this())));
     parsed = read;
@@ -617,7 +616,7 @@ void smtp_connection::handle_read_helper(std::size_t size)
 
     yconst_buffers_iterator read = bb;
     yconst_buffers_iterator parsed = b;
-    bool cont = (m_proto_state == STATE_BLAST_FILE)
+    bool cont = (proto_state_ == STATE_BLAST_FILE)
             ? handle_read_data_helper(bb, e, parsed, read)
             : handle_read_command_helper(bb, e, parsed, read);
 
@@ -679,7 +678,7 @@ void smtp_connection::handle_read(const asio::error_code &ec,
 
       PDBG("read: ec.message()='%s' size=%zu", ec.message().c_str(), size);
       PDBG("state=%s msg_count_mail_from=%u msg_count_sent=%u",
-           get_proto_state_name(m_proto_state),
+           get_proto_state_name(proto_state_),
            msg_count_mail_from,
            msg_count_sent);
 
@@ -709,7 +708,7 @@ void smtp_connection::handle_read(const asio::error_code &ec,
         // seems that io scheme must be (heavily!!!) reworked
         // use async_read_until() instead of async_read_some() for commands?
         // now don't have a time for this
-        if (!(m_proto_state == STATE_HELLO
+        if (!(proto_state_ == STATE_HELLO
               && msg_count_mail_from
               && msg_count_mail_from == msg_count_sent)) {
           PDBG("close_status_t::fail");
@@ -931,7 +930,7 @@ void smtp_connection::end_check_data()
     m_smtp_client.reset();
   }
 
-  m_proto_state = STATE_HELLO;
+  set_proto_state(STATE_HELLO);
 
   std::ostream response_stream(&m_response);
 
@@ -1008,9 +1007,9 @@ void smtp_connection::send_response(
 
 void smtp_connection::send_response2(
                                      const asio::error_code &ec,
-                                     boost::function<void(const asio::error_code &) > handler)
+                                     boost::function<void(const asio::error_code &)> handler)
 {
-  if (ec) { // tarpit timer was canceled in stop()
+  if (ec) { // tarpit timer was canceled
     return;
   }
 
@@ -1018,7 +1017,7 @@ void smtp_connection::send_response2(
   // don't check whitelisted hosts
   if (!is_whitelisted
       && g::cfg().m_socket_check
-      && m_proto_state == STATE_START) {
+      && proto_state_ == STATE_START) {
     bool empty;
     try {
       empty = check_socket_read_buffer_is_empty();
@@ -1090,7 +1089,7 @@ void smtp_connection::handle_write_request(const asio::error_code &ec)
   
   if (!ec) {
     if (ssl_state_ == ssl_hand_shake) {
-      ssl_state_ = ssl_active;
+      set_ssl_state_ = ssl_active;
 
       // restore long timeout after SSL handshake
       m_timer_value = g::cfg().frontend_cmd_timeout;
@@ -1232,39 +1231,38 @@ bool smtp_connection::smtp_starttls(const string &, std::ostream &response)
     return true;
 }
 
-
 bool smtp_connection::smtp_rset(const string &, std::ostream &response)
 {
-    if (m_proto_state > STATE_START) {
-        m_proto_state = STATE_HELLO;
-    }
-    m_envelope.reset(new envelope(false));
-    response << "250 2.0.0 Ok\r\n";
-    return true;
+  if (proto_state_ > STATE_START) {
+    set_proto_state(STATE_HELLO);
+  }
+  m_envelope.reset(new envelope(false));
+  response << "250 2.0.0 Ok\r\n";
+  return true;
 }
-
 
 bool smtp_connection::smtp_helo(const string &cmd, std::ostream &response)
 {
-    if (!cmd.empty()) {
-        m_helo_host = cmd;
-        // now we know HELO string, log well-behaved session for spamhaus
-        log_spamhaus(remote_address().to_string(),
-                     m_helo_host,
-                     m_remote_host_name);
-        response << "250 " << asio::ip::host_name() << "\r\n";
-        m_ehlo = false;
-        m_proto_state = STATE_HELLO;
-    } else {
-        // log bad session for spamhaus
-        log_spamhaus(remote_address().to_string(),
-                     m_helo_host,
-                     string());
-        ++m_error_count;
-        response << "501 5.5.4 HELO requires domain address.\r\n";
-        m_proto_state = STATE_START;
-    }
-    return true;
+  if (!cmd.empty()) {
+    m_helo_host = cmd;
+    // now we know HELO string, log well-behaved session for spamhaus
+    log_spamhaus(remote_address().to_string(),
+                 m_helo_host,
+                 m_remote_host_name);
+    response << "250 " << asio::ip::host_name() << "\r\n";
+    m_ehlo = false;
+    set_proto_state(STATE_HELLO);
+  }
+  else {
+    // log bad session for spamhaus
+    log_spamhaus(remote_address().to_string(),
+                 m_helo_host,
+                 string());
+    ++m_error_count;
+    response << "501 5.5.4 HELO requires domain address.\r\n";
+    set_proto_state(STATE_START);
+  }
+  return true;
 }
 
 
@@ -1288,7 +1286,7 @@ bool smtp_connection::smtp_ehlo(const string &cmd, std::ostream &response)
         response << "250 ENHANCEDSTATUSCODES\r\n";
 
         m_ehlo = true;
-        m_proto_state = STATE_HELLO;
+        set_proto_state(STATE_HELLO);
     } else {
         // log bad session for spamhaus
         log_spamhaus(remote_address().to_string(),
@@ -1296,7 +1294,7 @@ bool smtp_connection::smtp_ehlo(const string &cmd, std::ostream &response)
                      string());
         ++m_error_count;
         response << "501 5.5.4 EHLO requires domain address.\r\n";
-        m_proto_state = STATE_START;
+        set_proto_state(STATE_START);
     }
 
     return true;
@@ -1330,14 +1328,13 @@ bool is_invalid(char _elem) {
 bool smtp_connection::smtp_rcpt(const string &_cmd,
                                 std::ostream &_response)
 {
-    if (m_proto_state != STATE_AFTER_MAIL && m_proto_state != STATE_RCPT_OK) {
-        PDBG("m_proto_state = %d", m_proto_state);
+    if (proto_state_ != STATE_AFTER_MAIL && proto_state_ != STATE_RCPT_OK) {
         ++m_error_count;
         _response << "503 5.5.4 Bad sequence of commands.\r\n";
         return true;
     }
 
-    if (strncasecmp( _cmd.c_str(), "to:", 3 ) != 0) {
+    if (strncasecmp(_cmd.c_str(), "to:", 3) != 0) {
         ++m_error_count;
         _response << "501 5.5.4 Wrong param.\r\n";
         return true;
@@ -1380,7 +1377,7 @@ bool smtp_connection::smtp_rcpt(const string &_cmd,
 
     _response << "250 2.1.5 <" << addr << "> recipient ok\r\n";
     m_envelope->add_recipient(std::move(addr));
-    m_proto_state = STATE_RCPT_OK;
+    set_proto_state(STATE_RCPT_OK);
     return true;
 }
 
@@ -1394,7 +1391,7 @@ bool smtp_connection::smtp_mail(const string &_cmd,
         return true;
     }
 
-    if (m_proto_state == STATE_START) {
+    if (proto_state_ == STATE_START) {
         ++m_error_count;
         _response << "503 5.5.4 Good girl is greeting first.\r\n";
         return true;
@@ -1449,15 +1446,14 @@ bool smtp_connection::smtp_mail(const string &_cmd,
     ++msg_count_mail_from;
     g::mon().on_mail_rcpt_to();
 
-    m_proto_state = STATE_AFTER_MAIL;
+    set_proto_state(STATE_AFTER_MAIL);
     return true;
 }
 
 
 bool smtp_connection::smtp_data(const string &_cmd, std::ostream &_response)
 {
-    if (m_proto_state != STATE_RCPT_OK) {
-//        PDBG("m_proto_state = %d", m_proto_state);
+    if (proto_state_ != STATE_RCPT_OK) {
         ++m_error_count;
         _response << "503 5.5.4 Bad sequence of commands.\r\n";
         return true;
@@ -1471,7 +1467,7 @@ bool smtp_connection::smtp_data(const string &_cmd, std::ostream &_response)
 
     _response << "354 Enter mail data, end with <CRLF>.<CRLF>\r\n";
 
-    m_proto_state = STATE_BLAST_FILE;
+    set_proto_state(STATE_BLAST_FILE);
     m_timer_value = g::cfg().frontend_data_timeout;
     m_envelope->orig_message_size_ = 0;
 
@@ -1512,7 +1508,7 @@ void smtp_connection::stop()
   catch (...) {
   }
 
-  m_proto_state = STATE_START;
+  set_proto_state(STATE_START);
 
   socket().shutdown(asio::ip::tcp::socket::shutdown_both, ec);
   socket().close(ec);
@@ -1541,6 +1537,9 @@ void smtp_connection::handle_timer(const asio::error_code &ec)
     return;
   }
 
+  asio::error_code unused_ec;
+  m_tarpit_timer.cancel(unused_ec);
+  
   PDBG("close_status_t::fail");
   close_status = close_status_t::fail;
 
@@ -1555,7 +1554,7 @@ void smtp_connection::handle_timer(const asio::error_code &ec)
   std::ostream response_stream(&m_response);
   response_stream << "421 4.4.2 " << asio::ip::host_name() << " Error: timeout exceeded\r\n";
 
-  if (m_proto_state == STATE_BLAST_FILE) {
+  if (proto_state_ == STATE_BLAST_FILE) {
     log(r::Log::pstrf(r::log::debug,
                       "timeout after DATA (%zu bytes) from %s[%s]",
                       buffers.size(),
@@ -1564,7 +1563,7 @@ void smtp_connection::handle_timer(const asio::error_code &ec)
   }
   else {
     const char *state_desc = "";
-    switch (m_proto_state) {
+    switch (proto_state_) {
     case STATE_START:
       state_desc = "START";
       break;
@@ -1617,22 +1616,38 @@ void smtp_connection::handle_ssl_handshake_start() noexcept
 
 const char * smtp_connection::get_proto_state_name(proto_state_t st)
 {
-    switch (st) {
-    case STATE_START:
-        return "START";
-    case STATE_HELLO:
-        return "HELLO";
-    case STATE_AFTER_MAIL:
-        return "AFTER_MAIL";
-    case STATE_RCPT_OK:
-        return "RCPT_OK";
-    case STATE_BLAST_FILE:
-        return "BLAST_FILE";
-    case STATE_CHECK_DATA:
-        return "CHECK_DATA";
-    }
-    assert(false && "update the switch() above");
-    return nullptr;
+  switch (st) {
+  case STATE_START:
+    return "START";
+  case STATE_HELLO:
+    return "HELLO";
+  case STATE_AFTER_MAIL:
+    return "AFTER_MAIL";
+  case STATE_RCPT_OK:
+    return "RCPT_OK";
+  case STATE_BLAST_FILE:
+    return "BLAST_FILE";
+  case STATE_CHECK_DATA:
+    return "CHECK_DATA";
+  }
+  assert(false && "update the switch() above");
+  return "UNKNOWN";
+}
+
+const char * smtp_connection::get_ssl_state_name(ssl_state_t st)
+{
+  switch (st) {
+  case ssl_none:
+    return "SSL_NONE";
+  case ssl_start_hand_shake:
+    return "SSL_START_HAND_SHAKE";
+  case ssl_hand_shake:
+    return "SSL_HAND_SHAKE";
+  case ssl_active:
+    return "SSL_ACTIVE";
+  }
+  assert(false && "update the switch() above");
+  return "UNKNOWN";
 }
 
 void smtp_connection::log_spamhaus(const string &client_host_address,

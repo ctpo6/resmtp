@@ -1,6 +1,7 @@
 #ifndef _SMTP_CONNECTION_H_
 #define _SMTP_CONNECTION_H_
 
+#include <atomic>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -75,30 +76,18 @@ public:
   void handle_ssl_handshake_start() noexcept;
 #endif    
 
-private:
-
-  typedef asio::ssl::stream<asio::ip::tcp::socket> ssl_socket_t;
-
-  typedef ystreambuf::mutable_buffers_type ymutable_buffers;
-  typedef ystreambuf::const_buffers_type yconst_buffers;
-  typedef ybuffers_iterator<yconst_buffers> yconst_buffers_iterator;
-
-  typedef std::function<bool (smtp_connection *, const string &, std::ostream &) > proto_func_t;
-  typedef std::unordered_map<string, proto_func_t> proto_map_t;
-
-  using close_status_t = resmtp::monitor::conn_close_status_t;
-
-  typedef enum
+  enum proto_state_t
   {
     STATE_START = 0,
     STATE_HELLO,
     STATE_AFTER_MAIL,
     STATE_RCPT_OK,
     STATE_BLAST_FILE,
-    STATE_CHECK_DATA
-  } proto_state_t;
+    STATE_CHECK_DATA,
+    STATE_MAX
+  };
   static const char * get_proto_state_name(proto_state_t st);
-
+  
   enum ssl_state_t
   {
     ssl_none = 0,
@@ -109,6 +98,42 @@ private:
     // SSL connection established
     ssl_active
   };
+  static const char * get_ssl_state_name(ssl_state_t st);
+
+  proto_state_t get_proto_state() const { return proto_state_; }
+  proto_state_t get_proto_state_reset_changed()
+  {
+    proto_state_changed_ = false;
+    return proto_state_;
+  }
+  bool get_proto_state_changed() const { return proto_state_changed_; }
+  
+  ssl_state_t get_ssl_state() const { return ssl_state_; }
+
+private:
+  
+  void init_proto_state(proto_state_t st)
+  {
+    proto_state_changed_ = false;
+    proto_state_ = st;
+  }
+    
+  void set_proto_state(proto_state_t st)
+  {
+    proto_state_changed_ = true;
+    proto_state_ = st;
+  }
+  
+  typedef asio::ssl::stream<asio::ip::tcp::socket> ssl_socket_t;
+
+  typedef ystreambuf::mutable_buffers_type ymutable_buffers;
+  typedef ystreambuf::const_buffers_type yconst_buffers;
+  typedef ybuffers_iterator<yconst_buffers> yconst_buffers_iterator;
+
+  typedef std::function<bool (smtp_connection *, const string &, std::ostream &) > proto_func_t;
+  typedef std::unordered_map<string, proto_func_t> proto_map_t;
+
+  using close_status_t = resmtp::monitor::conn_close_status_t;
 
   // map: smtp command name -> command handler ptr
   static const proto_map_t smtp_command_handlers;
@@ -125,15 +150,26 @@ private:
   asio::io_service::strand strand_;
   ssl_socket_t m_ssl_socket;
 
+  // timers
+  uint32_t m_timer_value = 0;
+  asio::deadline_timer m_timer;
+  asio::deadline_timer m_tarpit_timer;
+  
   y::net::dns::resolver m_resolver;
+
+  // state
+  std::atomic<int> proto_state_;
+  std::atomic<bool> proto_state_changed_; // for monitoring of hanged sessions
+  std::atomic<int> ssl_state_;
+
+  std::unique_ptr<envelope> m_envelope;
+
+  //----------------------------------------------------------------------------
+  
+  smtp_client_ptr m_smtp_client;
 
   rbl_client_ptr m_dnsbl_check;
   rbl_client_ptr m_dnswl_check;
-
-  smtp_client_ptr m_smtp_client;
-
-  proto_state_t m_proto_state = STATE_START;
-  ssl_state_t ssl_state_;
 
   bool is_blacklisted;
   string bl_status_str;
@@ -146,7 +182,6 @@ private:
 
   close_status_t close_status = close_status_t::ok;
 
-  std::unique_ptr<envelope> m_envelope;
 
   ystreambuf buffers;
   asio::streambuf m_response;
@@ -174,11 +209,6 @@ private:
   bool read_pending = false;
 
   bool spamhaus_log_pending = true;
-
-  // timers
-  uint32_t m_timer_value = 0;
-  asio::deadline_timer m_timer;
-  asio::deadline_timer m_tarpit_timer;
 
 #ifdef RESMTP_FTR_SSL_RENEGOTIATION    
   bool ssl_renegotiated_ = false;

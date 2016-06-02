@@ -2,6 +2,7 @@
 #define _SMTP_CONNECTION_MANAGER_H_
 
 #include <atomic>
+#include <ostream>
 #include <set>
 #include <string>
 #include <unordered_map>
@@ -31,6 +32,8 @@ public:
 
     void stop_all();
 
+    void print_status_info(std::ostream &os);
+    
 protected:
 
     // see *.cpp for value

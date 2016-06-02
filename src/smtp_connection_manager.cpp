@@ -85,6 +85,15 @@ void smtp_connection_manager::stop(smtp_connection_ptr conn)
 }
 
 
+void smtp_connection_manager::print_status_info(std::ostream &os)
+{
+  boost::mutex::scoped_lock lock(m_mutex);
+  os << "# connection manager\n";
+  os << "cm__active_conn " << connections.size() << '\n';
+  
+}
+
+
 void smtp_connection_manager::stop_all()
 {
     for(auto &conn: connections) {
