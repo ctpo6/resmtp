@@ -86,7 +86,7 @@ public:
     STATE_CHECK_DATA,
     STATE_MAX
   };
-  static const char * get_proto_state_name(proto_state_t st);
+  static const char * get_proto_state_name(int st);
   
   enum ssl_state_t
   {
@@ -98,17 +98,17 @@ public:
     // SSL connection established
     ssl_active
   };
-  static const char * get_ssl_state_name(ssl_state_t st);
+  static const char * get_ssl_state_name(int st);
 
-  proto_state_t get_proto_state() const { return proto_state_; }
+  proto_state_t get_proto_state() const { return static_cast<proto_state_t>(proto_state_.load(std::memory_order_acquire)); }
   proto_state_t get_proto_state_reset_changed()
   {
     proto_state_changed_ = false;
-    return proto_state_;
+    return get_proto_state();
   }
   bool get_proto_state_changed() const { return proto_state_changed_; }
   
-  ssl_state_t get_ssl_state() const { return ssl_state_; }
+  ssl_state_t get_ssl_state() const { return static_cast<ssl_state_t>(ssl_state_.load(std::memory_order_acquire)); }
 
 private:
   

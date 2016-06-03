@@ -138,7 +138,7 @@ void smtp_connection::start(bool force_ssl, string start_error_msg)
   start_error_msg_ = std::move(start_error_msg);
 
   init_proto_state(STATE_START);
-  set_ssl_state(ssl_none);
+  ssl_state_ = ssl_none;
 
   m_session_id = envelope::generate_new_id();
 
@@ -1089,7 +1089,7 @@ void smtp_connection::handle_write_request(const asio::error_code &ec)
   
   if (!ec) {
     if (ssl_state_ == ssl_hand_shake) {
-      set_ssl_state_ = ssl_active;
+      ssl_state_ = ssl_active;
 
       // restore long timeout after SSL handshake
       m_timer_value = g::cfg().frontend_cmd_timeout;
@@ -1614,7 +1614,7 @@ void smtp_connection::handle_ssl_handshake_start() noexcept
 }
 #endif
 
-const char * smtp_connection::get_proto_state_name(proto_state_t st)
+const char * smtp_connection::get_proto_state_name(int st)
 {
   switch (st) {
   case STATE_START:
@@ -1629,12 +1629,14 @@ const char * smtp_connection::get_proto_state_name(proto_state_t st)
     return "BLAST_FILE";
   case STATE_CHECK_DATA:
     return "CHECK_DATA";
+  case STATE_MAX:
+    return "MAX";
   }
   assert(false && "update the switch() above");
   return "UNKNOWN";
 }
 
-const char * smtp_connection::get_ssl_state_name(ssl_state_t st)
+const char * smtp_connection::get_ssl_state_name(int st)
 {
   switch (st) {
   case ssl_none:
