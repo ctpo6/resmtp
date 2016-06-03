@@ -51,19 +51,6 @@ struct envelope : private boost::noncopyable
 
     static string generate_new_id();
 
-    static check::chk_status smtp_code_decode(uint32_t code)
-    {
-        switch (code / 100) {
-        case 2:
-            return check::CHK_ACCEPT;
-        case 5:
-            return check::CHK_REJECT;
-        default:
-            break;
-        }
-        return check::CHK_TEMPFAIL;
-    }
-
     yconst_buffers added_headers_;
     yconst_buffers orig_headers_;
     yconst_buffers altered_message_;

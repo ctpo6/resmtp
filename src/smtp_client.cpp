@@ -329,8 +329,7 @@ void smtp_client::handle_connect(const asio::error_code &ec,
 }
 
 
-void smtp_client::handle_write_data_request(const asio::error_code &ec,
-                                            size_t sz)
+void smtp_client::handle_write_data_request(const asio::error_code &ec, size_t)
 {
     if (ec) {
         if (ec != asio::error::operation_aborted) {
@@ -340,9 +339,7 @@ void smtp_client::handle_write_data_request(const asio::error_code &ec,
             backend_mgr.on_host_fail(backend_host,
                                      smtp_backend_manager::host_status::fail_connect);
 #endif            
-            fault(util::strf("ERROR: write failed: %s",
-                             ec.message().c_str()),
-                  string());
+            fault(check::CHK_TEMPFAIL, string());
         }
         return;
     }
@@ -358,18 +355,11 @@ void smtp_client::handle_write_data_request(const asio::error_code &ec,
                                              _2)));
 }
 
-void smtp_client::handle_write_request(const asio::error_code &ec, size_t sz)
+void smtp_client::handle_write_request(const asio::error_code &ec, size_t)
 {
   if (ec) {
     if (ec != asio::error::operation_aborted) {
-#if 0
-// code is disabled: backend status will be set to 'fail' only on host resolve or connect error
-      PDBG("call on_host_fail()");
-      backend_mgr.on_host_fail(backend_host,
-                               smtp_backend_manager::host_status::fail_connect);
-#endif      
-      fault(util::strf("ERROR: write failed: %s", ec.message().c_str()),
-            string());
+      fault(check::CHK_TEMPFAIL, string());
     }
   }
   else {
@@ -392,14 +382,7 @@ void smtp_client::handle_read_smtp_line(const asio::error_code &ec)
 {
   if (ec) {
     if (ec != asio::error::operation_aborted) {
-#if 0      
-// code is disabled: backend status will be set to 'fail' only on host resolve or connect error
-      PDBG("call on_host_fail()");
-      backend_mgr.on_host_fail(backend_host,
-                               smtp_backend_manager::host_status::fail_connect);
-#endif      
-      fault(util::strf("ERROR: write failed: %s", ec.message().c_str()),
-            string());
+      fault(check::CHK_TEMPFAIL, string());
     }
     return;
   }
@@ -424,7 +407,8 @@ void smtp_client::handle_read_smtp_line(const asio::error_code &ec)
 }
 
 
-bool smtp_client::process_answer(std::istream &_stream) {
+bool smtp_client::process_answer(std::istream &_stream)
+{
     string line_buffer;
     line_buffer.reserve(1000);  // SMTP line can be up to 1000 chars
 
@@ -448,54 +432,23 @@ bool smtp_client::process_answer(std::istream &_stream) {
         }
 
         // extract state code
-        uint32_t code = 0xffffffff;
+        unsigned code = (unsigned)-1;
         try {
             if (line_buffer.size() >= 3) {
-                code = boost::lexical_cast<uint32_t>(line_buffer.substr(0, 3));
+                code = boost::lexical_cast<unsigned>(line_buffer.substr(0, 3));
             }
-        } catch (const boost::bad_lexical_cast &) {}
-        if (code == 0xffffffff) {
-            fault("ERROR: invalid SMTP state code", line_buffer);
+        } 
+        catch (const boost::bad_lexical_cast &) {}
+        if (code == (unsigned)-1) {
+            fault(check::CHK_TEMPFAIL, string());
             return false;
         }
 
         // check state code
-        const char *p_err_str = nullptr;
-        switch (m_proto_state) {
-        case proto_state_t::connected:
-            if (code != 220) p_err_str = "invalid greeting";
-            break;
-        case proto_state_t::after_hello:
-            if (code != 250) p_err_str = "invalid answer on EHLO command";
-            break;
-        case proto_state_t::after_xclient:
-            if (code != 220) p_err_str = "invalid XCLIENT greeting";
-            break;
-        case proto_state_t::after_hello_xclient:
-            if (code != 250) p_err_str = "invalid answer on XCLIENT EHLO command";
-            break;
-        case proto_state_t::after_mail:
-            if (code != 250) p_err_str = "invalid answer on MAIL command";
-            break;
-        case proto_state_t::after_rcpt:
-            if (code != 250) p_err_str = "invalid answer on RCPT command";
-            break;
-        case proto_state_t::after_data:
-            if (code != 354) p_err_str = "invalid answer on DATA command";
-            break;
-        case proto_state_t::after_dot:
-            if (code != 250) p_err_str = "invalid answer on DOT";
-            break;
-        case proto_state_t::after_quit:
-#if 0
-            if (code != 221) p_err_str = "invalid answer on QUIT command";
-#endif
-            break;
-        default:
-            assert(false && "debug the code");
-        }
-        if (p_err_str) {
-            fault(string("ERROR: ") + p_err_str, line_buffer);
+        check::chk_status status = check::smtp_reply_code_to_status(code);
+        if (m_proto_state != proto_state_t::after_quit &&
+            status != check::CHK_ACCEPT) {
+            fault(status, line_buffer);
             return false;
         }
 
@@ -576,7 +529,7 @@ bool smtp_client::process_answer(std::istream &_stream) {
             m_current_rcpt = m_envelope->m_rcpt_list.begin();
             // TODO: move this check to the start()?
             if (m_current_rcpt == m_envelope->m_rcpt_list.end()) {
-                fault("ERROR: invalid recipient list", line_buffer);
+                fault(check::CHK_TEMPFAIL, line_buffer);
                 return false;
             }
 
@@ -642,9 +595,14 @@ bool smtp_client::process_answer(std::istream &_stream) {
                 for(m_current_rcpt = m_envelope->m_rcpt_list.begin();
                     m_current_rcpt != m_envelope->m_rcpt_list.end();
                     ++m_current_rcpt) {
-                    m_current_rcpt->m_delivery_status = envelope::smtp_code_decode(code);
+                    m_current_rcpt->m_delivery_status = check::CHK_ACCEPT;
+#if 0
+// isn't actually used                    
                     m_current_rcpt->m_remote_answer = line_buffer;
+#endif
                 }
+                m_data.m_answer = line_buffer;
+                
                 answer_stream << "QUIT\r\n";
                 m_proto_state = proto_state_t::after_quit;
             }
@@ -666,25 +624,10 @@ bool smtp_client::process_answer(std::istream &_stream) {
 }
 
 
-check::chk_status smtp_client::report_rcpt(bool success,
-                                           std::string log_msg,
-                                           std::string remote_answer)
+void smtp_client::report_rcpt(const string &remote_answer)
 {
-    bool accept = true;
-
-    string remote;
     for (const envelope::rcpt &rcpt : m_envelope->m_rcpt_list) {
-        if (!rcpt.m_remote_answer.empty()) {
-            remote = util::str_cleanup_crlf(rcpt.m_remote_answer);
-        } else if (!remote_answer.empty()) {
-            remote = util::str_cleanup_crlf(remote_answer);
-        }
-
-        bool rcpt_success = (rcpt.m_delivery_status == check::CHK_ACCEPT);
-
-        accept = accept && rcpt_success;
-
-        if (rcpt_success) {
+        if (rcpt.m_delivery_status == check::CHK_ACCEPT) {
             log(r::Log::pstrf(r::log::notice,
                               "%s[%s] OK: tarpit=%d helo=%s from=<%s> to=<%s> relay=%s",
                               m_data.m_remote_host.empty() ? "[UNAVAILABLE]" : m_data.m_remote_host.c_str(),
@@ -705,22 +648,27 @@ check::chk_status smtp_client::report_rcpt(bool success,
                               m_envelope->m_sender.c_str(),
                               rcpt.m_name.c_str(),
                               backend_host.host_name.c_str(),
-                              remote.c_str()));
+                              util::str_cleanup_crlf(remote_answer).c_str()));
         }
-        remote.clear();
     }
-
-    return accept ? check::CHK_ACCEPT : check::CHK_TEMPFAIL;
 }
 
 
-void smtp_client::fault(string log_msg, string remote_answer)
+void smtp_client::fault(check::chk_status st, const string &remote_answer)
 {
     if (!cb_complete) return;
 
-    m_proto_state = proto_state_t::error;
+    if (m_proto_state == proto_state_t::after_quit) {
+      // io error after issuing QUIT command, don't threat as a fault
+      m_data.m_result = check::CHK_ACCEPT;
+    }
+    else {
+      m_proto_state = proto_state_t::error;
+      m_data.m_result = st;
+      m_data.m_answer = remote_answer;
+    }
 
-    m_data.m_result = report_rcpt(false, log_msg, remote_answer);
+    report_rcpt(remote_answer);
 
     try {
       m_resolver.cancel();
@@ -786,7 +734,9 @@ void smtp_client::success()
 {
     if (!cb_complete) return;
 
-    m_data.m_result = report_rcpt(true, "success delivery", string());
+    m_data.m_result = check::CHK_ACCEPT;
+    
+    report_rcpt(string());
 
     try {
       m_resolver.cancel();
@@ -858,9 +808,7 @@ void smtp_client::handle_timer(const asio::error_code &ec)
   
   default:
     PDBG("backend host I/O operation timeout: %s", backend_host.host_name.c_str());
-    fault(util::strf("ERROR: backend host I/O operation timeout (state=%s)",
-                     get_proto_state_name(m_proto_state)),
-          string());
+    fault(check::CHK_TEMPFAIL, string());
     break;
   }
 }

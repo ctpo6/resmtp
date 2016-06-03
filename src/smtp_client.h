@@ -140,16 +140,14 @@ protected:
   void restart_timeout();
 
   // log delivery status for each recipient
-  check::chk_status report_rcpt(bool success,
-                                string log_msg,
-                                string remote_answer);
-
+  void report_rcpt(const string &remote_answer);
 
   // called on error (protocol, network, etc.) after connection with backend was established
-  void fault(string log_msg,
-             string remote_answer);
+  void fault(check::chk_status st, const string &remote_answer);
+  
   // called on backend host resolve or connection error
   void fault_backend();
+  
   // called when all backends are currently unavailable
   void fault_all_backends();
 

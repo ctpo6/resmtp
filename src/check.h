@@ -14,6 +14,20 @@ struct check
         CHK_TEMPFAIL,
         CHK_DISCARD
     } chk_status;
+    
+    static chk_status smtp_reply_code_to_status(unsigned code)
+    {
+      switch (code / 100) {
+      case 2:
+      case 3:
+        return chk_status::CHK_ACCEPT;
+      case 4:
+        return chk_status::CHK_TEMPFAIL;
+      case 5:
+        return chk_status::CHK_REJECT;
+      }
+      return chk_status::CHK_TEMPFAIL;
+    }
 
     chk_status m_result;
     string m_answer;
