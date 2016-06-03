@@ -84,6 +84,7 @@ public:
     STATE_RCPT_OK,
     STATE_BLAST_FILE,
     STATE_CHECK_DATA,
+    STATE_STOP,
     STATE_MAX
   };
   static const char * get_proto_state_name(int st);
@@ -118,10 +119,13 @@ private:
     proto_state_ = st;
   }
     
-  void set_proto_state(proto_state_t st)
+  int set_proto_state(proto_state_t st)
   {
-    proto_state_changed_ = true;
-    proto_state_ = st;
+    int prev_proto_state = proto_state_.exchange(st);
+    if (prev_proto_state != st) {
+      proto_state_changed_ = true;
+    }
+    return prev_proto_state;
   }
   
   typedef asio::ssl::stream<asio::ip::tcp::socket> ssl_socket_t;

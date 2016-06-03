@@ -1233,7 +1233,8 @@ bool smtp_connection::smtp_starttls(const string &, std::ostream &response)
 
 bool smtp_connection::smtp_rset(const string &, std::ostream &response)
 {
-  if (proto_state_ > STATE_START) {
+  int st = proto_state_;
+  if (st != STATE_START && st != STATE_STOP) {
     set_proto_state(STATE_HELLO);
   }
   m_envelope.reset(new envelope(false));
@@ -1328,7 +1329,8 @@ bool is_invalid(char _elem) {
 bool smtp_connection::smtp_rcpt(const string &_cmd,
                                 std::ostream &_response)
 {
-    if (proto_state_ != STATE_AFTER_MAIL && proto_state_ != STATE_RCPT_OK) {
+  int st = proto_state_;
+    if (st != STATE_AFTER_MAIL && st != STATE_RCPT_OK) {
         ++m_error_count;
         _response << "503 5.5.4 Bad sequence of commands.\r\n";
         return true;
@@ -1498,6 +1500,11 @@ bool smtp_connection::smtp_data(const string &_cmd, std::ostream &_response)
 
 void smtp_connection::stop()
 {
+  int prev_proto_state = set_proto_state(STATE_STOP);
+  if (prev_proto_state == STATE_STOP) {
+    return;
+  }
+  
   asio::error_code ec;
   m_timer.cancel(ec);
   m_tarpit_timer.cancel(ec);
@@ -1507,8 +1514,6 @@ void smtp_connection::stop()
   }
   catch (...) {
   }
-
-  set_proto_state(STATE_START);
 
   socket().shutdown(asio::ip::tcp::socket::shutdown_both, ec);
   socket().close(ec);
