@@ -634,6 +634,9 @@ void smtp_connection::handle_read(const asio::error_code &ec,
                                   size_t size)
 {
   read_pending = false;
+  
+  asio::error_code unused_ec;
+  m_timer.cancel(unused_ec);
 
   if (!ec) {
 #ifdef RESMTP_FTR_SSL_RENEGOTIATION    
@@ -702,12 +705,8 @@ void smtp_connection::handle_read(const asio::error_code &ec,
         close_status = close_status_t::fail_client_closed_connection;
       }
       else {
-        // TODO investigate & rework???
         // this is a workaround for the case when connection is closed before
         // we receive the QUIT command
-        // seems that io scheme must be (heavily!!!) reworked
-        // use async_read_until() instead of async_read_some() for commands?
-        // now don't have a time for this
         if (!(proto_state_ == STATE_HELLO
               && msg_count_mail_from
               && msg_count_mail_from == msg_count_sent)) {
