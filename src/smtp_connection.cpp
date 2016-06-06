@@ -1009,14 +1009,31 @@ void smtp_connection::send_response2(
                                      boost::function<void(const asio::error_code &)> handler)
 {
   if (ec) { // tarpit timer was canceled
-    return;
+    // debug log: is it possible to get here anything other than asio::error::operation_aborted ?
+    if (ec != asio::error::operation_aborted) { 
+      log(r::Log::pstrf(r::log::notice,
+                        "send_response2() proto_state=%s ec=%s",
+                        get_proto_state_name(proto_state_),
+                        ec.message().c_str()));
+    }
+    // workaround: tarpit_timer can be actually be canceled from the stop() function;
+    // so, ignore any other cases (if they happen for some unknown reason), which can lead
+    // to ghost sessions
+    if (proto_state_ == STATE_STOP) {
+      return;
+    }
+    else {
+      log(r::Log::pstrf(r::log::notice,
+                        "send_response2() proto_state=%s",
+                        get_proto_state_name(proto_state_)));
+    }
   }
 
   // check that the client hasn't sent something before receiving greeting msg
   // don't check whitelisted hosts
-  if (!is_whitelisted
-      && g::cfg().m_socket_check
-      && proto_state_ == STATE_START) {
+  if (proto_state_ == STATE_START
+      && !is_whitelisted
+      && g::cfg().m_socket_check) {
     bool empty;
     try {
       empty = check_socket_read_buffer_is_empty();
@@ -1633,6 +1650,8 @@ const char * smtp_connection::get_proto_state_name(int st)
     return "BLAST_FILE";
   case STATE_CHECK_DATA:
     return "CHECK_DATA";
+  case STATE_STOP:
+    return "STOP";
   case STATE_MAX:
     return "MAX";
   }
