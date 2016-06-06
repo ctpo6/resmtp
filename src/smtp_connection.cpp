@@ -1010,22 +1010,15 @@ void smtp_connection::send_response2(
 {
   if (ec) { // tarpit timer was canceled
     // debug log: is it possible to get here anything other than asio::error::operation_aborted ?
-    if (ec != asio::error::operation_aborted) { 
-      log(r::Log::pstrf(r::log::notice,
-                        "send_response2() proto_state=%s ec=%s",
-                        get_proto_state_name(proto_state_),
-                        ec.message().c_str()));
-    }
-    // workaround: tarpit_timer can be actually be canceled from the stop() function;
-    // so, ignore any other cases (if they happen for some unknown reason), which can lead
-    // to ghost sessions
-    if (proto_state_ == STATE_STOP) {
-      return;
-    }
-    else {
-      log(r::Log::pstrf(r::log::notice,
-                        "send_response2() proto_state=%s",
-                        get_proto_state_name(proto_state_)));
+    log(r::Log::pstrf(r::log::notice,
+                      "send_response2() %s ec=%s",
+                      ec.message().c_str(),
+                      get_proto_state_name(proto_state_)));
+    if (ec == asio::error::operation_aborted) { 
+      // tarpit timer can be actually be canceled only from stop()
+      if (proto_state_ == STATE_STOP) {
+        return;
+      }
     }
   }
 
