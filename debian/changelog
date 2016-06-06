@@ -1,3 +1,12 @@
+resmtp (0.9.18) unstable; urgency=low
+
+  * Return an actual backend SMTP response code
+  * Cancel tarpit timer on io timeout (for sure)
+  * Explicitly cancel io deadline timer
+  * Cancel tarpitted write operation only in proto STOP state
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Mon, 4 Jun 2016 15:42:00 +0300
+
 resmtp (0.9.17) unstable; urgency=low
 
   * Protect against very long SSL handshake on connection establishment and

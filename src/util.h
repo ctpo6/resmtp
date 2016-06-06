@@ -20,7 +20,7 @@ string str_from_buf(asio::streambuf const &buf);
 /*
  * Trim whitespaces at the beginning and the at the end.
  */
-string trim(std::string s);
+string trim(const string &s);
 
 /*
  * Replace CRLF inside the string with "^M"; trim trailing CRLF.

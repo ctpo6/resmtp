@@ -43,20 +43,22 @@ string str_from_buf(asio::streambuf const &buf) {
 }
 
 
-std::string trim(std::string s) {
+string trim(const string &s)
+{
     if (s.empty()) {
         return s;
     }
-    std::string::size_type begin = s.find_first_not_of(" \t\n");
-    if (begin == std::string::npos) {
+    string::size_type begin = s.find_first_not_of(" \t\n");
+    if (begin == string::npos) {
         begin = 0;
     }
-    std::string::size_type end = s.find_last_not_of(" \t\r\n") + 1;
+    string::size_type end = s.find_last_not_of(" \t\r\n") + 1;
     return s.substr(begin, end - begin);
 }
 
 
-std::string str_cleanup_crlf(std::string s) {
+string str_cleanup_crlf(string s)
+{
     auto rit = find_if_not(s.rbegin(), s.rend(),
                            [](char c){ return c == '\r' || c == '\n';});
     if (rit != s.rend()) {
@@ -75,8 +77,8 @@ std::string str_cleanup_crlf(std::string s) {
     return s;
 }
 
-std::string rev_order_av4_str(const asio::ip::address_v4& a,
-                              const std::string& d)
+string rev_order_av4_str(const asio::ip::address_v4& a,
+                         const string& d)
 {
   return str(boost::format("%1%.%2%.%3%.%4%.%5%")
              % static_cast<int> (a.to_bytes()[3])
@@ -87,10 +89,10 @@ std::string rev_order_av4_str(const asio::ip::address_v4& a,
 }
 
 
-std::string unfqdn(const std::string& fqdn) {
+string unfqdn(const string& fqdn) {
     std::size_t sz = fqdn.size();
     if (sz && fqdn[sz-1] == '.')
-        return std::string(fqdn.begin(), fqdn.begin()+sz-1);
+        return string(fqdn.begin(), fqdn.begin()+sz-1);
     return fqdn;
 }
 

@@ -448,7 +448,7 @@ bool smtp_client::process_answer(std::istream &_stream)
         check::chk_status status = check::smtp_reply_code_to_status(code);
         if (m_proto_state != proto_state_t::after_quit &&
             status != check::CHK_ACCEPT) {
-            fault(status, line_buffer);
+            fault(status, util::trim(line_buffer));
             return false;
         }
 
@@ -529,7 +529,7 @@ bool smtp_client::process_answer(std::istream &_stream)
             m_current_rcpt = m_envelope->m_rcpt_list.begin();
             // TODO: move this check to the start()?
             if (m_current_rcpt == m_envelope->m_rcpt_list.end()) {
-                fault(check::CHK_TEMPFAIL, line_buffer);
+                fault(check::CHK_TEMPFAIL, util::trim(line_buffer));
                 return false;
             }
 

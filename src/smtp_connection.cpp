@@ -940,7 +940,9 @@ void smtp_connection::end_check_data()
     g::mon().on_mail_delivered();
     //            PDBG("close_status_t::ok");
     close_status = close_status_t::ok;
-    response_stream << "250 2.0.0 Ok: queued on " << asio::ip::host_name() << " as";
+    response_stream
+      << "250 2.0.0 Ok: queued on " << asio::ip::host_name() << " as "
+      << m_session_id << '-' << m_envelope->m_id;
     break;
 
   case check::CHK_REJECT:
@@ -966,7 +968,7 @@ void smtp_connection::end_check_data()
     break;
   }
 
-  response_stream << ' ' << m_session_id << '-' << m_envelope->m_id << "\r\n";
+  response_stream << "\r\n";
 
   // don't tarpit after receiving '.' from client
   send_response(boost::bind(&smtp_connection::handle_write_request,
