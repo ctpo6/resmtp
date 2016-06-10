@@ -63,10 +63,14 @@ public:
     return m_ssl_socket.next_layer();
   }
   
-  const asio::ip::address & remote_address() const
+  const asio::ip::address & remote_address() const noexcept
   {
     if (remote_address_.is_unspecified()) {
-      remote_address_ = socket().remote_endpoint().address();
+      try {
+        // if disconnected, remote_endpoint() throws exception
+        remote_address_ = socket().remote_endpoint().address();
+      }
+      catch (...) {}
     }
     return remote_address_;
   }

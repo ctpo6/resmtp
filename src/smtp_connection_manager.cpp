@@ -33,31 +33,45 @@ smtp_connection_manager::smtp_connection_manager(uint32_t max_sess,
 
 void smtp_connection_manager::start(smtp_connection_ptr conn, bool force_ssl)
 {
-  string msg;
+  auto ins_it = connections.end();
+  bool fail = false;
   
-  {
-    boost::mutex::scoped_lock lock(m_mutex);
+  try {
+    string msg;
+    
+    {
+      boost::mutex::scoped_lock lock(m_mutex);
 
-    if (max_sessions &&
-        connections.size() >= max_sessions) {
-      msg = "421 4.7.0 Too many connections\r\n";
-    }
-    else if(max_sessions_per_ip &&
-            get_ip_count(conn->remote_address()) >= max_sessions_per_ip) {
-      msg = str(boost::format("421 4.7.0 Too many connections from %1%\r\n")
-                % conn->remote_address().to_string());
-    }
+      if (max_sessions &&
+          connections.size() >= max_sessions) {
+        msg = "421 4.7.0 Too many connections\r\n";
+      }
+      else if(max_sessions_per_ip &&
+              get_ip_count(conn->remote_address()) >= max_sessions_per_ip) {
+        msg = str(boost::format("421 4.7.0 Too many connections from %1%\r\n")
+                  % conn->remote_address().to_string());
+      }
 
-    if (connections.find(conn) != connections.end()) {
-      g::log().msg(r::log::alert, "ERROR: session already started");
-      return;
+      ins_it = connections.insert(conn).first;
+      ip_count_inc(conn->remote_address());
     }
     
-    connections.insert(conn);
-    ip_count_inc(conn->remote_address());
+    conn->start(force_ssl, std::move(msg));
+  }
+  catch (...) {
+    fail = true;
   }
   
-  conn->start(force_ssl, std::move(msg));
+  if (fail || conn->remote_address().is_unspecified()) {
+    {
+      boost::mutex::scoped_lock lock(m_mutex);
+      if (ins_it != connections.end()) {
+        connections.erase(ins_it);
+        ip_count_dec(conn->remote_address());
+      }
+    }
+    conn->stop();
+  }
 }
 
 
@@ -104,7 +118,7 @@ void smtp_connection_manager::stop_all()
 
 uint32_t smtp_connection_manager::ip_count_inc(const asio::ip::address &addr)
 {
-  if (!max_sessions_per_ip) return 0;
+  if (!max_sessions_per_ip || addr.is_unspecified()) return 0;
   
   auto it = m_ip_count.find(addr.to_v4().to_ulong());
   if (it == m_ip_count.end()) {
@@ -117,7 +131,7 @@ uint32_t smtp_connection_manager::ip_count_inc(const asio::ip::address &addr)
 
 uint32_t smtp_connection_manager::ip_count_dec(const asio::ip::address &addr)
 {
-  if (!max_sessions_per_ip) return 0;
+  if (!max_sessions_per_ip || addr.is_unspecified()) return 0;
   
   auto it = m_ip_count.find(addr.to_v4().to_ulong());
   assert(it != m_ip_count.end()
@@ -133,7 +147,7 @@ uint32_t smtp_connection_manager::ip_count_dec(const asio::ip::address &addr)
 
 uint32_t smtp_connection_manager::get_ip_count(const asio::ip::address &addr) const
 {
-  if (!max_sessions_per_ip) return 0;
+  if (!max_sessions_per_ip || addr.is_unspecified()) return 0;
   
   auto it = m_ip_count.find(addr.to_v4().to_ulong());
   return it != m_ip_count.end() ? it->second : 0;

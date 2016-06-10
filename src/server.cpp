@@ -290,18 +290,14 @@ void server::handle_accept(acceptor_t *acceptor,
     
     if (!ec) {
         try {
+          // if remote point didn't close the socket right after connected
+          if (!conn->remote_address().is_unspecified()) {
             m_connection_manager.start(conn, force_ssl);
-        }
-        catch (const asio::system_error &e) {
-            if (e.code() != asio::error::not_connected) {
-                g::log().msg(Log::pstrf(log::alert,
-                                        "ERROR: conn->start() asio::system_error: %s",
-                                        e.what()));
-            }
+          }
         }
         catch (const std::exception &e) {
-          g::log().msg(Log::pstrf(log::alert,
-                                  "ERROR: conn->start() std::exception: %s",
+          g::log().msg(Log::pstrf(log::notice,
+                                  "ERROR: start() exception: %s",
                                   e.what()));
         }
         
@@ -313,8 +309,8 @@ void server::handle_accept(acceptor_t *acceptor,
         }
         catch (const std::exception &e) {
           // most likely resolver object failed
-          g::log().msg(Log::pstrf(log::alert,
-                                  "ERROR: smtp_connection() std::exception: %s",
+          g::log().msg(Log::pstrf(log::crit,
+                                  "ERROR: smtp_connection() exception: %s",
                                   e.what()));
           raise(SIGTERM);   // stop the program
           return;
