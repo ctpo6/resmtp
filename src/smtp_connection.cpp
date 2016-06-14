@@ -97,7 +97,9 @@ smtp_connection::~smtp_connection()
     SSL *ssl = m_ssl_socket.native_handle();
     SSL_set_ex_data(ssl, r::server::get_ssl_connection_idx(), NULL);
   }
-#endif  
+#endif
+
+  stop(true);
 }
 
 
@@ -127,6 +129,45 @@ smtp_connection::smtp_connection(asio::io_service &_io_service,
 #endif  
   
   m_envelope.reset(new envelope(false));
+}
+
+void smtp_connection::stop(bool from_dtor)
+{
+  int prev_proto_state = set_proto_state(STATE_STOP);
+  if (prev_proto_state == STATE_STOP) {
+    return;
+  }
+  
+  asio::error_code ec;
+  m_timer.cancel(ec);
+  m_tarpit_timer.cancel(ec);
+
+  try {
+    m_resolver.cancel();
+  }
+  catch (...) {}
+
+  if (!from_dtor) {
+    socket().shutdown(asio::ip::tcp::socket::shutdown_both, ec);
+  }
+  socket().close(ec);
+
+  if (m_dnsbl_check) {
+    m_dnsbl_check->stop();
+    m_dnsbl_check.reset();
+  }
+
+  if (m_dnswl_check) {
+    m_dnswl_check->stop();
+    m_dnswl_check.reset();
+  }
+
+  if (m_smtp_client) {
+    m_smtp_client->stop();
+    m_smtp_client.reset();
+  }
+
+  on_connection_close();
 }
 
 void smtp_connection::start(bool force_ssl, string start_error_msg)
@@ -1507,44 +1548,6 @@ bool smtp_connection::smtp_data(const string &_cmd, std::ostream &_response)
 //            m_envelope->added_headers_);
 
     return true;
-}
-
-void smtp_connection::stop()
-{
-  int prev_proto_state = set_proto_state(STATE_STOP);
-  if (prev_proto_state == STATE_STOP) {
-    return;
-  }
-  
-  asio::error_code ec;
-  m_timer.cancel(ec);
-  m_tarpit_timer.cancel(ec);
-
-  try {
-    m_resolver.cancel();
-  }
-  catch (...) {
-  }
-
-  socket().shutdown(asio::ip::tcp::socket::shutdown_both, ec);
-  socket().close(ec);
-
-  if (m_dnsbl_check) {
-    m_dnsbl_check->stop();
-    m_dnsbl_check.reset();
-  }
-
-  if (m_dnswl_check) {
-    m_dnswl_check->stop();
-    m_dnswl_check.reset();
-  }
-
-  if (m_smtp_client) {
-    m_smtp_client->stop();
-    m_smtp_client.reset();
-  }
-
-  on_connection_close();
 }
 
 void smtp_connection::handle_timer(const asio::error_code &ec)

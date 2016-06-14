@@ -31,7 +31,8 @@ smtp_connection_manager::smtp_connection_manager(uint32_t max_sess,
 }
 
 
-void smtp_connection_manager::start(smtp_connection_ptr conn, bool force_ssl)
+void smtp_connection_manager::start(shared_ptr<smtp_connection> conn,
+                                    bool force_ssl)
 {
   auto ins_it = connections.end();
   bool fail = false;
@@ -75,7 +76,7 @@ void smtp_connection_manager::start(smtp_connection_ptr conn, bool force_ssl)
 }
 
 
-void smtp_connection_manager::stop(smtp_connection_ptr conn)
+void smtp_connection_manager::stop(shared_ptr<smtp_connection> conn)
 {
     {
         boost::mutex::scoped_lock lock(m_mutex);
@@ -83,6 +84,22 @@ void smtp_connection_manager::stop(smtp_connection_ptr conn)
         if (it != connections.end()) {
             connections.erase(it);
             ip_count_dec(conn->remote_address());
+        }
+        
+        // log and cleanup hanged sessions
+        for (auto i = connections.begin(); i != connections.end(); ) {
+          // hanged session?
+          if (i->use_count() == 1) {
+            g::log().msg(r::Log::pstrf(r::log::notice,
+                                       "hanged session: state=%s",
+                                       smtp_connection::get_proto_state_name((*i)->get_proto_state())));
+            ip_count_dec((*i)->remote_address());
+            auto t = i++;
+            connections.erase(t);
+          }
+          else {
+            ++i;
+          }
         }
     }
     

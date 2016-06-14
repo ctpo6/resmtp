@@ -51,7 +51,7 @@ public:
   void start(bool force_ssl, string start_error_msg);
   
   // called by connection manager
-  void stop();
+  void stop(bool from_dtor = false);
 
   asio::ip::tcp::socket & socket()
   {
@@ -281,7 +281,5 @@ private:
   void log(resmtp::log prio, const std::string &msg) noexcept;
   void log(const std::pair<resmtp::log, string> &msg) noexcept;
 };
-
-typedef std::shared_ptr<smtp_connection> smtp_connection_ptr;
 
 #endif // _SMTP_CONNECTION_H_

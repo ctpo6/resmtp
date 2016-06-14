@@ -2,6 +2,7 @@
 #define _SMTP_CONNECTION_MANAGER_H_
 
 #include <atomic>
+#include <memory>
 #include <ostream>
 #include <set>
 #include <string>
@@ -25,10 +26,10 @@ public:
                             uint32_t n_sessions_quit_after);
 
     // called by server on connection accept
-    void start(smtp_connection_ptr conn, bool force_ssl);
+    void start(std::shared_ptr<smtp_connection> conn, bool force_ssl);
 
     // called by conn itself
-    void stop(smtp_connection_ptr conn);
+    void stop(std::shared_ptr<smtp_connection> conn);
 
     void stop_all();
 
@@ -46,7 +47,7 @@ protected:
 
     std::atomic<uint32_t> session_count_;
     
-    std::set<smtp_connection_ptr> connections;
+    std::set<std::shared_ptr<smtp_connection>> connections;
 
     // pairs: IPv4 (as uint32_t) -> count of sessions
     typedef std::unordered_map<uint32_t, uint32_t> ip_connection_map_t;

@@ -191,39 +191,38 @@ bool server::setup_mon_acceptor(const string &addr)
     return true;
 }
 
-
 bool server::setup_acceptor(const std::string& address, bool ssl)
 {
-    string::size_type pos = address.find(":");
-    if (pos == string::npos) {
-        return false;
-    }
+  string::size_type pos = address.find(":");
+  if (pos == string::npos) {
+    return false;
+  }
 
-    asio::ip::tcp::resolver resolver(m_io_service);
-    asio::ip::tcp::resolver::query query(address.substr(0, pos), address.substr(pos+1));
-    asio::ip::tcp::endpoint endpoint = *resolver.resolve(query);
+  asio::ip::tcp::resolver resolver(m_io_service);
+  asio::ip::tcp::resolver::query query(address.substr(0, pos), address.substr(pos + 1));
+  asio::ip::tcp::endpoint endpoint = *resolver.resolve(query);
 
-    smtp_connection_ptr connection(new smtp_connection(m_io_service,
+  shared_ptr<smtp_connection> conn(new smtp_connection(m_io_service,
                                                        m_connection_manager,
                                                        backend_mgr,
                                                        m_ssl_context));
 
-    m_acceptors.emplace_back(m_io_service);
-    acceptor_t *acceptor = &m_acceptors[m_acceptors.size() - 1];
+  m_acceptors.emplace_back(m_io_service);
+  acceptor_t *acceptor = &m_acceptors[m_acceptors.size() - 1];
 
-    acceptor->open(endpoint.protocol());
-    acceptor->set_option(asio::ip::tcp::acceptor::reuse_address(true));
-    acceptor->bind(endpoint);
-    acceptor->listen(2047);
+  acceptor->open(endpoint.protocol());
+  acceptor->set_option(asio::ip::tcp::acceptor::reuse_address(true));
+  acceptor->bind(endpoint);
+  acceptor->listen(2047);
 
-    acceptor->async_accept(connection->socket(),
-                           boost::bind(&server::handle_accept,
-                                       this,
-                                       acceptor,
-                                       connection,
-                                       ssl,
-                                       asio::placeholders::error));
-    return true;
+  acceptor->async_accept(conn->socket(),
+                         boost::bind(&server::handle_accept,
+                                     this,
+                                     acceptor,
+                                     conn,
+                                     ssl,
+                                     asio::placeholders::error));
+  return true;
 }
 
 
@@ -278,7 +277,7 @@ void server::get_mon_response(std::ostream &os)
 
 
 void server::handle_accept(acceptor_t *acceptor,
-                           smtp_connection_ptr conn,
+                           shared_ptr<smtp_connection> conn,
                            bool force_ssl,
                            const asio::error_code &ec)
 {

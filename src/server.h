@@ -50,7 +50,7 @@ private:
 
     bool setup_acceptor(const string &address, bool ssl);
     void handle_accept(acceptor_t *acceptor,
-                       smtp_connection_ptr conn,
+                       std::shared_ptr<smtp_connection> conn,
                        bool force_ssl,
                        const asio::error_code &ec);
 
