@@ -1,3 +1,9 @@
+resmtp (0.9.20) unstable; urgency=low
+
+  * Cleanup & log hanged up sessions
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Tue, 14 Jun 2016 16:44:00 +0300
+
 resmtp (0.9.19) unstable; urgency=low
 
   * Correctly handle the case when client closed socket right after connect
