@@ -85,22 +85,6 @@ void smtp_connection_manager::stop(shared_ptr<smtp_connection> conn)
             connections.erase(it);
             ip_count_dec(conn->remote_address());
         }
-        
-        // log and cleanup hanged sessions
-        for (auto i = connections.begin(); i != connections.end(); ) {
-          // hanged session?
-          if (i->use_count() == 1) {
-            g::log().msg(r::Log::pstrf(r::log::notice,
-                                       "hanged session: state=%s",
-                                       smtp_connection::get_proto_state_name((*i)->get_proto_state())));
-            ip_count_dec((*i)->remote_address());
-            auto t = i++;
-            connections.erase(t);
-          }
-          else {
-            ++i;
-          }
-        }
     }
     
     // now we can slowly stop the session

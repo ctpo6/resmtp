@@ -138,6 +138,11 @@ void smtp_connection::stop(bool from_dtor)
     return;
   }
   
+  if (from_dtor) {
+    log(r::log::err,
+        "ERROR: smtp_connection::stop() wasn't called before object destruction");
+  }
+  
   asio::error_code ec;
   m_timer.cancel(ec);
   m_tarpit_timer.cancel(ec);
@@ -147,9 +152,7 @@ void smtp_connection::stop(bool from_dtor)
   }
   catch (...) {}
 
-  if (!from_dtor) {
-    socket().shutdown(asio::ip::tcp::socket::shutdown_both, ec);
-  }
+  socket().shutdown(asio::ip::tcp::socket::shutdown_both, ec);
   socket().close(ec);
 
   if (m_dnsbl_check) {
