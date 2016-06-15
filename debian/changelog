@@ -1,3 +1,10 @@
+resmtp (0.9.23) unstable; urgency=low
+
+  * Add debug state to SMTP session for precise tracking
+  * Set default SMTP command timeouts to 120 seconds
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Wed, 15 Jun 2016 16:30:00 +0300
+
 resmtp (0.9.22) unstable; urgency=low
 
   * Print tarpit status in debug dump
