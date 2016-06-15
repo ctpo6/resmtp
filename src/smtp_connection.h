@@ -109,15 +109,15 @@ public:
   // session start timestamp
   std::time_t get_start_ts() const { return ts_start_; }
 
-  proto_state_t get_proto_state() const { return static_cast<proto_state_t>(proto_state_.load(std::memory_order_acquire)); }
-  proto_state_t get_proto_state_reset_changed()
+  proto_state_t get_proto_state() const
   {
-    proto_state_changed_ = false;
-    return get_proto_state();
+    return static_cast<proto_state_t>(proto_state_.load(std::memory_order_acquire));
   }
-  bool get_proto_state_changed() const { return proto_state_changed_; }
   
-  ssl_state_t get_ssl_state() const { return static_cast<ssl_state_t>(ssl_state_.load(std::memory_order_acquire)); }
+  ssl_state_t get_ssl_state() const
+  {
+    return static_cast<ssl_state_t>(ssl_state_.load(std::memory_order_acquire));
+  }
 
   const char * get_proto_state_name() const
   {
@@ -133,20 +133,7 @@ public:
   
 private:
   
-  void init_proto_state(proto_state_t st)
-  {
-    proto_state_changed_ = false;
-    proto_state_ = st;
-  }
-    
-  int set_proto_state(proto_state_t st)
-  {
-    int prev_proto_state = proto_state_.exchange(st);
-    if (prev_proto_state != st) {
-      proto_state_changed_ = true;
-    }
-    return prev_proto_state;
-  }
+  int set_proto_state(proto_state_t st) { return proto_state_.exchange(st); }
   
   typedef asio::ssl::stream<asio::ip::tcp::socket> ssl_socket_t;
 
@@ -186,7 +173,6 @@ private:
 
   // state
   std::atomic<int> proto_state_;
-  std::atomic<bool> proto_state_changed_; // for monitoring of hanged sessions
   std::atomic<int> ssl_state_;
 
   std::unique_ptr<envelope> m_envelope;

@@ -183,7 +183,7 @@ void smtp_connection::start(bool force_ssl, string start_error_msg)
   m_force_ssl = force_ssl;
   start_error_msg_ = std::move(start_error_msg);
 
-  init_proto_state(STATE_START);
+  set_proto_state(STATE_START);
   ssl_state_ = ssl_none;
 
   m_session_id = envelope::generate_new_id();
