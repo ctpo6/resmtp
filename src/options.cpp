@@ -408,8 +408,8 @@ bool server_parameters::parse_config(int argc, char * argv[])
 
             ("smtpd_hard_error_limit", bpo::value<uint32_t>(&m_hard_error_limit)->default_value(100), "maximum number of errors that a remote SMTP client is allowed to make")
 
-            ("frontend_cmd_timeout", bpo::value<time_t>(&frontend_cmd_timeout)->default_value(600), "smtpd command timeout")
-            ("frontend_data_timeout", bpo::value<time_t>(&frontend_data_timeout)->default_value(600), "smtpd data timeout")
+            ("frontend_cmd_timeout", bpo::value<time_t>(&frontend_cmd_timeout)->default_value(120), "smtpd command timeout")
+            ("frontend_data_timeout", bpo::value<time_t>(&frontend_data_timeout)->default_value(120), "smtpd data timeout")
 
             ("backend_connect_timeout", bpo::value<time_t>(&backend_connect_timeout)->default_value(60), "smtp relay connect timeout")
             ("backend_cmd_timeout", bpo::value<time_t>(&backend_cmd_timeout)->default_value(120), "smtp relay command timeout")
