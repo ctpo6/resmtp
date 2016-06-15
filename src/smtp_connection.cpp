@@ -1710,6 +1710,7 @@ void smtp_connection::print_debug_info(std::ostream &os) const
     << remote_address().to_string()
     << " proto_state=" << get_proto_state_name()
     << " ssl_state=" << get_ssl_state_name()
+    << " tarpit=" << tarpit
     << " t=" << t;
   if (t >= 600) {
     os << " TIMEOUT";

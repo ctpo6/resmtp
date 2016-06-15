@@ -1,3 +1,9 @@
+resmtp (0.9.22) unstable; urgency=low
+
+  * Print tarpit status in debug dump
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Wed, 15 Jun 2016 12:54:00 +0300
+
 resmtp (0.9.21) unstable; urgency=low
 
   * Rollback: Cleanup & log hanged up sessions (it doesn't work)
