@@ -175,6 +175,8 @@ void smtp_connection::stop(bool from_dtor)
 
 void smtp_connection::start(bool force_ssl, string start_error_msg)
 {
+  ts_start_ = std::time(nullptr);
+  
   // increment active connections count
   g::mon().on_conn();
 
@@ -1703,9 +1705,14 @@ void smtp_connection::log_spamhaus(const string &client_host_address,
 
 void smtp_connection::print_debug_info(std::ostream &os) const
 {
+  std::time_t t = std::time(nullptr) - get_start_ts();
   os 
     << remote_address().to_string()
     << " proto_state=" << get_proto_state_name()
     << " ssl_state=" << get_ssl_state_name()
-    << '\n';
+    << " t=" << t;
+  if (t >= 600) {
+    os << " TIMEOUT";
+  }
+  os << '\n';
 }

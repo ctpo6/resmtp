@@ -3,6 +3,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <ctime>
 #include <functional>
 #include <memory>
 #include <unordered_map>
@@ -36,7 +37,32 @@ class smtp_connection :
   private boost::noncopyable
 {
 public:
+  enum proto_state_t
+  {
+    STATE_START = 0,
+    STATE_HELLO,
+    STATE_AFTER_MAIL,
+    STATE_RCPT_OK,
+    STATE_BLAST_FILE,
+    STATE_CHECK_DATA,
+    STATE_STOP,
+    STATE_MAX
+  };
+  static const char * get_proto_state_name(int st);
+  
+  enum ssl_state_t
+  {
+    ssl_none = 0,
+    // received STARTTLS command, need to start SSL hand shake
+    ssl_start_hand_shake,
+    // SSL hand shake is in progress
+    ssl_hand_shake,
+    // SSL connection established
+    ssl_active
+  };
+  static const char * get_ssl_state_name(int st);
 
+  
   smtp_connection(
                   asio::io_service &_io_service,
                   smtp_connection_manager &_manager,
@@ -80,30 +106,8 @@ public:
   void handle_ssl_handshake_start() noexcept;
 #endif    
 
-  enum proto_state_t
-  {
-    STATE_START = 0,
-    STATE_HELLO,
-    STATE_AFTER_MAIL,
-    STATE_RCPT_OK,
-    STATE_BLAST_FILE,
-    STATE_CHECK_DATA,
-    STATE_STOP,
-    STATE_MAX
-  };
-  static const char * get_proto_state_name(int st);
-  
-  enum ssl_state_t
-  {
-    ssl_none = 0,
-    // received STARTTLS command, need to start SSL hand shake
-    ssl_start_hand_shake,
-    // SSL hand shake is in progress
-    ssl_hand_shake,
-    // SSL connection established
-    ssl_active
-  };
-  static const char * get_ssl_state_name(int st);
+  // session start timestamp
+  std::time_t get_start_ts() const { return ts_start_; }
 
   proto_state_t get_proto_state() const { return static_cast<proto_state_t>(proto_state_.load(std::memory_order_acquire)); }
   proto_state_t get_proto_state_reset_changed()
@@ -170,6 +174,9 @@ private:
   asio::io_service::strand strand_;
   ssl_socket_t m_ssl_socket;
 
+  // session start timestamp
+  std::time_t ts_start_;
+  
   // timers
   uint32_t m_timer_value = 0;
   asio::deadline_timer m_timer;
