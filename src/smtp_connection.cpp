@@ -185,6 +185,7 @@ void smtp_connection::start(bool force_ssl, string start_error_msg)
 
   set_proto_state(STATE_START);
   ssl_state_ = ssl_none;
+  debug_state_ = DEBUG_STATE_START;
 
   m_session_id = envelope::generate_new_id();
 
@@ -225,6 +226,7 @@ void smtp_connection::start(bool force_ssl, string start_error_msg)
                            strand_.wrap(boost::bind(
                                                     &smtp_connection::handle_back_resolve,
                                                     shared_from_this(), _1, _2)));
+  debug_state_ = DEBUG_STATE_BACK_RESOLVE;
 }
 
 
@@ -269,6 +271,7 @@ void smtp_connection::handle_back_resolve(
     m_dnsbl_check->start(remote_address().to_v4(),
                          bind(&smtp_connection::handle_dnsbl_check,
                               shared_from_this()));
+    debug_state_ = DEBUG_STATE_BL_CHECK;
 }
 
 
@@ -310,6 +313,7 @@ void smtp_connection::handle_dnsbl_check()
     m_dnswl_check->start(remote_address().to_v4(),
                          bind(&smtp_connection::handle_dnswl_check,
                               shared_from_this()));
+    debug_state_ = DEBUG_STATE_WL_CHECK;
 }
 
 
@@ -341,6 +345,8 @@ void smtp_connection::handle_dnswl_check()
 
 void smtp_connection::start_proto()
 {
+  debug_state_ = DEBUG_STATE_PROTO;
+  
   // defend against very long SSL handshake
   if (m_force_ssl) {
     m_timer_value = 1;
@@ -1678,6 +1684,25 @@ const char * smtp_connection::get_ssl_state_name(int st)
   return "UNKNOWN";
 }
 
+const char * smtp_connection::get_debug_state_name(int st)
+{
+  switch (st) {
+  case DEBUG_STATE_START:
+    return "START";
+  case DEBUG_STATE_BACK_RESOLVE:
+    return "BACK_RESOLVE";
+  case DEBUG_STATE_BL_CHECK:
+    return "BL_CHECK";
+  case DEBUG_STATE_WL_CHECK:
+    return "WL_CHECK";
+  case DEBUG_STATE_PROTO:
+    return "PROTO";
+  }
+  assert(false && "update the switch() above");
+  return "UNKNOWN";
+}
+
+
 void smtp_connection::log_spamhaus(const string &client_host_address,
                                    const string &helo,
                                    const string &client_host_name)
@@ -1708,8 +1733,9 @@ void smtp_connection::print_debug_info(std::ostream &os) const
   std::time_t t = std::time(nullptr) - get_start_ts();
   os 
     << remote_address().to_string()
-    << " proto_state=" << get_proto_state_name()
-    << " ssl_state=" << get_ssl_state_name()
+    << " proto=" << get_proto_state_name()
+    << " ssl=" << get_ssl_state_name()
+    << " debug=" << get_debug_state_name()
     << " tarpit=" << tarpit
     << " t=" << t;
   if (t >= 600) {

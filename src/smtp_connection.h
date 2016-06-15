@@ -37,32 +37,6 @@ class smtp_connection :
   private boost::noncopyable
 {
 public:
-  enum proto_state_t
-  {
-    STATE_START = 0,
-    STATE_HELLO,
-    STATE_AFTER_MAIL,
-    STATE_RCPT_OK,
-    STATE_BLAST_FILE,
-    STATE_CHECK_DATA,
-    STATE_STOP,
-    STATE_MAX
-  };
-  static const char * get_proto_state_name(int st);
-  
-  enum ssl_state_t
-  {
-    ssl_none = 0,
-    // received STARTTLS command, need to start SSL hand shake
-    ssl_start_hand_shake,
-    // SSL hand shake is in progress
-    ssl_hand_shake,
-    // SSL connection established
-    ssl_active
-  };
-  static const char * get_ssl_state_name(int st);
-
-  
   smtp_connection(
                   asio::io_service &_io_service,
                   smtp_connection_manager &_manager,
@@ -106,8 +80,45 @@ public:
   void handle_ssl_handshake_start() noexcept;
 #endif    
 
-  // session start timestamp
-  std::time_t get_start_ts() const { return ts_start_; }
+  void print_debug_info(std::ostream &os) const;
+  
+private:
+  enum proto_state_t
+  {
+    STATE_START = 0,
+    STATE_HELLO,
+    STATE_AFTER_MAIL,
+    STATE_RCPT_OK,
+    STATE_BLAST_FILE,
+    STATE_CHECK_DATA,
+    STATE_STOP,
+    STATE_MAX
+  };
+  static const char * get_proto_state_name(int st);
+  
+  enum ssl_state_t
+  {
+    ssl_none = 0,
+    // received STARTTLS command, need to start SSL hand shake
+    ssl_start_hand_shake,
+    // SSL hand shake is in progress
+    ssl_hand_shake,
+    // SSL connection established
+    ssl_active
+  };
+  static const char * get_ssl_state_name(int st);
+
+  enum debug_state_t
+  {
+    DEBUG_STATE_START = 0,
+    DEBUG_STATE_BACK_RESOLVE,
+    DEBUG_STATE_BL_CHECK,
+    DEBUG_STATE_WL_CHECK,
+    DEBUG_STATE_PROTO
+  };
+  static const char * get_debug_state_name(int st);
+  
+  int set_proto_state(proto_state_t st) { return proto_state_.exchange(st); }
 
   proto_state_t get_proto_state() const
   {
@@ -119,6 +130,11 @@ public:
     return static_cast<ssl_state_t>(ssl_state_.load(std::memory_order_acquire));
   }
 
+  debug_state_t get_debug_state() const
+  {
+    return static_cast<debug_state_t>(debug_state_.load(std::memory_order_acquire));
+  }
+  
   const char * get_proto_state_name() const
   {
     return get_proto_state_name(get_proto_state());
@@ -129,11 +145,14 @@ public:
     return get_ssl_state_name(get_ssl_state());
   }
   
-  void print_debug_info(std::ostream &os) const;
-  
-private:
-  
-  int set_proto_state(proto_state_t st) { return proto_state_.exchange(st); }
+  const char * get_debug_state_name() const
+  {
+    return get_debug_state_name(get_debug_state());
+  }
+
+  // session start timestamp
+  std::time_t get_start_ts() const { return ts_start_; }
+
   
   typedef asio::ssl::stream<asio::ip::tcp::socket> ssl_socket_t;
 
@@ -174,6 +193,7 @@ private:
   // state
   std::atomic<int> proto_state_;
   std::atomic<int> ssl_state_;
+  std::atomic<int> debug_state_;  // more precise than proto_state_, doesn't control flow
 
   std::unique_ptr<envelope> m_envelope;
 
