@@ -115,6 +115,18 @@ public:
   
   ssl_state_t get_ssl_state() const { return static_cast<ssl_state_t>(ssl_state_.load(std::memory_order_acquire)); }
 
+  const char * get_proto_state_name() const
+  {
+    return get_proto_state_name(get_proto_state());
+  }
+  
+  const char * get_ssl_state_name() const
+  {
+    return get_ssl_state_name(get_ssl_state());
+  }
+  
+  void print_debug_info(std::ostream &os) const;
+  
 private:
   
   void init_proto_state(proto_state_t st)

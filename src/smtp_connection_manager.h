@@ -33,7 +33,8 @@ public:
 
     void stop_all();
 
-    void print_status_info(std::ostream &os);
+    void print_status_info(std::ostream &os) const;
+    void print_debug_info(std::ostream &os) const;
     
 protected:
 
@@ -57,7 +58,7 @@ protected:
     uint32_t ip_count_dec(const asio::ip::address &addr);
     uint32_t get_ip_count(const asio::ip::address &addr) const;
 
-    boost::mutex m_mutex;
+    mutable boost::mutex m_mutex;
 };
 
 #endif

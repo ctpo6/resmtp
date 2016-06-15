@@ -1700,3 +1700,12 @@ void smtp_connection::log_spamhaus(const string &client_host_address,
 
   spamhaus_log_pending = false;
 }
+
+void smtp_connection::print_debug_info(std::ostream &os) const
+{
+  os 
+    << remote_address().to_string()
+    << " proto_state=" << get_proto_state_name()
+    << " ssl_state=" << get_ssl_state_name()
+    << '\n';
+}

@@ -3,9 +3,11 @@
 #include <signal.h>
 
 #include <iostream>
+#include <string>
 
 #include <boost/algorithm/string/compare.hpp>
 #include <boost/bind.hpp>
+#include <boost/lexical_cast.hpp>
 #include <boost/thread/thread.hpp>
 
 #include "global.h"
@@ -44,6 +46,8 @@ server::server(const server_parameters &cfg)
   , mon_io_service()
   , mon_acceptor(new acceptor_t(mon_io_service))
   , mon_socket(mon_io_service)
+  , debug_info_acceptor(new acceptor_t(mon_io_service))
+  , debug_info_socket(mon_io_service)
   , m_connection_manager(cfg.m_connection_count_limit,
                          cfg.m_client_connection_count_limit,
                          cfg.n_quit_after_)
@@ -111,6 +115,11 @@ server::server(const server_parameters &cfg)
     throw std::runtime_error("failed to setup monitoring connection acceptor");
   }
 
+  // configured to mon port + 1
+  if (!setup_debug_info_acceptor(cfg.mon_listen_point)) {
+    throw std::runtime_error("failed to setup debug info connection acceptor");
+  }
+
   if (cfg.m_gid && setgid(cfg.m_gid) == -1) {
     throw std::runtime_error("failed to change process group id");
   }
@@ -136,12 +145,16 @@ void server::stop()
   {
     boost::mutex::scoped_lock lock(mutex_);
     
-    // stop monitor
-    mon_acceptor->close();
+    asio::error_code ec;
+    
+    // stop monitor & debug info
+    mon_acceptor->close(ec);
+    debug_info_acceptor->close(ec);
+    
 
     // stop SMTP acceptors
     for (auto &a : m_acceptors) {
-      a.close();
+      a.close(ec);
     }
   }
 
@@ -190,6 +203,39 @@ bool server::setup_mon_acceptor(const string &addr)
                                            asio::placeholders::error));
     return true;
 }
+
+bool server::setup_debug_info_acceptor(const string &addr)
+{
+  string::size_type pos = addr.find(":");
+  if (pos == string::npos) {
+    return false;
+  }
+
+  // port is set to monitoring port + 1
+  uint16_t port = 0;
+  try {
+    port = boost::lexical_cast<uint16_t>(addr.substr(pos + 1)) + 1;
+  }
+  catch (const boost::bad_lexical_cast &) {}
+  if (!port) {
+    return false;
+  }
+  
+  asio::ip::tcp::resolver resolver(mon_io_service);
+  asio::ip::tcp::resolver::query query(addr.substr(0, pos), std::to_string((unsigned)port));
+  asio::ip::tcp::endpoint ep = *resolver.resolve(query);
+
+  debug_info_acceptor->open(ep.protocol());
+  debug_info_acceptor->set_option(asio::ip::tcp::acceptor::reuse_address(true));
+  debug_info_acceptor->bind(ep);
+  debug_info_acceptor->listen();
+  debug_info_acceptor->async_accept(debug_info_socket,
+                                    boost::bind(&server::handle_debug_info_accept,
+                                                this,
+                                                asio::placeholders::error));
+  return true;
+}
+
 
 bool server::setup_acceptor(const std::string& address, bool ssl)
 {
@@ -250,6 +296,29 @@ void server::handle_mon_accept(const asio::error_code &ec)
   }
 }
 
+void server::handle_debug_info_accept(const asio::error_code &ec)
+{
+  if (ec == asio::error::operation_aborted) {
+    return;
+  }
+
+  if (!ec) {
+    ostream os(&debug_info_response);
+    get_debug_info_response(os);
+    asio::async_write(debug_info_socket,
+                      debug_info_response,
+                      boost::bind(&server::handle_debug_info_write_request,
+                                  this,
+                                  asio::placeholders::error,
+                                  asio::placeholders::bytes_transferred));
+  }
+  else {
+    debug_info_acceptor->async_accept(debug_info_socket,
+                                      boost::bind(&server::handle_debug_info_accept,
+                                                  this,
+                                                  asio::placeholders::error));
+  }
+}
 
 void server::handle_mon_write_request(const asio::error_code &ec,
 																			size_t)
@@ -268,13 +337,33 @@ void server::handle_mon_write_request(const asio::error_code &ec,
                                            asio::placeholders::error));
 }
 
+void server::handle_debug_info_write_request(const asio::error_code &ec,
+                                             size_t)
+{
+  if (ec == asio::error::operation_aborted) {
+    return;
+  }
+
+  asio::error_code unused_ec;
+  debug_info_socket.shutdown(asio::ip::tcp::socket::shutdown_both, unused_ec);
+  debug_info_socket.close(unused_ec);
+
+  debug_info_acceptor->async_accept(debug_info_socket,
+                                    boost::bind(&server::handle_debug_info_accept,
+                                                this,
+                                                asio::placeholders::error));
+}
 
 void server::get_mon_response(std::ostream &os)
 {
-    g::mon().print(os);
-    m_connection_manager.print_status_info(os);
+  g::mon().print(os);
+  m_connection_manager.print_status_info(os);
 }
 
+void server::get_debug_info_response(std::ostream &os)
+{
+  m_connection_manager.print_debug_info(os);
+}
 
 void server::handle_accept(acceptor_t *acceptor,
                            shared_ptr<smtp_connection> conn,

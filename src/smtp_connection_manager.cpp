@@ -100,20 +100,31 @@ void smtp_connection_manager::stop(shared_ptr<smtp_connection> conn)
 }
 
 
-void smtp_connection_manager::print_status_info(std::ostream &os)
+void smtp_connection_manager::print_status_info(std::ostream &os) const
 {
   boost::mutex::scoped_lock lock(m_mutex);
   os << "cm__active_conn " << connections.size() << '\n';
 }
 
 
+void smtp_connection_manager::print_debug_info(std::ostream &os) const
+{
+  boost::mutex::scoped_lock lock(m_mutex);
+  
+  os << "sessions number: " << connections.size() << '\n';
+  
+  for (auto &conn: connections) {
+    conn->print_debug_info(os);
+  }
+}
+
+
 void smtp_connection_manager::stop_all()
 {
-    for(auto &conn: connections) {
-        conn->stop();
-    }
-  
-    m_ip_count.clear();
+  for (auto &conn : connections) {
+    conn->stop();
+  }
+  m_ip_count.clear();
 }
 
 

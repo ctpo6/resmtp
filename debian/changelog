@@ -1,3 +1,11 @@
+resmtp (0.9.21) unstable; urgency=low
+
+  * Rollback: Cleanup & log hanged up sessions (it doesn't work)
+  * Implemented debug info dump on connecting to dedicated TCP port
+    (monitoring port + 1)
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Wed, 15 Jun 2016 11:16:00 +0300
+
 resmtp (0.9.20) unstable; urgency=low
 
   * Cleanup & log hanged up sessions
