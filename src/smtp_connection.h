@@ -188,7 +188,7 @@ private:
   std::time_t ts_start_;
   
   // timers
-  uint32_t timer_value_ = 0;
+  unsigned timeout_value_ = 0;
   asio::deadline_timer timer_;
   asio::deadline_timer m_tarpit_timer;
   
@@ -287,8 +287,12 @@ private:
   void end_lmtp_proto();
   void smtp_delivery();
 
-  void handle_timer(const asio::error_code &ec);
+  // set current timeout value and start deadline timer
+  void restart_timeout(unsigned timeout_seconds);
+  // start deadline timer with the current timeout value
   void restart_timeout();
+  // handle deadline timer
+  void handle_timer(const asio::error_code &ec);
 
   void send_response(boost::function<void(const asio::error_code &) > handler,
                      bool force_do_not_tarpit = false);

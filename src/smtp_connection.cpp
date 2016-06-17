@@ -187,6 +187,8 @@ void smtp_connection::start(bool force_ssl, string start_error_msg)
   ssl_state_ = ssl_none;
   debug_state_ = DEBUG_STATE_START;
 
+  timeout_value_ = g::cfg().frontend_cmd_timeout;
+
   m_session_id = envelope::generate_new_id();
 
   log(r::Log::pstrf(r::log::info,
@@ -199,10 +201,6 @@ void smtp_connection::start(bool force_ssl, string start_error_msg)
   if (g_ip_config.check(remote_address().to_v4(), opt)) {
     m_max_rcpt_count = opt.m_rcpt_count;
   }
-
-  timer_value_ = g::cfg().frontend_cmd_timeout;
-
-  m_remote_host_name.clear();
 
   // skip IP resolve for pre-configured white IPs as they must be from
   // the internal network
@@ -224,8 +222,7 @@ void smtp_connection::start(bool force_ssl, string start_error_msg)
   set_proto_state(STATE_BACK_RESOLVE);
   debug_state_ = DEBUG_STATE_BACK_RESOLVE;
   
-  timer_value_ = 3;
-  restart_timeout();
+  restart_timeout(3);
   
   m_resolver.async_resolve(
                            util::rev_order_av4_str(remote_address().to_v4(), "in-addr.arpa"),
@@ -279,8 +276,7 @@ void smtp_connection::handle_back_resolve(const asio::error_code& ec,
   set_proto_state(STATE_BL_CHECK);
   debug_state_ = DEBUG_STATE_BL_CHECK;
   
-  timer_value_ = 3;
-  restart_timeout();
+  restart_timeout(3);
   
   // if stopped (canceled), callback will not called
   m_dnsbl_check->start(remote_address().to_v4(),
@@ -328,8 +324,7 @@ void smtp_connection::handle_dnsbl_check()
   set_proto_state(STATE_WL_CHECK);
   debug_state_ = DEBUG_STATE_WL_CHECK;
   
-  timer_value_ = 3;
-  restart_timeout();
+  restart_timeout(3);
   
   // if stopped (canceled), callback will not called
   m_dnswl_check->start(remote_address().to_v4(),
@@ -370,11 +365,10 @@ void smtp_connection::start_proto()
 {
   debug_state_ = DEBUG_STATE_PROTO;
   
-  // defend against very long SSL handshake
-  timer_value_ = m_force_ssl ? 1 : g::cfg().frontend_cmd_timeout;
-  restart_timeout();
+  // protect against very long SSL handshake
+  restart_timeout(m_force_ssl ? 1 : g::cfg().frontend_cmd_timeout);
 
-  std::ostream response_stream(&m_response);
+  ostream response_stream(&m_response);
 
   // returns false on connections number exceeding limits
   if (start_error_msg_.empty()) {
@@ -463,8 +457,7 @@ void smtp_connection::handle_handshake_start_hello_write(const asio::error_code 
       ssl_state_ = ssl_active;
 
       // restore long timeout after SSL handshake
-      timer_value_ = g::cfg().frontend_cmd_timeout;
-      restart_timeout();
+      restart_timeout(g::cfg().frontend_cmd_timeout);
     }
 
     if (f_close) {
@@ -1176,8 +1169,7 @@ void smtp_connection::handle_write_request(const asio::error_code &ec)
       ssl_state_ = ssl_active;
 
       // restore long timeout after SSL handshake
-      timer_value_ = g::cfg().frontend_cmd_timeout;
-      restart_timeout();
+      restart_timeout(g::cfg().frontend_cmd_timeout);
     }
     
     if (m_error_count > g::cfg().m_hard_error_limit) {
@@ -1235,10 +1227,7 @@ void smtp_connection::handle_starttls_response_write_request(const asio::error_c
 {
   if (!ec) {
     // protect against very long SSL handshake
-    asio::error_code unused_ec;
-    timer_.cancel(unused_ec);
-    timer_value_ = 1;
-    restart_timeout();
+    restart_timeout(1);
     
     ssl_state_ = ssl_hand_shake;
     m_ssl_socket.async_handshake(asio::ssl::stream_base::server,
@@ -1554,7 +1543,7 @@ bool smtp_connection::smtp_data(const string &_cmd, std::ostream &_response)
     _response << "354 Enter mail data, end with <CRLF>.<CRLF>\r\n";
 
     set_proto_state(STATE_BLAST_FILE);
-    timer_value_ = g::cfg().frontend_data_timeout;
+    timeout_value_ = g::cfg().frontend_data_timeout;
     m_envelope->orig_message_size_ = 0;
 
     time_t now;
@@ -1662,9 +1651,17 @@ void smtp_connection::handle_timer(const asio::error_code &ec)
                 true);
 }
 
+
+void smtp_connection::restart_timeout(unsigned timeout_seconds)
+{
+  timeout_value_ = timeout_seconds;
+  restart_timeout();
+}
+
+
 void smtp_connection::restart_timeout()
 {
-  timer_.expires_from_now(boost::posix_time::seconds(timer_value_));
+  timer_.expires_from_now(boost::posix_time::seconds(timeout_value_));
   timer_.async_wait(strand_.wrap(boost::bind(&smtp_connection::handle_timer,
                                               shared_from_this(), asio::placeholders::error)));
 }
