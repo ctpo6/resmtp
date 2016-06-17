@@ -126,9 +126,6 @@ struct server_parameters {
     // actually used by the program
     vector<asio::ip::address_v4> dns_ip;
 
-    // check if client doesn't send anything before greeting
-    bool m_socket_check;
-
     // tarpitting delay
     uint32_t m_tarpit_delay_seconds;
 

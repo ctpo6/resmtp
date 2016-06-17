@@ -388,8 +388,6 @@ bool server_parameters::parse_config(int argc, char * argv[])
 
             ("dsn_ip", bpo::value<vector<string>>(&dns_ip_str), "DNS servers IP addresses list")
 
-            ("socket_check", bpo::value<bool>(&m_socket_check)->default_value(false), "check socket emptiness before sending greeting ?")
-
             ("tarpit_delay_seconds", bpo::value<uint32_t>(&m_tarpit_delay_seconds)->default_value(0), "tarpit delay")
 
             ("smtp_banner", bpo::value<string>(&m_smtp_banner), "smtp banner")

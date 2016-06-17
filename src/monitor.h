@@ -21,9 +21,6 @@ public:
     {
         ok = 0,
         fail,
-        // connection was closed by resmtp because client sarted writing to the
-        // socket before receiving a greeting message
-        fail_client_early_write,
         // connection was closed by a client
         fail_client_closed_connection
     };

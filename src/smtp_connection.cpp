@@ -1090,52 +1090,6 @@ void smtp_connection::send_response2(
     }
   }
 
-  // check that the client hasn't sent something before receiving greeting msg
-  // don't check whitelisted hosts
-  if (proto_state_ < STATE_HELLO
-      && !is_whitelisted
-      && g::cfg().m_socket_check) {
-    bool empty;
-    try {
-      empty = check_socket_read_buffer_is_empty();
-    }
-    catch (const asio::system_error &e) {
-      // client closed the connection
-      PDBG("close_status_t::fail");
-      close_status = close_status_t::fail;
-      m_manager.stop(shared_from_this());
-      return;
-    }
-
-    if (!empty) {
-      // log for spamhaus if we still hadn't do that
-      // log as a bad behaving session (without client host name)
-      log_spamhaus(remote_address().to_string(),
-                   string(),
-                   string());
-
-      log(r::Log::pstrf(r::log::notice,
-                        "%s[%s] REJECT: client wrote to socket before greeting; tarpit=%d",
-                        m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str(),
-                        remote_address().to_string().c_str(),
-                        tarpit));
-
-      PDBG("close_status_t::fail_client_early_write");
-      close_status = close_status_t::fail_client_early_write;
-
-      // don't kick off, gracefully close the session instead
-
-      std::ostream response_stream(&m_response);
-      response_stream << "554 5.7.1 Service unavailable\r\n";
-
-      // substitute the handler with handle_last_write_request()
-      handler = boost::bind(
-                            &smtp_connection::handle_last_write_request,
-                            shared_from_this(),
-                            asio::placeholders::error);
-    }
-  }
-
   if (r::Log::isEnabled(r::log::buffers)) {
     log(r::log::buffers,
         str(boost::format("<<< %1%")
