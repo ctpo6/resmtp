@@ -114,7 +114,7 @@ smtp_connection::smtp_connection(asio::io_service &_io_service,
   , strand_(_io_service)
   , m_ssl_socket(_io_service, _context)
 
-  , m_timer(_io_service)
+  , timer_(_io_service)
   , m_tarpit_timer(_io_service)
 
   , m_resolver(_io_service)
@@ -144,7 +144,7 @@ void smtp_connection::stop(bool from_dtor)
   }
   
   asio::error_code ec;
-  m_timer.cancel(ec);
+  timer_.cancel(ec);
   m_tarpit_timer.cancel(ec);
 
   try {
@@ -200,7 +200,7 @@ void smtp_connection::start(bool force_ssl, string start_error_msg)
     m_max_rcpt_count = opt.m_rcpt_count;
   }
 
-  m_timer_value = g::cfg().frontend_cmd_timeout;
+  timer_value_ = g::cfg().frontend_cmd_timeout;
 
   m_remote_host_name.clear();
 
@@ -220,137 +220,158 @@ void smtp_connection::start(bool force_ssl, string start_error_msg)
   for (const auto &addr : g::cfg().dns_ip) {
     m_resolver.add_nameserver(addr);
   }
+  
+  set_proto_state(STATE_BACK_RESOLVE);
+  debug_state_ = DEBUG_STATE_BACK_RESOLVE;
+  
+  timer_value_ = 3;
+  restart_timeout();
+  
   m_resolver.async_resolve(
                            util::rev_order_av4_str(remote_address().to_v4(), "in-addr.arpa"),
                            dns::type_ptr,
                            strand_.wrap(boost::bind(
                                                     &smtp_connection::handle_back_resolve,
                                                     shared_from_this(), _1, _2)));
-  debug_state_ = DEBUG_STATE_BACK_RESOLVE;
 }
 
 
-void smtp_connection::handle_back_resolve(
-        const asio::error_code& ec,
-        dns::resolver::iterator it)
+void smtp_connection::handle_back_resolve(const asio::error_code& ec,
+                                          dns::resolver::iterator it)
 {
-    if (!ec) {
-        if (auto ptr = boost::dynamic_pointer_cast<dns::ptr_resource>(*it)) {
-            m_remote_host_name = util::unfqdn(ptr->pointer());
-        }
-    } else if (ec == asio::error::operation_aborted) {
-        return;
+  if (ec == asio::error::operation_aborted) {
+    return;
+  }
+  
+  if (!ec) {
+    if (auto ptr = boost::dynamic_pointer_cast<dns::ptr_resource>(*it)) {
+      m_remote_host_name = util::unfqdn(ptr->pointer());
     }
+  }
 
-    log(r::Log::pstrf(r::log::info,
-                      "resolve %s: %s",
-                      remote_address().to_string().c_str(),
-                      m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str()));
+  log(r::Log::pstrf(r::log::info,
+                    "resolve %s: %s",
+                    remote_address().to_string().c_str(),
+                    m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str()));
 
-    // DNSBL check is off
-    if (g::cfg().dnsbl_hosts.empty()) {
-        handle_dnsbl_check();
-        return;
-    }
+  // DNSBL check is off
+  if (g::cfg().dnsbl_hosts.empty()) {
+    handle_dnsbl_check();
+    return;
+  }
 
-    // start DNSBL check
-    try {
-      m_dnsbl_check.reset(new rbl_check(io_service_));
-    }
-    catch (const std::exception &) {
-      handle_dnsbl_check();
-      return;
-    }
-    
-    for (const auto &addr: g::cfg().dns_ip) {
-        m_dnsbl_check->add_nameserver(addr);
-    }
-    for (auto &s: g::cfg().dnsbl_hosts) {
-        m_dnsbl_check->add_rbl_source(s);
-    }
-    m_dnsbl_check->start(remote_address().to_v4(),
-                         bind(&smtp_connection::handle_dnsbl_check,
-                              shared_from_this()));
-    debug_state_ = DEBUG_STATE_BL_CHECK;
+  // start DNSBL check
+  try {
+    m_dnsbl_check.reset(new rbl_check(io_service_));
+  }
+  catch (const std::exception &) {
+    handle_dnsbl_check();
+    return;
+  }
+
+  for (const auto &addr : g::cfg().dns_ip) {
+    m_dnsbl_check->add_nameserver(addr);
+  }
+  for (auto &s : g::cfg().dnsbl_hosts) {
+    m_dnsbl_check->add_rbl_source(s);
+  }
+  
+  set_proto_state(STATE_BL_CHECK);
+  debug_state_ = DEBUG_STATE_BL_CHECK;
+  
+  timer_value_ = 3;
+  restart_timeout();
+  
+  // if stopped (canceled), callback will not called
+  m_dnsbl_check->start(remote_address().to_v4(),
+                       bind(&smtp_connection::handle_dnsbl_check,
+                            shared_from_this()));
 }
 
 
 void smtp_connection::handle_dnsbl_check()
 {
-    if (m_dnsbl_check) {
-        is_blacklisted = m_dnsbl_check->get_status(bl_status_str);
-        m_dnsbl_check->stop();
-        m_dnsbl_check.reset();
-    }
-    else {
-        is_blacklisted = false;
-    }
+  if (m_dnsbl_check) {
+    is_blacklisted = m_dnsbl_check->get_status(bl_status_str);
+    m_dnsbl_check->stop();
+    m_dnsbl_check.reset();
+  }
+  else {
+    is_blacklisted = false;
+  }
 
-    if (is_blacklisted) {
-        g::mon().on_conn_bl();
-    }
+  if (is_blacklisted) {
+    g::mon().on_conn_bl();
+  }
 
-    // blacklisted or DNSWL check is off
-    if (is_blacklisted || g::cfg().dnswl_host.empty()) {
-        // blacklisted connection will be rejected later, after receving 'MAIL FROM:'
-        handle_dnswl_check();
-        return;
-    }
+  // blacklisted or DNSWL check is off
+  if (is_blacklisted || g::cfg().dnswl_host.empty()) {
+    // blacklisted connection will be rejected later, after receving 'MAIL FROM:'
+    handle_dnswl_check();
+    return;
+  }
 
-    // start DNSWL check
-    try {
-      m_dnswl_check.reset(new rbl_check(io_service_));
-    }
-    catch (const std::exception &) {
-      handle_dnswl_check();
-      return;
-    }
-    
-    for (const auto &addr: g::cfg().dns_ip) {
-      m_dnswl_check->add_nameserver(addr);
-    }
-    m_dnswl_check->add_rbl_source(g::cfg().dnswl_host);
-    m_dnswl_check->start(remote_address().to_v4(),
-                         bind(&smtp_connection::handle_dnswl_check,
-                              shared_from_this()));
-    debug_state_ = DEBUG_STATE_WL_CHECK;
+  // start DNSWL check
+  try {
+    m_dnswl_check.reset(new rbl_check(io_service_));
+  }
+  catch (const std::exception &) {
+    handle_dnswl_check();
+    return;
+  }
+
+  for (const auto &addr : g::cfg().dns_ip) {
+    m_dnswl_check->add_nameserver(addr);
+  }
+  m_dnswl_check->add_rbl_source(g::cfg().dnswl_host);
+
+  set_proto_state(STATE_WL_CHECK);
+  debug_state_ = DEBUG_STATE_WL_CHECK;
+  
+  timer_value_ = 3;
+  restart_timeout();
+  
+  // if stopped (canceled), callback will not called
+  m_dnswl_check->start(remote_address().to_v4(),
+                       bind(&smtp_connection::handle_dnswl_check,
+                            shared_from_this()));
 }
 
 
 void smtp_connection::handle_dnswl_check()
 {
-    // get DNSWL check result
-    if (m_dnswl_check) {
-        string wl_status_str;
-        is_whitelisted = m_dnswl_check->get_status(wl_status_str);
-        m_dnswl_check->stop();
-        m_dnswl_check.reset();
-        log(r::Log::pstrf(r::log::debug,
-                          "wl_status_str:%s",
-                          wl_status_str.c_str()));
-    } else {
-        is_whitelisted = false;
-    }
+  // get DNSWL check result
+  if (m_dnswl_check) {
+    string wl_status_str;
+    is_whitelisted = m_dnswl_check->get_status(wl_status_str);
+    m_dnswl_check->stop();
+    m_dnswl_check.reset();
+    log(r::Log::pstrf(r::log::debug,
+                      "wl_status_str:%s",
+                      wl_status_str.c_str()));
+  }
+  else {
+    is_whitelisted = false;
+  }
 
-    if (is_whitelisted) {
-        g::mon().on_conn_wl();
-    }
+  if (is_whitelisted) {
+    g::mon().on_conn_wl();
+  }
 
-    if (!is_whitelisted && g::cfg().m_tarpit_delay_seconds) {
-        on_connection_tarpitted();
-    }
+  if (!is_whitelisted && g::cfg().m_tarpit_delay_seconds) {
+    on_connection_tarpitted();
+  }
 
-    start_proto();
+  start_proto();
 }
+
 
 void smtp_connection::start_proto()
 {
   debug_state_ = DEBUG_STATE_PROTO;
   
   // defend against very long SSL handshake
-  if (m_force_ssl) {
-    m_timer_value = 1;
-  }
+  timer_value_ = m_force_ssl ? 1 : g::cfg().frontend_cmd_timeout;
   restart_timeout();
 
   std::ostream response_stream(&m_response);
@@ -434,7 +455,7 @@ void smtp_connection::handle_handshake_start_hello_write(const asio::error_code 
   // stop timer with a short timeout for SSL handshake
   if (ssl_state_ == ssl_hand_shake) {
     asio::error_code unused_ec;
-    m_timer.cancel(unused_ec);
+    timer_.cancel(unused_ec);
   }
   
   if (!ec) {
@@ -442,7 +463,7 @@ void smtp_connection::handle_handshake_start_hello_write(const asio::error_code 
       ssl_state_ = ssl_active;
 
       // restore long timeout after SSL handshake
-      m_timer_value = g::cfg().frontend_cmd_timeout;
+      timer_value_ = g::cfg().frontend_cmd_timeout;
       restart_timeout();
     }
 
@@ -481,7 +502,7 @@ void smtp_connection::start_read()
       log(r::log::crit, "ERROR: proto_state_ == STATE_CHECK_DATA");
       
       asio::error_code ec;
-      m_timer.cancel(ec);               
+      timer_.cancel(ec);               
       
       return;
     }
@@ -688,7 +709,7 @@ void smtp_connection::handle_read(const asio::error_code &ec,
   read_pending = false;
   
   asio::error_code unused_ec;
-  m_timer.cancel(unused_ec);
+  timer_.cancel(unused_ec);
 
   if (!ec) {
 #ifdef RESMTP_FTR_SSL_RENEGOTIATION    
@@ -774,7 +795,7 @@ void smtp_connection::handle_read(const asio::error_code &ec,
 
 void smtp_connection::start_check_data()
 {
-  m_timer.cancel();
+  timer_.cancel();
 
   m_check_data.m_session_id = m_session_id;
   m_check_data.m_result = check::CHK_ACCEPT;
@@ -1078,7 +1099,7 @@ void smtp_connection::send_response2(
 
   // check that the client hasn't sent something before receiving greeting msg
   // don't check whitelisted hosts
-  if (proto_state_ == STATE_START
+  if (proto_state_ < STATE_HELLO
       && !is_whitelisted
       && g::cfg().m_socket_check) {
     bool empty;
@@ -1147,7 +1168,7 @@ void smtp_connection::handle_write_request(const asio::error_code &ec)
   // stop timer with a short timeout for SSL handshake
   if (ssl_state_ == ssl_hand_shake) {
       asio::error_code unused_ec;
-      m_timer.cancel(unused_ec);
+      timer_.cancel(unused_ec);
   }
   
   if (!ec) {
@@ -1155,7 +1176,7 @@ void smtp_connection::handle_write_request(const asio::error_code &ec)
       ssl_state_ = ssl_active;
 
       // restore long timeout after SSL handshake
-      m_timer_value = g::cfg().frontend_cmd_timeout;
+      timer_value_ = g::cfg().frontend_cmd_timeout;
       restart_timeout();
     }
     
@@ -1215,8 +1236,8 @@ void smtp_connection::handle_starttls_response_write_request(const asio::error_c
   if (!ec) {
     // protect against very long SSL handshake
     asio::error_code unused_ec;
-    m_timer.cancel(unused_ec);
-    m_timer_value = 1;
+    timer_.cancel(unused_ec);
+    timer_value_ = 1;
     restart_timeout();
     
     ssl_state_ = ssl_hand_shake;
@@ -1294,10 +1315,10 @@ bool smtp_connection::smtp_starttls(const string &, std::ostream &response)
     return true;
 }
 
-bool smtp_connection::smtp_rset(const string &, std::ostream &response)
+bool smtp_connection::smtp_rset(const string &cmd, std::ostream &response)
 {
   int st = proto_state_;
-  if (st != STATE_START && st != STATE_STOP) {
+  if (st > STATE_HELLO && st < STATE_STOP) {
     set_proto_state(STATE_HELLO);
   }
   m_envelope.reset(new envelope(false));
@@ -1324,7 +1345,7 @@ bool smtp_connection::smtp_helo(const string &cmd, std::ostream &response)
                  string());
     ++m_error_count;
     response << "501 5.5.4 HELO requires domain address.\r\n";
-    set_proto_state(STATE_START);
+    set_proto_state(STATE_START_PROTO);
   }
   return true;
 }
@@ -1358,7 +1379,7 @@ bool smtp_connection::smtp_ehlo(const string &cmd, std::ostream &response)
                      string());
         ++m_error_count;
         response << "501 5.5.4 EHLO requires domain address.\r\n";
-        set_proto_state(STATE_START);
+        set_proto_state(STATE_START_PROTO);
     }
 
     return true;
@@ -1456,7 +1477,7 @@ bool smtp_connection::smtp_mail(const string &_cmd,
         return true;
     }
 
-    if (proto_state_ == STATE_START) {
+    if (proto_state_ == STATE_START_PROTO) {
         ++m_error_count;
         _response << "503 5.5.4 Good girl is greeting first.\r\n";
         return true;
@@ -1533,7 +1554,7 @@ bool smtp_connection::smtp_data(const string &_cmd, std::ostream &_response)
     _response << "354 Enter mail data, end with <CRLF>.<CRLF>\r\n";
 
     set_proto_state(STATE_BLAST_FILE);
-    m_timer_value = g::cfg().frontend_data_timeout;
+    timer_value_ = g::cfg().frontend_data_timeout;
     m_envelope->orig_message_size_ = 0;
 
     time_t now;
@@ -1567,6 +1588,50 @@ void smtp_connection::handle_timer(const asio::error_code &ec)
     return;
   }
 
+  // used version of Boost.DNS library can hangup; this is a workaround (kostyl)
+  // upgrading to latest Boost.DNS is something complicated due to heavily changed API
+  int st = proto_state_;
+  if (st == STATE_BACK_RESOLVE || st == STATE_BL_CHECK || st == STATE_WL_CHECK) {
+    log(r::Log::pstrf(r::log::err,
+                      "%s[%s] ERROR: DNS timeout; proto_state=%s",
+                      m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str(),
+                      remote_address().to_string().c_str(),
+                      get_proto_state_name(st)));
+    switch (st) {
+    case STATE_BACK_RESOLVE:
+      try {
+        m_resolver.cancel();
+      }
+      catch (...) {}
+      // handle_back_resolve() should not fail on asio::error::timed_out or use dns::resolver::iterator param
+      io_service_.post(strand_.wrap(bind(&smtp_connection::handle_back_resolve,
+                                         shared_from_this(),
+                                         asio::error_code(asio::error::timed_out, asio::system_category()),
+                                         dns::resolver::iterator())));
+      return;
+    case STATE_BL_CHECK:
+      // on stop(), handle_dnsbl_check() will not be called back
+      if (m_dnsbl_check) {
+        m_dnsbl_check->stop();
+        m_dnsbl_check.reset();
+      }
+      io_service_.post(strand_.wrap(bind(&smtp_connection::handle_dnsbl_check,
+                                         shared_from_this())));
+      return;
+    case STATE_WL_CHECK:
+      // on stop(), handle_dnswl_check() will not be called back
+      if (m_dnswl_check) {
+        m_dnswl_check->stop();
+        m_dnswl_check.reset();
+      }
+      io_service_.post(strand_.wrap(bind(&smtp_connection::handle_dnswl_check,
+                                         shared_from_this())));
+      return;
+    default:
+      break;
+    }
+  }
+  
   asio::error_code unused_ec;
   m_tarpit_timer.cancel(unused_ec);
   
@@ -1584,37 +1649,6 @@ void smtp_connection::handle_timer(const asio::error_code &ec)
   std::ostream response_stream(&m_response);
   response_stream << "421 4.4.2 " << asio::ip::host_name() << " Error: timeout exceeded\r\n";
 
-  if (proto_state_ == STATE_BLAST_FILE) {
-    log(r::Log::pstrf(r::log::debug,
-                      "timeout after DATA (%zu bytes) from %s[%s]",
-                      buffers.size(),
-                      m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str(),
-                      remote_address().to_string().c_str()));
-  }
-  else {
-    const char *state_desc = "";
-    switch (proto_state_) {
-    case STATE_START:
-      state_desc = "START";
-      break;
-    case STATE_AFTER_MAIL:
-      state_desc = "MAIL FROM";
-      break;
-    case STATE_RCPT_OK:
-      state_desc = "RCPT TO";
-      break;
-    case STATE_HELLO:
-    default:
-      state_desc = "HELO";
-      break;
-    }
-    log(r::Log::pstrf(r::log::debug,
-                      "timeout after %s from %s[%s]",
-                      state_desc,
-                      m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str(),
-                      remote_address().to_string().c_str()));
-  }
-
   log(r::Log::pstrf(r::log::notice,
                     "%s[%s] REJECT: timeout; from=<%s> tarpit=%d",
                     m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str(),
@@ -1630,8 +1664,8 @@ void smtp_connection::handle_timer(const asio::error_code &ec)
 
 void smtp_connection::restart_timeout()
 {
-  m_timer.expires_from_now(boost::posix_time::seconds(m_timer_value));
-  m_timer.async_wait(strand_.wrap(boost::bind(&smtp_connection::handle_timer,
+  timer_.expires_from_now(boost::posix_time::seconds(timer_value_));
+  timer_.async_wait(strand_.wrap(boost::bind(&smtp_connection::handle_timer,
                                               shared_from_this(), asio::placeholders::error)));
 }
 
@@ -1649,6 +1683,14 @@ const char * smtp_connection::get_proto_state_name(int st)
   switch (st) {
   case STATE_START:
     return "START";
+  case STATE_BACK_RESOLVE:
+    return "BACK_RESOLVE";
+  case STATE_BL_CHECK:
+    return "BL_CHECK";
+  case STATE_WL_CHECK:
+    return "WL_CHECK";
+  case STATE_START_PROTO:
+    return "START_PROTO";
   case STATE_HELLO:
     return "HELLO";
   case STATE_AFTER_MAIL:

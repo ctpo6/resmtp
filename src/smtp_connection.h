@@ -86,6 +86,10 @@ private:
   enum proto_state_t
   {
     STATE_START = 0,
+    STATE_BACK_RESOLVE,
+    STATE_BL_CHECK,
+    STATE_WL_CHECK,
+    STATE_START_PROTO,
     STATE_HELLO,
     STATE_AFTER_MAIL,
     STATE_RCPT_OK,
@@ -184,8 +188,8 @@ private:
   std::time_t ts_start_;
   
   // timers
-  uint32_t m_timer_value = 0;
-  asio::deadline_timer m_timer;
+  uint32_t timer_value_ = 0;
+  asio::deadline_timer timer_;
   asio::deadline_timer m_tarpit_timer;
   
   y::net::dns::resolver m_resolver;

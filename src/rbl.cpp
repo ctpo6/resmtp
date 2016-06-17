@@ -57,29 +57,34 @@ void rbl_check::start_resolve(const asio::ip::address_v4 &address,
                     asio::placeholders::iterator));
 }
 
-
 void rbl_check::handle_resolve(const asio::error_code &ec,
                                dns::resolver::iterator it)
 {
-    if (!ec) {
-        if (m_complete) {
-            m_message = str(boost::format("%1% (%2%)")
-                % *m_current_source
-                % boost::dynamic_pointer_cast<dns::a_resource>(*it)->address().to_string());
-            m_resolver.get_io_service().post(m_complete);
-            m_complete = nullptr;
-        }
-    } else {
-        if (++m_current_source == m_source_list.end()) {
-            if (m_complete) {
-                m_message.clear();
-                m_resolver.get_io_service().post(m_complete);
-                m_complete = nullptr;
-            }
-        } else {
-            start_resolve(m_address, *m_current_source);
-        }
+  if (ec == asio::error::operation_aborted) {
+    return;
+  }
+
+  if (!ec) {
+    if (m_complete) {
+      m_message = str(boost::format("%1% (%2%)")
+                      % *m_current_source
+                      % boost::dynamic_pointer_cast<dns::a_resource>(*it)->address().to_string());
+      m_resolver.get_io_service().post(m_complete);
+      m_complete = nullptr;
     }
+  }
+  else {
+    if (++m_current_source == m_source_list.end()) {
+      if (m_complete) {
+        m_message.clear();
+        m_resolver.get_io_service().post(m_complete);
+        m_complete = nullptr;
+      }
+    }
+    else {
+      start_resolve(m_address, *m_current_source);
+    }
+  }
 }
 
 
