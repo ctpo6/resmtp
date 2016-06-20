@@ -200,9 +200,17 @@ private:
   std::atomic<int> debug_state_;  // more precise than proto_state_, doesn't control flow
 
   std::unique_ptr<envelope> m_envelope;
-
+  
   //----------------------------------------------------------------------------
   
+  // guard flags, to make sure that corresponding methods are called only once;
+  // under some circumstances, method on_connection_tarpitted() and, possibly
+  // on_connection_closed(), were called more than once; I hope it is fixed now,
+  // but if it will happen again (see logs), more debugging will be required
+  bool on_connection_called_ = false;
+  bool on_connection_tarpitted_called_ = false;
+  bool on_connection_closed_called_ = false;
+
   smtp_client_ptr m_smtp_client;
 
   rbl_client_ptr m_dnsbl_check;
@@ -250,6 +258,10 @@ private:
 #ifdef RESMTP_FTR_SSL_RENEGOTIATION    
   bool ssl_renegotiated_ = false;
 #endif    
+
+  void on_connection();
+  void on_connection_tarpitted();
+  void on_connection_closed();
 
   void handle_back_resolve(const asio::error_code &ec,
                            y::net::dns::resolver::iterator it);
@@ -303,9 +315,6 @@ private:
   // if there is something in the read buffer, it indicates that the client
   // isn't RFC compliant
   bool check_socket_read_buffer_is_empty();
-
-  void on_connection_tarpitted();
-  void on_connection_close();
 
   void log_spamhaus(const string &client_host_address,
                     const string &helo,

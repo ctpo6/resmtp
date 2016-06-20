@@ -170,15 +170,14 @@ void smtp_connection::stop(bool from_dtor)
     m_smtp_client.reset();
   }
 
-  on_connection_close();
+  on_connection_closed();
 }
 
 void smtp_connection::start(bool force_ssl, string start_error_msg)
 {
   ts_start_ = std::time(nullptr);
-  
-  // increment active connections count
-  g::mon().on_conn();
+
+  on_connection();
 
   m_force_ssl = force_ssl;
   start_error_msg_ = std::move(start_error_msg);
@@ -420,20 +419,42 @@ void smtp_connection::start_proto()
   }
 }
 
+void smtp_connection::on_connection()
+{
+  if (on_connection_called_) {
+    log(r::log::err, "ERROR: on_connection() called more than once");
+  }
+  else {
+    on_connection_called_ = true;
+    g::mon().on_conn();
+  }
+}
 
 void smtp_connection::on_connection_tarpitted()
 {
+  if (on_connection_tarpitted_called_) {
+    log(r::log::err, "ERROR: on_connection_tarpitted() called more than once");
+  }
+  else {
+    on_connection_tarpitted_called_ = true;
     g::mon().on_conn_tarpitted();
     tarpit = true;
+  }
 }
 
-void smtp_connection::on_connection_close()
+void smtp_connection::on_connection_closed()
 {
-  g::mon().on_conn_closed(close_status, tarpit);
-  log(r::Log::pstrf(r::log::info,
-                    "**** DISCONNECT status=%s tarpit=%d",
-                    r::monitor::get_conn_close_status_name(close_status),
-                    tarpit));
+  if (on_connection_closed_called_) {
+    log(r::log::err, "ERROR: on_connection_closed() called more than once");
+  }
+  else {
+    on_connection_closed_called_ = true;
+    g::mon().on_conn_closed(close_status, tarpit);
+    log(r::Log::pstrf(r::log::info,
+                      "**** DISCONNECT status=%s tarpit=%d",
+                      r::monitor::get_conn_close_status_name(close_status),
+                      tarpit));
+  }
 }
 
 
