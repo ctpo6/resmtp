@@ -363,6 +363,7 @@ void smtp_connection::handle_dnswl_check()
 
 void smtp_connection::start_proto()
 {
+  set_proto_state(STATE_START_PROTO);
   debug_state_ = DEBUG_STATE_PROTO;
   
   // protect against very long SSL handshake

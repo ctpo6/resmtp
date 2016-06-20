@@ -1,3 +1,10 @@
+resmtp (0.9.26) unstable; urgency=low
+
+  * Fix bug in processing of client connection timeout due session proto state
+    wasn't correctly set
+
+ -- Yuri Epstein <yuri.epstein@gmail.com>  Mon, 20 Jun 2016 12:08:00 +0300
+
 resmtp (0.9.25) unstable; urgency=low
 
   * Remove feature of closing connection if client sent data before receiving
