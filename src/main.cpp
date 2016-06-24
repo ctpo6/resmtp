@@ -136,7 +136,7 @@ int main(int argc, char* argv[])
     }
   }
   catch (const std::exception &e) {
-    log_err(r::log::alert,
+    log_err(r::log::err,
             util::strf("config error (%s): %s", g::cfg().config_file_.c_str(), e.what()),
             true);
     return 1;
@@ -212,7 +212,7 @@ int main(int argc, char* argv[])
 
     if (!g::pid_file().create(g::cfg().m_pid_file)) {
       log_err(r::Log::pstrf(r::log::err,
-                            "can't create PID file: %s",
+                            "ERROR: can't create PID file: %s",
                             g::cfg().m_pid_file.c_str()),
               !daemonized);
       // continue execution
@@ -239,13 +239,12 @@ int main(int argc, char* argv[])
       }
 
       log_err(r::Log::pstrf(r::log::notice,
-                            "received signal: %d, exiting",
+                            "received signal: %d, stopping server",
                             sig),
               !daemonized);
       break;
     }
 
-    log_err(r::log::notice, "stop server: started", !daemonized);
     time_t t0 = std::time(nullptr);
 #if 0
     // TODO
@@ -268,7 +267,7 @@ int main(int argc, char* argv[])
       // line;
       // SIGINT has the same problem too
       log_err(r::Log::pstrf(r::log::notice,
-                            "stop server: finished in %u seconds",
+                            "server stopped in %u seconds",
                             static_cast<unsigned>(std::time(nullptr) - t0)),
               !daemonized);
   }

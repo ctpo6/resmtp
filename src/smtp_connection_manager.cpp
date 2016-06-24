@@ -43,14 +43,14 @@ void smtp_connection_manager::start(shared_ptr<smtp_connection> conn,
     {
       boost::mutex::scoped_lock lock(m_mutex);
 
+      // non-empty msg will signal session to finish right after establishing
       if (max_sessions &&
           connections.size() >= max_sessions) {
-        msg = "421 4.7.0 Too many connections\r\n";
+        msg = "421 4.7.0 Too many connections";
       }
       else if(max_sessions_per_ip &&
               get_ip_count(conn->remote_address()) >= max_sessions_per_ip) {
-        msg = str(boost::format("421 4.7.0 Too many connections from %1%\r\n")
-                  % conn->remote_address().to_string());
+        msg = "421 4.7.0 Too many connections from IP";
       }
 
       ins_it = connections.insert(conn).first;
@@ -63,7 +63,8 @@ void smtp_connection_manager::start(shared_ptr<smtp_connection> conn,
     fail = true;
   }
   
-  if (fail || conn->remote_address().is_unspecified()) {
+  if (fail ||
+      conn->remote_address().is_unspecified() /* means that client closed connection */) {
     {
       boost::mutex::scoped_lock lock(m_mutex);
       if (ins_it != connections.end()) {

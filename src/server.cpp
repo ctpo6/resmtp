@@ -370,55 +370,55 @@ void server::handle_accept(acceptor_t *acceptor,
                            bool force_ssl,
                            const asio::error_code &ec)
 {
-    if (ec == asio::error::operation_aborted) {
-        return;
+  if (ec == asio::error::operation_aborted) {
+    return;
+  }
+
+  boost::mutex::scoped_lock lock(mutex_);
+
+  if (!ec) {
+    try {
+      // if remote point didn't close the socket right after connected
+      if (!conn->remote_address().is_unspecified()) {
+        m_connection_manager.start(conn, force_ssl);
+      }
+    }
+    catch (const std::exception &e) {
+      g::log().msg(Log::pstrf(log::notice,
+                              "ERROR: start() exception: %s",
+                              e.what()));
     }
 
-    boost::mutex::scoped_lock lock(mutex_);
-    
-    if (!ec) {
-        try {
-          // if remote point didn't close the socket right after connected
-          if (!conn->remote_address().is_unspecified()) {
-            m_connection_manager.start(conn, force_ssl);
-          }
-        }
-        catch (const std::exception &e) {
-          g::log().msg(Log::pstrf(log::notice,
-                                  "ERROR: start() exception: %s",
-                                  e.what()));
-        }
-        
-        try {
-          conn.reset(new smtp_connection(m_io_service,
-                                         m_connection_manager,
-                                         backend_mgr,
-                                         m_ssl_context));
-        }
-        catch (const std::exception &e) {
-          // most likely resolver object failed
-          g::log().msg(Log::pstrf(log::crit,
-                                  "ERROR: smtp_connection() exception: %s",
-                                  e.what()));
-          raise(SIGTERM);   // stop the program
-          return;
-        }
+    try {
+      conn.reset(new smtp_connection(m_io_service,
+                                     m_connection_manager,
+                                     backend_mgr,
+                                     m_ssl_context));
     }
-    else {
-        if (ec != asio::error::not_connected) {
-            g::log().msg(Log::pstrf(log::crit,
-                                    "ERROR: accept failed: %s",
-                                    ec.message().c_str()));
-        }
+    catch (const std::exception &e) {
+      // most likely resolver object failed
+      g::log().msg(Log::pstrf(log::alert,
+                              "ERROR: smtp_connection() exception: %s",
+                              e.what()));
+      raise(SIGTERM); // stop the program
+      return;
     }
+  }
+  else {
+    if (ec != asio::error::not_connected) {
+      g::log().msg(Log::pstrf(log::err,
+                              "ERROR: accept failed: %s",
+                              ec.message().c_str()));
+    }
+  }
 
-    acceptor->async_accept(conn->socket(),
-                           boost::bind(&server::handle_accept,
-                                       this,
-                                       acceptor,
-                                       conn,
-                                       force_ssl,
-                                       asio::placeholders::error));
+  acceptor->async_accept(conn->socket(),
+                         boost::bind(&server::handle_accept,
+                                     this,
+                                     acceptor,
+                                     conn,
+                                     force_ssl,
+                                     asio::placeholders::error));
 }
 
 }

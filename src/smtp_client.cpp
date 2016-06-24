@@ -246,7 +246,7 @@ void smtp_client::handle_resolve(const asio::error_code &ec,
                                      ++it)));
     } else {
         if (ec != asio::error::operation_aborted) {
-            log(r::Log::pstrf(r::log::crit,
+            log(r::Log::pstrf(r::log::err,
                               "ERROR: failed to resolve backend host %s",
                               backend_host.host_name.c_str()));
 
@@ -266,7 +266,7 @@ void smtp_client::handle_simple_connect(const asio::error_code &ec)
   }
   else {
     if (ec != asio::error::operation_aborted) {
-      log(r::Log::pstrf(r::log::crit,
+      log(r::Log::pstrf(r::log::err,
                         "ERROR: failed to connect to %s[%s]:%u",
                         backend_host.host_name.c_str(),
                         backend_host_ip.c_str(),
@@ -292,7 +292,7 @@ void smtp_client::handle_connect(const asio::error_code &ec,
     return;
   }
   else if (it != dns::resolver::iterator()) { // if not last address
-    log(r::Log::pstrf(r::log::crit,
+    log(r::Log::pstrf(r::log::err,
                       "ERROR: failed to connect to %s[%s]:%u",
                       backend_host.host_name.c_str(),
                       backend_host_ip.c_str(),
@@ -317,7 +317,7 @@ void smtp_client::handle_connect(const asio::error_code &ec,
   }
 
   // all IP adresses of the host were tried out
-  log(r::Log::pstrf(r::log::alert,
+  log(r::Log::pstrf(r::log::err,
                     "ERROR: failed to connect to all IP adresses of backend host %s",
                     backend_host.host_name.c_str()));
 
@@ -629,24 +629,23 @@ void smtp_client::report_rcpt(const string &remote_answer)
     for (const envelope::rcpt &rcpt : m_envelope->m_rcpt_list) {
         if (rcpt.m_delivery_status == check::CHK_ACCEPT) {
             log(r::Log::pstrf(r::log::notice,
-                              "%s[%s] OK: tarpit=%d helo=%s from=<%s> to=<%s> relay=%s",
+                              "%s[%s] STATUS: OK; helo=%s from=<%s> to=<%s> tarpit=%d",
                               m_data.m_remote_host.empty() ? "[UNAVAILABLE]" : m_data.m_remote_host.c_str(),
                               m_data.m_remote_ip.c_str(),
-                              m_data.tarpit,
                               m_data.m_helo_host.c_str(),
                               m_envelope->m_sender.c_str(),
                               rcpt.m_name.c_str(),
-                              backend_host.host_name.c_str()));
+                              m_data.tarpit));
         }
         else {
             log(r::Log::pstrf(r::log::notice,
-                              "%s[%s] FAIL: tarpit=%d helo=%s from=<%s> to=<%s> relay=%s (%s)",
+                              "%s[%s] STATUS: FAIL; helo=%s from=<%s> to=<%s> tarpit=%d backend=%s answer=%s",
                               m_data.m_remote_host.empty() ? "[UNAVAILABLE]" : m_data.m_remote_host.c_str(),
                               m_data.m_remote_ip.c_str(),
-                              m_data.tarpit,
                               m_data.m_helo_host.c_str(),
                               m_envelope->m_sender.c_str(),
                               rcpt.m_name.c_str(),
+                              m_data.tarpit,
                               backend_host.host_name.c_str(),
                               util::str_cleanup_crlf(remote_answer).c_str()));
         }
@@ -712,7 +711,7 @@ void smtp_client::fault_all_backends()
 
     m_proto_state = proto_state_t::error;
 
-    log(r::log::alert, "ERROR: all backend hosts are unavailble");
+    log(r::log::crit, "ERROR: all backend hosts are unavailable");
 
     m_data.m_result = check::CHK_TEMPFAIL;
 

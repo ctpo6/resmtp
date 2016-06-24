@@ -48,7 +48,7 @@ string trim(const string &s)
     if (s.empty()) {
         return s;
     }
-    string::size_type begin = s.find_first_not_of(" \t\n");
+    string::size_type begin = s.find_first_not_of(" \t\r\n");
     if (begin == string::npos) {
         begin = 0;
     }

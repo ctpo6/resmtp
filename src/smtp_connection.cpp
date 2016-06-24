@@ -139,7 +139,7 @@ void smtp_connection::stop(bool from_dtor)
   }
   
   if (from_dtor) {
-    log(r::log::err,
+    log(r::log::warning,
         "ERROR: smtp_connection::stop() wasn't called before object destruction");
   }
   
@@ -396,13 +396,14 @@ void smtp_connection::start_proto()
     log_spamhaus(remote_address().to_string(),
                  m_helo_host,
                  string());
+    
     log(r::Log::pstrf(r::log::notice,
-                      "%s[%s] REJECT: %s",
+                      "%s[%s] STATUS: REJECT; answer=%s",
                       m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str(),
                       remote_address().to_string().c_str(),
                       start_error_msg_.c_str()));
     
-    response_stream << start_error_msg_;
+    response_stream << start_error_msg_ << "\r\n";
 
     if (m_force_ssl) {
       ssl_state_ = ssl_hand_shake;
@@ -422,7 +423,7 @@ void smtp_connection::start_proto()
 void smtp_connection::on_connection()
 {
   if (on_connection_called_) {
-    log(r::log::err, "ERROR: on_connection() called more than once");
+    log(r::log::warning, "ERROR: on_connection() called more than once");
   }
   else {
     on_connection_called_ = true;
@@ -433,7 +434,7 @@ void smtp_connection::on_connection()
 void smtp_connection::on_connection_tarpitted()
 {
   if (on_connection_tarpitted_called_) {
-    log(r::log::err, "ERROR: on_connection_tarpitted() called more than once");
+    log(r::log::warning, "ERROR: on_connection_tarpitted() called more than once");
   }
   else {
     on_connection_tarpitted_called_ = true;
@@ -445,7 +446,7 @@ void smtp_connection::on_connection_tarpitted()
 void smtp_connection::on_connection_closed()
 {
   if (on_connection_closed_called_) {
-    log(r::log::err, "ERROR: on_connection_closed() called more than once");
+    log(r::log::warning, "ERROR: on_connection_closed() called more than once");
   }
   else {
     on_connection_closed_called_ = true;
@@ -514,7 +515,7 @@ void smtp_connection::start_read()
       // wait for check to complete
       
       // it's not clear if it really happens
-      log(r::log::crit, "ERROR: proto_state_ == STATE_CHECK_DATA");
+      log(r::log::warning, "ERROR: proto_state_ == STATE_CHECK_DATA");
       
       asio::error_code ec;
       timer_.cancel(ec);               
@@ -783,7 +784,7 @@ void smtp_connection::handle_read(const asio::error_code &ec,
                      m_remote_host_name);
 
         log(r::Log::pstrf(r::log::notice,
-                          "%s[%s] REJECT: client closed connection; from=<%s> tarpit=%d",
+                          "%s[%s] STATUS: REJECT; client closed connection; from=<%s> tarpit=%d",
                           m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str(),
                           remote_address().to_string().c_str(),
                           m_envelope ? m_envelope->m_sender.c_str() : "",
@@ -825,9 +826,14 @@ void smtp_connection::start_check_data()
     ++m_error_count;
 
     m_check_data.m_result = check::CHK_REJECT;
-    m_check_data.m_answer = "552 5.3.4 Message is too big;";
+    m_check_data.m_answer = "552 5.3.4 Message is too big";
 
-    log(r::log::warning, "message size limit exceeded");
+    log(r::Log::pstrf(r::log::notice,
+                      "%s[%s] STATUS: REJECT; from=<%s> answer=%s",
+                      m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str(),
+                      remote_address().to_string().c_str(),
+                      m_envelope ? m_envelope->m_sender.c_str() : "",
+                      m_check_data.m_answer.c_str()));
 
     end_check_data();
   }
@@ -1051,7 +1057,7 @@ void smtp_connection::end_check_data()
       response_stream << m_check_data.m_answer;
     }
     else {
-      response_stream << "451 4.7.1 Service unavailable - try again later";
+      response_stream << "451 4.7.1 Service unavailable, try again later";
     }
     break;
   }
@@ -1098,18 +1104,9 @@ void smtp_connection::send_response2(
                                      const asio::error_code &ec,
                                      boost::function<void(const asio::error_code &)> handler)
 {
-  if (ec) { // tarpit timer was canceled
-    // debug log: is it possible to get here anything other than asio::error::operation_aborted ?
-    log(r::Log::pstrf(r::log::notice,
-                      "send_response2() %s ec=%s",
-                      ec.message().c_str(),
-                      get_proto_state_name(proto_state_)));
-    if (ec == asio::error::operation_aborted) { 
-      // tarpit timer can be actually be canceled only from stop()
-      if (proto_state_ == STATE_STOP) {
-        return;
-      }
-    }
+  if (ec == asio::error::operation_aborted) { 
+    // tarpit timer can be actually be canceled only from stop()
+    return;
   }
 
   if (r::Log::isEnabled(r::log::buffers)) {
@@ -1148,11 +1145,19 @@ void smtp_connection::handle_write_request(const asio::error_code &ec)
       restart_timeout(g::cfg().frontend_cmd_timeout);
     }
     
+    // too many SMTP protocol errors due to the client behaviour?
     if (m_error_count > g::cfg().m_hard_error_limit) {
-      log(r::log::crit, "ERROR: too many errors");
+      const char *answer = "421 4.7.0 Too many errors";
+      
+      log(r::Log::pstrf(r::log::notice,
+                        "%s[%s] STATUS: REJECT; from=<%s> answer=%s",
+                        m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str(),
+                        remote_address().to_string().c_str(),
+                        m_envelope ? m_envelope->m_sender.c_str() : "",
+                        answer));
 
-      std::ostream response_stream(&m_response);
-      response_stream << "421 4.7.0 " << asio::ip::host_name() << " Error: too many errors\r\n";
+      ostream response_stream(&m_response);
+      response_stream << answer << "\r\n";
 
       if (ssl_state_ == ssl_active) {
         asio::async_write(m_ssl_socket,
@@ -1248,7 +1253,7 @@ bool smtp_connection::execute_command(string cmd, std::ostream &os)
         return (func->second)(this, arg, os);
     } else {
         ++m_error_count;
-        os << "502 5.5.2 Syntax error, command unrecognized.\r\n";
+        os << "502 5.5.2 Command unrecognized\r\n";
     }
 
     return true;
@@ -1275,7 +1280,7 @@ bool smtp_connection::smtp_starttls(const string &, std::ostream &response)
         ssl_state_ = ssl_start_hand_shake;
         response << "220 Go ahead\r\n";
     } else {
-        response << "502 5.5.2 Syntax error, command unrecognized.\r\n";
+        response << "502 5.5.2 Command unrecognized\r\n";
     }
     return true;
 }
@@ -1309,7 +1314,7 @@ bool smtp_connection::smtp_helo(const string &cmd, std::ostream &response)
                  m_helo_host,
                  string());
     ++m_error_count;
-    response << "501 5.5.4 HELO requires domain address.\r\n";
+    response << "501 5.5.4 HELO requires domain address\r\n";
     set_proto_state(STATE_START_PROTO);
   }
   return true;
@@ -1343,7 +1348,7 @@ bool smtp_connection::smtp_ehlo(const string &cmd, std::ostream &response)
                      m_helo_host,
                      string());
         ++m_error_count;
-        response << "501 5.5.4 EHLO requires domain address.\r\n";
+        response << "501 5.5.4 EHLO requires domain address\r\n";
         set_proto_state(STATE_START_PROTO);
     }
 
@@ -1381,13 +1386,13 @@ bool smtp_connection::smtp_rcpt(const string &_cmd,
   int st = proto_state_;
     if (st != STATE_AFTER_MAIL && st != STATE_RCPT_OK) {
         ++m_error_count;
-        _response << "503 5.5.4 Bad sequence of commands.\r\n";
+        _response << "503 5.5.4 Bad sequence of commands\r\n";
         return true;
     }
 
     if (strncasecmp(_cmd.c_str(), "to:", 3) != 0) {
         ++m_error_count;
-        _response << "501 5.5.4 Wrong param.\r\n";
+        _response << "501 5.5.4 Wrong param\r\n";
         return true;
     }
 
@@ -1401,7 +1406,7 @@ bool smtp_connection::smtp_rcpt(const string &_cmd,
 
     if (addr.empty()) {
         ++m_error_count;
-        _response << "501 5.1.3 Bad recipient address syntax.\r\n";
+        _response << "501 5.1.3 Bad recipient address syntax\r\n";
         return true;
     }
 
@@ -1414,17 +1419,9 @@ bool smtp_connection::smtp_rcpt(const string &_cmd,
 
     if (std::count_if(addr.begin(), addr.end(), is_invalid) > 0) {
         ++m_error_count;
-        _response << "501 5.1.3 Bad recipient address syntax.\r\n";
+        _response << "501 5.1.3 Bad recipient address syntax\r\n";
         return true;
     }
-
-#if 0 // original NwSMTP code; seems not correct
-    if (addr.find("%") != std::string::npos) {
-        ++m_error_count;
-        _response << "501 5.1.3 Bad recipient address syntax.\r\n";
-        return true;
-    }
-#endif
 
     _response << "250 2.1.5 <" << addr << "> recipient ok\r\n";
     m_envelope->add_recipient(std::move(addr));
@@ -1444,7 +1441,7 @@ bool smtp_connection::smtp_mail(const string &_cmd,
 
     if (proto_state_ == STATE_START_PROTO) {
         ++m_error_count;
-        _response << "503 5.5.4 Good girl is greeting first.\r\n";
+        _response << "503 5.5.4 Good girl is greeting first\r\n";
         return true;
     }
 
@@ -1455,23 +1452,28 @@ bool smtp_connection::smtp_mail(const string &_cmd,
 
     if (std::count_if(addr.begin(), addr.end(), is_invalid) > 0) {
         ++m_error_count;
-        _response << "501 5.1.7 Bad address mailbox syntax.\r\n";
+        _response << "501 5.1.7 Bad mailbox address syntax\r\n";
         return true;
     }
 
     // now we have 'from' address on hands and can reject blacklisted connection
     if (is_blacklisted) {
+      const char *answer = "554 5.7.1 Client host blocked";
+      
         // log bad session for spamhaus
         log_spamhaus(remote_address().to_string(),
                      m_helo_host,
                      string());
+        
         log(r::Log::pstrf(r::log::notice,
-                          "%s[%s] REJECT: blacklisted (%s) from=<%s>",
+                          "%s[%s] STATUS: REJECT; blacklisted (%s) from=<%s> answer=%s",
                           m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str(),
                           remote_address().to_string().c_str(),
                           bl_status_str.c_str(),
-                          addr.c_str()));
-        _response << "554 5.7.1 Client host blocked\r\n";
+                          addr.c_str(),
+                          answer));
+        
+        _response << answer << "\r\n";
         return false;
     }
 
@@ -1479,7 +1481,7 @@ bool smtp_connection::smtp_mail(const string &_cmd,
         uint32_t msize = atoi(pmap["size"].c_str());
         if (msize > g::cfg().m_message_size_limit) {
             ++m_error_count;
-            _response << "552 5.3.4 Message size exceeds fixed limit.\r\n";
+            _response << "552 5.3.4 Message is too big\r\n";
             return true;
         }
     }
@@ -1506,13 +1508,13 @@ bool smtp_connection::smtp_data(const string &_cmd, std::ostream &_response)
 {
     if (proto_state_ != STATE_RCPT_OK) {
         ++m_error_count;
-        _response << "503 5.5.4 Bad sequence of commands.\r\n";
+        _response << "503 5.5.4 Bad sequence of commands\r\n";
         return true;
     }
 
     if (m_envelope->m_rcpt_list.empty()) {
         m_error_count++;
-        _response << "503 5.5.4 No correct recipients.\r\n";
+        _response << "503 5.5.4 No correct recipients\r\n";
         return true;
     }
 
@@ -1605,21 +1607,27 @@ void smtp_connection::handle_timer(const asio::error_code &ec)
 
   // SSL handshake was too long
   if (ssl_state_ == ssl_hand_shake) {
-    log(r::log::notice, "ERROR: SSL handshake timeout expired");
+    log(r::Log::pstrf(r::log::notice,
+                      "%s[%s] STATUS: REJECT; SSL handshake timeout",
+                      m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str(),
+                      remote_address().to_string().c_str()));
     ssl_state_ = ssl_none;
     m_manager.stop(shared_from_this());
     return;
   }
 
-  std::ostream response_stream(&m_response);
-  response_stream << "421 4.4.2 " << asio::ip::host_name() << " Error: timeout exceeded\r\n";
-
+  const char *answer = "421 4.4.2 Timeout exceeded";
+  
   log(r::Log::pstrf(r::log::notice,
-                    "%s[%s] REJECT: timeout; from=<%s> tarpit=%d",
+                    "%s[%s] STATUS: REJECT; from=<%s> tarpit=%d answer=%s",
                     m_remote_host_name.empty() ? "[UNAVAILABLE]" : m_remote_host_name.c_str(),
                     remote_address().to_string().c_str(),
                     m_envelope ? m_envelope->m_sender.c_str() : "",
-                    tarpit));
+                    tarpit,
+                    answer));
+
+  ostream response_stream(&m_response);
+  response_stream << answer << "\r\n";
 
   send_response(boost::bind(&smtp_connection::handle_last_write_request,
                             shared_from_this(),

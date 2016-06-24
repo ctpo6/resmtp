@@ -82,14 +82,14 @@ struct monitor::impl_conn_t
         lock_guard<mutex> lock(mtx);
         
         if (!c.n_conn_fast) {
-          PLOG(log::crit, "ERROR: !c.n_conn_fast");
+          PLOG(log::warning, "ERROR: !c.n_conn_fast");
         }
         else {
           --c.n_conn_fast;
         }
         
         if (!c.n_active_conn_fast) {
-          PLOG(log::crit, "ERROR: !c.n_active_conn_fast");
+          PLOG(log::warning, "ERROR: !c.n_active_conn_fast");
         }
         else {
           --c.n_active_conn_fast;
@@ -106,14 +106,14 @@ struct monitor::impl_conn_t
 
         if (tarpit) {
             if (!c.n_active_conn_tarpit) {
-                PLOG(log::crit, "ERROR: !c.n_active_conn_tarpit");
+                PLOG(log::warning, "ERROR: !c.n_active_conn_tarpit");
             } else {
                 --c.n_active_conn_tarpit;
             }
         } 
         else {
             if (!c.n_active_conn_fast) {
-                PLOG(log::crit, "ERROR: !c.n_active_conn_fast");
+                PLOG(log::warning, "ERROR: !c.n_active_conn_fast");
             } else {
                 --c.n_active_conn_fast;
             }
@@ -345,7 +345,7 @@ struct monitor::impl_backend_t
         lock_guard<mutex> lock(mtx.at(idx));
         auto &b = backend.at(idx);
         if (!b.n_active_conn) {
-            PLOG(log::crit, "ERROR: !b.n_active_conn idx=%u", idx);
+            PLOG(log::warning, "ERROR: !b.n_active_conn idx=%u", idx);
         } else {
             --b.n_active_conn;
         }

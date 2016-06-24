@@ -17,12 +17,12 @@ void LogSpamhaus::init(const char *fname, uid_t owner, gid_t group)
 
     ofs.open(fname, ios_base::out | ios_base::app);
     if (!ofs) {
-        throw std::runtime_error("can't open spamhaus log file");
+        throw std::runtime_error("ERROR: can't open spamhaus log file");
     }
 
     // chown the file to have an ability to recreate it later (on SIGHUP)
     if (chown(fname, owner, group) != 0) {
-        throw std::runtime_error("can't chown spamhaus log file");
+        throw std::runtime_error("ERROR: can't chown spamhaus log file");
     }
 
     file_name = fname;
